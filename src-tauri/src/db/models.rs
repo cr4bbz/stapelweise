@@ -27,6 +27,7 @@ pub struct Review {
     pub interval: u32,
     pub ease_factor: f64,
     pub repetitions: u32,
+    pub prev_state: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

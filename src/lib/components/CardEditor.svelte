@@ -4,6 +4,8 @@
   import EmptyState from "./EmptyState.svelte";
   import ErrorBanner from "./ErrorBanner.svelte";
   import StatsDashboard from "./StatsDashboard.svelte";
+  import BrowseCards from "./BrowseCards.svelte";
+  import ConfirmDialog from "./ConfirmDialog.svelte";
   import { renderMath, hasMath } from "$lib/math";
 
   let { deck, onClose = () => {}, onStudy = () => {} } = $props<{
@@ -21,6 +23,8 @@
   let error = $state<string | null>(null);
   let dueCount = $state<number | null>(null);
   let showStats = $state(false);
+  let showBrowse = $state(false);
+  let deleteConfirmCardId = $state<string | null>(null);
 
   async function loadCards() {
     loading = true;
@@ -140,6 +144,8 @@
 
 {#if showStats}
   <StatsDashboard deckId={deck.id} deckName={deck.name} onClose={() => (showStats = false)} />
+{:else if showBrowse}
+  <BrowseCards cards={cards} deckName={deck.name} onClose={() => (showBrowse = false)} />
 {:else}
 <div class="flex flex-col h-full">
   <!-- Header -->
@@ -171,6 +177,17 @@
           <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zm6-4a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zm6-3a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
         </svg>
       </button>
+      {#if cards.length > 0}
+        <button
+          onclick={() => (showBrowse = true)}
+          class="p-2 rounded-lg hover:bg-white/30 dark:hover:bg-white/10 text-secondary transition-colors"
+          title="Durchblättern"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+            <path d="M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 015.5 14c1.669 0 3.218.51 4.5 1.385A7.962 7.962 0 0114.5 14c1.255 0 2.443.29 3.5.804v-10A7.968 7.968 0 0014.5 4c-1.255 0-2.443.29-3.5.804V12a1 1 0 11-2 0V4.804z" />
+          </svg>
+        </button>
+      {/if}
       {#if cards.length > 0}
         <button
           onclick={onStudy}
@@ -331,7 +348,7 @@
               <button
                 class="p-1.5 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 text-accent-incorrect transition-colors"
                 title="Karte löschen"
-                onclick={() => handleDelete(card.id)}
+                onclick={() => (deleteConfirmCardId = card.id)}
               >
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
                   <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
@@ -372,4 +389,16 @@
     </div>
   {/if}
 </div>
+{/if}
+
+{#if deleteConfirmCardId}
+  <ConfirmDialog
+    message="Diese Karte wird dauerhaft gelöscht."
+    confirmLabel="Löschen"
+    onConfirm={() => {
+      handleDelete(deleteConfirmCardId!);
+      deleteConfirmCardId = null;
+    }}
+    onCancel={() => (deleteConfirmCardId = null)}
+  />
 {/if}

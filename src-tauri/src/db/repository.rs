@@ -262,7 +262,7 @@ impl Repository {
 
     pub fn insert_review(&self, review: &Review) -> Result<()> {
         self.conn.execute(
-            "INSERT INTO reviews (id, card_id, quality, reviewed_at, interval, ease_factor, repetitions) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            "INSERT INTO reviews (id, card_id, quality, reviewed_at, interval, ease_factor, repetitions, prev_state) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
             params![
                 review.id,
                 review.card_id,
@@ -271,9 +271,78 @@ impl Repository {
                 review.interval,
                 review.ease_factor,
                 review.repetitions,
+                review.prev_state,
             ],
         )?;
         Ok(())
+    }
+
+    /// Get the most recent review for undo purposes.
+    pub fn get_last_review(&self) -> Result<Option<Review>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, card_id, quality, reviewed_at, interval, ease_factor, repetitions, prev_state
+             FROM reviews
+             ORDER BY reviewed_at DESC
+             LIMIT 1",
+        )?;
+        let mut rows = stmt.query_map([], |row| {
+            Ok(Review {
+                id: row.get(0)?,
+                card_id: row.get(1)?,
+                quality: row.get(2)?,
+                reviewed_at: row.get(3)?,
+                interval: row.get(4)?,
+                ease_factor: row.get(5)?,
+                repetitions: row.get(6)?,
+                prev_state: row.get(7)?,
+            })
+        })?;
+        match rows.next() {
+            Some(r) => Ok(Some(r?)),
+            None => Ok(None),
+        }
+    }
+
+    /// Undo the last review: restore previous card state and delete the review.
+    /// Returns None if there is no review to undo or if the previous state is missing.
+    pub fn undo_last_review(&self) -> Result<Option<(Card, CardState)>> {
+        let review = match self.get_last_review()? {
+            Some(r) => r,
+            None => return Ok(None),
+        };
+
+        // Restore previous state from saved JSON — only then delete the review
+        let prev_state: CardState = match review.prev_state {
+            Some(ref json) => match serde_json::from_str(json) {
+                Ok(s) => s,
+                Err(_) => return Ok(None),
+            },
+            None => return Ok(None),
+        };
+
+        self.conn.execute(
+            "UPDATE card_state SET interval = ?1, ease_factor = ?2, repetitions = ?3, next_review = ?4, total_reviews = ?5, correct_streak = ?6, last_review = ?7 WHERE card_id = ?8",
+            params![
+                prev_state.interval,
+                prev_state.ease_factor,
+                prev_state.repetitions,
+                prev_state.next_review,
+                prev_state.total_reviews,
+                prev_state.correct_streak,
+                prev_state.last_review,
+                prev_state.card_id,
+            ],
+        )?;
+
+        // Delete the review only after successful state restore
+        self.conn
+            .execute("DELETE FROM reviews WHERE id = ?1", params![review.id])?;
+
+        // Return card + restored state
+        match (self.get_card(&review.card_id)?, self.get_card_state(&review.card_id)?) {
+            (Some(card), Some(state)) => Ok(Some((card, state))),
+            _ => Ok(None),
+        }
     }
 
     // ── Study Queries ──────────────────────────────────

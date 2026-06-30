@@ -132,6 +132,9 @@ pub fn submit_review(
 
     let now_str = now.format("%Y-%m-%dT%H:%M:%S").to_string();
 
+    // Save previous state for undo
+    let prev_state_json = serde_json::to_string(&current_state).ok();
+
     // Create audit log entry
     let review = Review {
         id: Uuid::new_v4().to_string(),
@@ -141,6 +144,7 @@ pub fn submit_review(
         interval: next.interval,
         ease_factor: next.ease_factor,
         repetitions: next.repetitions,
+        prev_state: prev_state_json,
     };
     db.repo.insert_review(&review)?;
 
@@ -165,4 +169,11 @@ pub fn submit_review(
     db.repo.update_card_state(&updated_state)?;
 
     Ok(updated_state)
+}
+
+#[tauri::command(rename_all = "camelCase")]
+pub fn undo_last_review(state: State<DbState>) -> Result<Option<DueCard>, CommandError> {
+    let db = state.lock().map_err(|e| CommandError(format!("Lock error: {}", e)))?;
+    let restored = db.repo.undo_last_review()?;
+    Ok(restored.map(|(card, state)| DueCard { card, state }))
 }

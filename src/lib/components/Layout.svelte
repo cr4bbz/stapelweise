@@ -1,11 +1,25 @@
 <script lang="ts">
   import ThemeToggle from "./ThemeToggle.svelte";
+  import ShortcutHelp from "./ShortcutHelp.svelte";
   import { theme } from "$lib/stores/theme.svelte";
 
   let { children } = $props();
+  let showShortcutHelp = $state(false);
 
   theme.init();
+
+  function handleGlobalKeydown(e: KeyboardEvent) {
+    if (e.key === "?" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      // Don't trigger when typing in an input/textarea
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
+      e.preventDefault();
+      showShortcutHelp = !showShortcutHelp;
+    }
+  }
 </script>
+
+<svelte:window onkeydown={handleGlobalKeydown} />
 
 <div class="h-screen flex flex-col bg-atmosphere transition-colors">
   <!-- Top bar -->
@@ -31,6 +45,8 @@
   <main class="flex-1 overflow-hidden">
     {@render children()}
   </main>
+
+  <ShortcutHelp visible={showShortcutHelp} onClose={() => (showShortcutHelp = false)} />
 
   <!-- Footer -->
   <footer class="px-6 py-2 text-center text-xs text-secondary border-t border-white/10 glass shadow-[0_-1px_3px_rgba(0,0,0,0.04)]">

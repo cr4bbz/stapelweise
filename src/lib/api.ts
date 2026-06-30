@@ -91,6 +91,10 @@ export async function submitReview(
   return cmd("submit_review", { cardId, quality });
 }
 
+export async function undoLastReview(): Promise<DueCard | null> {
+  return cmd("undo_last_review");
+}
+
 // ── Settings ──────────────────────────────────────────
 
 export async function getSettings(): Promise<AppSettings> {

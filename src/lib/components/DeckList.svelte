@@ -3,6 +3,7 @@
   import { studyStore } from "$lib/stores/study.svelte";
   import EmptyState from "./EmptyState.svelte";
   import ErrorBanner from "./ErrorBanner.svelte";
+  import ConfirmDialog from "./ConfirmDialog.svelte";
   import type { Deck } from "$lib/types";
 
   let {
@@ -20,6 +21,7 @@
   let dueCounts = $state<Record<string, number>>({});
   let totalCounts = $state<Record<string, number>>({});
   let error = $state<string | null>(null);
+  let deleteConfirmDeck = $state<Deck | null>(null);
 
   const store = deckStore;
 
@@ -251,7 +253,7 @@
                 <button
                   class="p-2 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 text-accent-incorrect transition-colors"
                   title="Stapel löschen"
-                  onclick={() => handleDelete(deck)}
+                  onclick={() => (deleteConfirmDeck = deck)}
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
                     <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
@@ -265,3 +267,15 @@
     </div>
   {/if}
 </div>
+
+{#if deleteConfirmDeck}
+  <ConfirmDialog
+    message={'Der Stapel "' + deleteConfirmDeck.name + '" und alle seine Karten werden dauerhaft gelöscht.'}
+    confirmLabel="Stapel löschen"
+    onConfirm={() => {
+      handleDelete(deleteConfirmDeck!);
+      deleteConfirmDeck = null;
+    }}
+    onCancel={() => (deleteConfirmDeck = null)}
+  />
+{/if}

@@ -30,6 +30,13 @@
   });
 
   function handleKeydown(e: KeyboardEvent) {
+    // Undo works even after session ends
+    if (e.key === "z" && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      s.undo();
+      return;
+    }
+
     if (!s.sessionActive) return;
 
     if (e.key === " " || e.key === "Spacebar") {

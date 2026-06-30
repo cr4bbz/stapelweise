@@ -43,13 +43,21 @@ const MIGRATIONS: &[&str] = &[
         key   TEXT PRIMARY KEY,
         value TEXT NOT NULL
     );",
+    // V3: Store previous card state for undo
+    "ALTER TABLE reviews ADD COLUMN prev_state TEXT;",
 ];
 
 pub fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
     conn.execute_batch("PRAGMA foreign_keys = ON;")?;
 
     for migration in MIGRATIONS {
-        conn.execute(migration, [])?;
+        // Ignore duplicate column errors (safe re-run of ALTER TABLE)
+        if let Err(e) = conn.execute(migration, []) {
+            let msg = e.to_string();
+            if !msg.contains("duplicate column name") {
+                return Err(e);
+            }
+        }
     }
 
     Ok(())

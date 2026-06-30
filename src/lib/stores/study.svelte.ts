@@ -99,6 +99,20 @@ export function getStudyStore() {
       ]);
     },
 
+    async undo() {
+      const dueCard = await api.undoLastReview();
+      if (dueCard) {
+        // Re-insert undone card at the current position
+        dueCards = [
+          ...dueCards.slice(0, currentIndex),
+          dueCard,
+          ...dueCards.slice(currentIndex),
+        ];
+        sessionActive = true;
+        isFlipped = false;
+      }
+    },
+
     endSession() {
       reset();
     },
