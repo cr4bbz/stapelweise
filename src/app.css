@@ -1,0 +1,72 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Serif+4:wght@400;600&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --color-bg: #faf9f6;
+    --color-surface: #ffffff;
+    --color-text: #1e3a5f;
+    --color-text-secondary: #64748b;
+    --color-glass: rgba(255, 255, 255, 0.6);
+  }
+
+  .dark {
+    --color-bg: #1a1a2e;
+    --color-surface: #16213e;
+    --color-text: #e0e0e0;
+    --color-text-secondary: #94a3b8;
+    --color-glass: rgba(30, 30, 60, 0.6);
+  }
+
+  html,
+  body {
+    @apply h-full overflow-hidden;
+  }
+
+  body {
+    background-color: var(--color-bg);
+    color: var(--color-text);
+    font-family: "Inter", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+@layer components {
+  .card-flip {
+    perspective: 1000px;
+  }
+
+  .card-flip-inner {
+    transition: transform 0.4s ease-out;
+    transform-style: preserve-3d;
+  }
+
+  .card-flip-inner.flipped {
+    transform: rotateY(180deg);
+  }
+
+  .card-front,
+  .card-back {
+    backface-visibility: hidden;
+  }
+
+  .card-back {
+    transform: rotateY(180deg);
+  }
+
+  .glass {
+    background: var(--color-glass);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
