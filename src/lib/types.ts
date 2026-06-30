@@ -32,6 +32,27 @@ export interface DueCard {
   state: CardState;
 }
 
+export interface DeckStats {
+  total_cards: number;
+  due_cards: number;
+  new_cards: number;
+  learning_cards: number;
+  reviewing_cards: number;
+  mastered_cards: number;
+  avg_ease_factor: number;
+  avg_interval: number;
+  total_reviews_sum: number;
+  reviews_today: number;
+}
+
+export interface DashboardStats {
+  total_cards: number;
+  due_cards: number;
+  reviews_today: number;
+  avg_ease_factor: number;
+  streak_days: number;
+}
+
 export interface AppSettings {
   theme: "light" | "dark" | "auto";
   card_font_family: "serif" | "sans";

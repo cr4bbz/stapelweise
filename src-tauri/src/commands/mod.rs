@@ -2,6 +2,7 @@ pub mod decks;
 pub mod cards;
 pub mod seed;
 pub mod settings;
+pub mod stats;
 
 use std::fmt;
 

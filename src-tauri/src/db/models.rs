@@ -41,6 +41,29 @@ pub struct CardState {
     pub last_review: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct DeckStats {
+    pub total_cards: u32,
+    pub due_cards: u32,
+    pub new_cards: u32,
+    pub learning_cards: u32,
+    pub reviewing_cards: u32,
+    pub mastered_cards: u32,
+    pub avg_ease_factor: f64,
+    pub avg_interval: f64,
+    pub total_reviews_sum: u32,
+    pub reviews_today: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct DashboardStats {
+    pub total_cards: u32,
+    pub due_cards: u32,
+    pub reviews_today: u32,
+    pub avg_ease_factor: f64,
+    pub streak_days: u32,
+}
+
 impl CardState {
     pub fn new(card_id: &str) -> Self {
         Self {

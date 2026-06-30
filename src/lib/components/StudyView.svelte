@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from "svelte";
   import { studyStore } from "$lib/stores/study.svelte";
   import { settingsStore } from "$lib/stores/settings.svelte";
   import FlashCard from "./FlashCard.svelte";
@@ -17,10 +18,13 @@
   const s = studyStore;
 
   $effect(() => {
-    settingsStore.load().then(() => {
-      s.startSession(deckId, settingsStore.current.session_limit).then((hasCards) => {
-        empty = !hasCards;
-        loading = false;
+    loading = true;
+    untrack(() => {
+      settingsStore.load().then(() => {
+        s.startSession(deckId, settingsStore.current.session_limit).then((hasCards) => {
+          empty = !hasCards;
+          loading = false;
+        });
       });
     });
   });

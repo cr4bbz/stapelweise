@@ -1,8 +1,10 @@
+use std::collections::HashSet;
+
 use rusqlite::{params, Connection, Result};
 use uuid::Uuid;
 use chrono::Utc;
 
-use super::models::{Card, CardState, Deck, Review};
+use super::models::{Card, CardState, DashboardStats, Deck, DeckStats, Review};
 
 pub struct Repository {
     conn: Connection,
@@ -370,5 +372,127 @@ impl Repository {
             |row| row.get(0),
         )?;
         Ok(count as u32)
+    }
+
+    // ── Stats ─────────────────────────────────────────
+
+    pub fn get_deck_stats(&self, deck_id: &str, today_start: &str) -> Result<DeckStats> {
+        let agg_result = self.conn.query_row(
+            "SELECT
+                COUNT(*) as total,
+                COALESCE(SUM(CASE WHEN cs.total_reviews = 0 THEN 1 ELSE 0 END), 0) as new_cards,
+                COALESCE(SUM(CASE WHEN cs.total_reviews > 0 AND cs.interval <= 1 THEN 1 ELSE 0 END), 0) as learning,
+                COALESCE(SUM(CASE WHEN cs.total_reviews > 0 AND cs.interval > 1 AND cs.correct_streak < 3 THEN 1 ELSE 0 END), 0) as reviewing,
+                COALESCE(SUM(CASE WHEN cs.total_reviews > 0 AND cs.interval > 1 AND cs.correct_streak >= 3 THEN 1 ELSE 0 END), 0) as mastered,
+                COALESCE(SUM(CASE WHEN cs.next_review <= ?2 THEN 1 ELSE 0 END), 0) as due_cards,
+                COALESCE(AVG(cs.ease_factor), 0.0) as avg_ef,
+                COALESCE(AVG(cs.interval), 0.0) as avg_interval,
+                COALESCE(SUM(cs.total_reviews), 0) as total_reviews_sum
+             FROM cards c
+             JOIN card_state cs ON c.id = cs.card_id
+             WHERE c.deck_id = ?1",
+            params![deck_id, today_start],
+            |row| {
+                Ok((
+                    row.get::<_, i64>(0)? as u32,
+                    row.get::<_, i64>(1)? as u32,
+                    row.get::<_, i64>(2)? as u32,
+                    row.get::<_, i64>(3)? as u32,
+                    row.get::<_, i64>(4)? as u32,
+                    row.get::<_, i64>(5)? as u32,
+                    row.get::<_, f64>(6)?,
+                    row.get::<_, f64>(7)?,
+                    row.get::<_, i64>(8)? as u32,
+                ))
+            },
+        );
+
+        let (total, new_cards, learning, reviewing, mastered, due_cards, avg_ef, avg_interval, total_reviews_sum) = agg_result?;
+
+        let reviews_today: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM reviews r
+             JOIN cards c ON r.card_id = c.id
+             WHERE c.deck_id = ?1 AND r.reviewed_at >= ?2",
+            params![deck_id, today_start],
+            |row| row.get(0),
+        )?;
+
+        Ok(DeckStats {
+            total_cards: total,
+            due_cards,
+            new_cards,
+            learning_cards: learning,
+            reviewing_cards: reviewing,
+            mastered_cards: mastered,
+            avg_ease_factor: avg_ef,
+            avg_interval,
+            total_reviews_sum,
+            reviews_today: reviews_today as u32,
+        })
+    }
+
+    // ── Dashboard ─────────────────────────────────────
+
+    pub fn get_dashboard_stats(&self, today: &str) -> Result<DashboardStats> {
+        let agg = self.conn.query_row(
+            "SELECT
+                COALESCE(COUNT(*), 0),
+                COALESCE(SUM(CASE WHEN cs.next_review <= ?1 THEN 1 ELSE 0 END), 0),
+                COALESCE(AVG(cs.ease_factor), 0.0)
+             FROM cards c
+             JOIN card_state cs ON c.id = cs.card_id",
+            params![today],
+            |row| {
+                Ok((
+                    row.get::<_, i64>(0)? as u32,
+                    row.get::<_, i64>(1)? as u32,
+                    row.get::<_, f64>(2)?,
+                ))
+            },
+        )?;
+
+        let (total_cards, due_cards, avg_ease_factor) = agg;
+
+        let reviews_today: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM reviews WHERE reviewed_at >= ?1",
+            params![today],
+            |row| row.get(0),
+        )?;
+
+        // Compute streak: consecutive days with at least one review going back from today
+        let mut streak = 0u32;
+        let mut stmt = self.conn.prepare(
+            "SELECT DISTINCT substr(reviewed_at, 1, 10) as day
+             FROM reviews
+             ORDER BY day DESC
+             LIMIT 366",
+        )?;
+        let days: HashSet<String> = stmt
+            .query_map([], |row| row.get(0))?
+            .collect::<Result<HashSet<_>>>()?;
+
+        if !days.is_empty() {
+            let today_dt = chrono::NaiveDate::parse_from_str(today, "%Y-%m-%d")
+                .unwrap_or_else(|_| chrono::Utc::now().date_naive());
+            for i in 0i64..366 {
+                let check = today_dt - chrono::Duration::days(i);
+                let check_str = check.format("%Y-%m-%d").to_string();
+                if days.contains(&check_str) {
+                    streak += 1;
+                } else if i == 0 {
+                    continue;
+                } else {
+                    break;
+                }
+            }
+        }
+
+        Ok(DashboardStats {
+            total_cards,
+            due_cards,
+            reviews_today: reviews_today as u32,
+            avg_ease_factor,
+            streak_days: streak,
+        })
     }
 }

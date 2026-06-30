@@ -3,6 +3,8 @@
   import type { Card, CardState, Deck } from "$lib/types";
   import EmptyState from "./EmptyState.svelte";
   import ErrorBanner from "./ErrorBanner.svelte";
+  import StatsDashboard from "./StatsDashboard.svelte";
+  import { renderMath, hasMath } from "$lib/math";
 
   let { deck, onClose = () => {}, onStudy = () => {} } = $props<{
     deck: Deck;
@@ -18,6 +20,7 @@
   let editingCard = $state<Card | null>(null);
   let error = $state<string | null>(null);
   let dueCount = $state<number | null>(null);
+  let showStats = $state(false);
 
   async function loadCards() {
     loading = true;
@@ -113,6 +116,7 @@
 
   function cancelEdit() {
     editingCard = null;
+    showNewCard = false;
     front = "";
     back = "";
   }
@@ -121,7 +125,6 @@
     if (e.key === "Escape") {
       if (editingCard || showNewCard) {
         cancelEdit();
-        showNewCard = false;
       } else {
         onClose();
       }
@@ -135,6 +138,9 @@
 
 <svelte:window onkeydown={handleKeydown} />
 
+{#if showStats}
+  <StatsDashboard deckId={deck.id} deckName={deck.name} onClose={() => (showStats = false)} />
+{:else}
 <div class="flex flex-col h-full">
   <!-- Header -->
   <div class="flex items-center gap-3 p-6 pb-4">
@@ -156,6 +162,15 @@
     {/if}
 
     <div class="ml-auto flex gap-2">
+      <button
+        onclick={() => (showStats = true)}
+        class="p-2 rounded-lg hover:bg-white/30 dark:hover:bg-white/10 text-secondary transition-colors"
+        title="Statistiken"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+          <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zm6-4a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zm6-3a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
+        </svg>
+      </button>
       {#if cards.length > 0}
         <button
           onclick={onStudy}
@@ -188,8 +203,12 @@
   {#if showNewCard || editingCard}
     <div class="px-6 pb-4">
       <div class="glass rounded-card p-4 space-y-3">
-        <h3 class="text-sm font-medium text-secondary">
+        <h3 class="text-sm font-medium text-secondary flex items-center gap-2">
           {editingCard ? "Karte bearbeiten" : "Neue Karteikarte"}
+          <span
+            class="inline-flex items-center justify-center w-4 h-4 rounded-full text-[10px] font-bold bg-secondary/20 text-secondary cursor-help"
+            title="LaTeX wird unterstützt: $Formel$ für inline, $$Formel$$ für zentrierte Anzeige"
+          >?</span>
         </h3>
         <div>
           <label class="text-xs font-medium text-secondary uppercase tracking-wide">Vorderseite</label>
@@ -200,6 +219,14 @@
             rows="2"
             autofocus
           ></textarea>
+          {#if hasMath(front)}
+            <div class="mt-2 p-3 rounded-lg border border-dashed border-accent-correct/40 bg-white/50 dark:bg-black/20">
+              <span class="text-xs text-secondary mb-1 block">Vorschau</span>
+              <div class="font-card text-primary dark:text-primary-dark text-sm">
+                {@html renderMath(front)}
+              </div>
+            </div>
+          {/if}
         </div>
         <div>
           <label class="text-xs font-medium text-secondary uppercase tracking-wide">Rückseite</label>
@@ -209,6 +236,14 @@
             class="w-full mt-1 bg-transparent border border-white/20 rounded-lg p-3 text-primary dark:text-primary-dark placeholder:text-secondary resize-none outline-none focus:border-accent-correct transition-colors text-lg font-card"
             rows="2"
           ></textarea>
+          {#if hasMath(back)}
+            <div class="mt-2 p-3 rounded-lg border border-dashed border-accent-correct/40 bg-white/50 dark:bg-black/20">
+              <span class="text-xs text-secondary mb-1 block">Vorschau</span>
+              <div class="font-card text-primary dark:text-primary-dark text-sm">
+                {@html renderMath(back)}
+              </div>
+            </div>
+          {/if}
         </div>
         <div class="flex gap-2 justify-end">
           <button
@@ -267,11 +302,11 @@
             <div class="flex-1 min-w-0 grid grid-cols-2 gap-4">
               <div>
                 <span class="text-xs font-medium text-secondary uppercase tracking-wide">Frage</span>
-                <p class="font-card text-primary dark:text-primary-dark mt-0.5 line-clamp-3">{card.front}</p>
+                <p class="font-card text-primary dark:text-primary-dark mt-0.5 max-h-20 overflow-hidden">{@html renderMath(card.front)}</p>
               </div>
               <div>
                 <span class="text-xs font-medium text-secondary uppercase tracking-wide">Antwort</span>
-                <p class="font-card text-primary dark:text-primary-dark mt-0.5 line-clamp-3">{card.back}</p>
+                <p class="font-card text-primary dark:text-primary-dark mt-0.5 max-h-20 overflow-hidden">{@html renderMath(card.back)}</p>
               </div>
             </div>
             <div class="flex items-center gap-1 shrink-0">
@@ -337,3 +372,4 @@
     </div>
   {/if}
 </div>
+{/if}

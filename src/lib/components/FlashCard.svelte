@@ -1,8 +1,11 @@
 <script lang="ts">
   import { settingsStore } from "$lib/stores/settings.svelte";
+  import { renderMath } from "$lib/math";
 
   let { front = "", back = "", flipped = false } = $props();
 
+  let renderedFront = $derived(renderMath(front));
+  let renderedBack = $derived(renderMath(back));
   let shortCard = $derived(front.length + back.length <= 60);
 
   let sizeClass = $derived(settingsStore.fontSizeClass(settingsStore.current.card_font_size, shortCard));
@@ -14,13 +17,13 @@
     <!-- Front -->
     <div class="card-front absolute inset-0 glass-card rounded-card p-8 flex items-center justify-center shadow-elevation-mid">
       <p class="{familyClass} {sizeClass} text-primary dark:text-primary-dark text-center text-balance select-none">
-        {front}
+        {@html renderedFront}
       </p>
     </div>
     <!-- Back -->
     <div class="card-back absolute inset-0 glass-card rounded-card p-8 flex items-center justify-center shadow-elevation-mid">
       <p class="{familyClass} {sizeClass} text-primary dark:text-primary-dark text-center text-balance select-none">
-        {back}
+        {@html renderedBack}
       </p>
     </div>
   </div>

@@ -1,3 +1,5 @@
+@import "katex/dist/katex.min.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -146,6 +148,10 @@
   .font-card-sans {
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
   }
+}
+
+.katex-display {
+  margin: 0.5em 0;
 }
 
 @layer utilities {
