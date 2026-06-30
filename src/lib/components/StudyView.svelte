@@ -67,6 +67,13 @@
       s.rate(quality);
     }
   }
+
+  async function continueSession() {
+    loading = true;
+    const hasCards = await s.startSession(deckId, settingsStore.current.session_limit);
+    empty = !hasCards;
+    loading = false;
+  }
 </script>
 
 <svelte:window onkeydown={handleKeydown} />
@@ -121,13 +128,21 @@
         <h2 class="text-2xl font-bold text-primary dark:text-primary-dark mb-2">
           Session beendet
         </h2>
-        <p class="text-secondary mb-6">Gute Arbeit! Komm bald wieder zum Wiederholen.</p>
-        <button
-          onclick={onClose}
-          class="rounded-button bg-accent-correct text-white px-6 py-2.5 font-medium hover:scale-[1.02] transition-transform"
-        >
-          Zurück zur Übersicht
-        </button>
+        <p class="text-secondary mb-6">Gute Arbeit! Falsch beantwortete Karten kannst du jetzt wiederholen.</p>
+        <div class="flex gap-3 justify-center">
+          <button
+            onclick={onClose}
+            class="rounded-button bg-white/60 dark:bg-white/10 text-primary dark:text-primary-dark px-6 py-2.5 font-medium hover:scale-[1.02] transition-transform"
+          >
+            Zurück
+          </button>
+          <button
+            onclick={continueSession}
+            class="rounded-button bg-accent-correct text-white px-6 py-2.5 font-medium hover:scale-[1.02] transition-transform"
+          >
+            Weiterlernen
+          </button>
+        </div>
       </div>
     {:else if s.currentCard}
       <!-- Active card -->
