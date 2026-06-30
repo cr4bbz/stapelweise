@@ -1,14 +1,41 @@
-// Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-#[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
-}
+mod commands;
+mod db;
+mod srs;
+
+use db::Database;
+use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![greet])
+        .setup(|app| {
+            let app_data_dir = app
+                .path()
+                .app_data_dir()
+                .expect("failed to resolve app data dir");
+
+            let database =
+                Database::new(app_data_dir).expect("failed to initialize database");
+
+            app.manage(db::DbState::new(database));
+            Ok(())
+        })
+        .invoke_handler(tauri::generate_handler![
+            commands::decks::create_deck,
+            commands::decks::list_decks,
+            commands::decks::get_deck,
+            commands::decks::update_deck,
+            commands::decks::delete_deck,
+            commands::cards::create_card,
+            commands::cards::list_cards,
+            commands::cards::update_card,
+            commands::cards::delete_card,
+            commands::cards::get_due_cards,
+            commands::cards::count_due_cards,
+            commands::cards::count_total_cards,
+            commands::cards::submit_review,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
