@@ -1,5 +1,7 @@
 pub mod decks;
 pub mod cards;
+pub mod seed;
+pub mod settings;
 
 use std::fmt;
 

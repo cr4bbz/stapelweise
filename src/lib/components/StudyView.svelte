@@ -1,5 +1,6 @@
 <script lang="ts">
   import { studyStore } from "$lib/stores/study.svelte";
+  import { settingsStore } from "$lib/stores/settings.svelte";
   import FlashCard from "./FlashCard.svelte";
   import ScoreButtons from "./ScoreButtons.svelte";
   import ProgressBar from "./ProgressBar.svelte";
@@ -16,9 +17,11 @@
   const s = studyStore;
 
   $effect(() => {
-    s.startSession(deckId).then((hasCards) => {
-      empty = !hasCards;
-      loading = false;
+    settingsStore.load().then(() => {
+      s.startSession(deckId, settingsStore.current.session_limit).then((hasCards) => {
+        empty = !hasCards;
+        loading = false;
+      });
     });
   });
 
@@ -103,7 +106,7 @@
         <p class="text-secondary mb-6">Keine fälligen Karten in diesem Stapel.</p>
         <button
           onclick={onClose}
-          class="rounded-button bg-[#E6A817] text-white px-6 py-2.5 font-medium hover:scale-[1.02] transition-transform"
+          class="rounded-button bg-accent-correct text-white px-6 py-2.5 font-medium hover:scale-[1.02] transition-transform"
         >
           Zurück zur Übersicht
         </button>
@@ -117,7 +120,7 @@
         <p class="text-secondary mb-6">Gute Arbeit! Komm bald wieder zum Wiederholen.</p>
         <button
           onclick={onClose}
-          class="rounded-button bg-[#E6A817] text-white px-6 py-2.5 font-medium hover:scale-[1.02] transition-transform"
+          class="rounded-button bg-accent-correct text-white px-6 py-2.5 font-medium hover:scale-[1.02] transition-transform"
         >
           Zurück zur Übersicht
         </button>

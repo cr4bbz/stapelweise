@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 // ── Card CRUD ────────────────────────────────────────
 
-#[tauri::command]
+#[tauri::command(rename_all = "camelCase")]
 pub fn create_card(
     state: State<DbState>,
     deck_id: String,
@@ -20,14 +20,14 @@ pub fn create_card(
     Ok(card)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "camelCase")]
 pub fn list_cards(state: State<DbState>, deck_id: String) -> Result<Vec<Card>, CommandError> {
     let db = state.lock().map_err(|e| CommandError(format!("Lock error: {}", e)))?;
     let cards = db.repo.list_cards(&deck_id)?;
     Ok(cards)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "camelCase")]
 pub fn update_card(
     state: State<DbState>,
     card_id: String,
@@ -39,11 +39,18 @@ pub fn update_card(
     Ok(())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "camelCase")]
 pub fn delete_card(state: State<DbState>, card_id: String) -> Result<(), CommandError> {
     let db = state.lock().map_err(|e| CommandError(format!("Lock error: {}", e)))?;
     db.repo.delete_card(&card_id)?;
     Ok(())
+}
+
+#[tauri::command(rename_all = "camelCase")]
+pub fn get_card_state(state: State<DbState>, card_id: String) -> Result<Option<CardState>, CommandError> {
+    let db = state.lock().map_err(|e| CommandError(format!("Lock error: {}", e)))?;
+    let state = db.repo.get_card_state(&card_id)?;
+    Ok(state)
 }
 
 // ── Study ────────────────────────────────────────────
@@ -55,35 +62,37 @@ pub struct DueCard {
     pub state: CardState,
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "camelCase")]
 pub fn get_due_cards(
     state: State<DbState>,
     deck_id: String,
     limit: u32,
 ) -> Result<Vec<DueCard>, CommandError> {
     let db = state.lock().map_err(|e| CommandError(format!("Lock error: {}", e)))?;
-    let cards = db.repo.get_due_cards(&deck_id, limit)?;
+    let settings = db.settings();
+    let effective_limit = limit.min(settings.session_limit);
+    let cards = db.repo.get_due_cards(&deck_id, effective_limit)?;
     Ok(cards
         .into_iter()
         .map(|(card, state)| DueCard { card, state })
         .collect())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "camelCase")]
 pub fn count_due_cards(state: State<DbState>, deck_id: String) -> Result<u32, CommandError> {
     let db = state.lock().map_err(|e| CommandError(format!("Lock error: {}", e)))?;
     let count = db.repo.count_due_cards(&deck_id)?;
     Ok(count)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "camelCase")]
 pub fn count_total_cards(state: State<DbState>, deck_id: String) -> Result<u32, CommandError> {
     let db = state.lock().map_err(|e| CommandError(format!("Lock error: {}", e)))?;
     let count = db.repo.count_total_cards(&deck_id)?;
     Ok(count)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "camelCase")]
 pub fn submit_review(
     state: State<DbState>,
     card_id: String,
@@ -94,7 +103,12 @@ pub fn submit_review(
     }
 
     let db = state.lock().map_err(|e| CommandError(format!("Lock error: {}", e)))?;
-    let today = Utc::now().date_naive();
+    let now = Utc::now();
+    let today = now.date_naive();
+
+    // Load user settings for SM-2 config
+    let settings = db.settings();
+    let sm2_config = settings.to_sm2_config();
 
     // Get current SM-2 state, convert to sm2::Sm2State
     let current_state = db
@@ -113,15 +127,17 @@ pub fn submit_review(
         .unwrap_or(today),
     };
 
-    // Advance via SM-2
-    let next = sm2::sm2_advance(&sm2_input, quality, today);
+    // Advance via SM-2 with user config
+    let next = sm2::sm2_advance(&sm2_input, quality, today, &sm2_config);
+
+    let now_str = now.format("%Y-%m-%dT%H:%M:%S").to_string();
 
     // Create audit log entry
     let review = Review {
         id: Uuid::new_v4().to_string(),
         card_id: card_id.clone(),
         quality,
-        reviewed_at: today.format("%Y-%m-%dT%H:%M:%S").to_string(),
+        reviewed_at: now_str.clone(),
         interval: next.interval,
         ease_factor: next.ease_factor,
         repetitions: next.repetitions,
@@ -129,7 +145,7 @@ pub fn submit_review(
     db.repo.insert_review(&review)?;
 
     // Update card state
-    let new_streak = if quality >= 3 {
+    let new_streak = if quality >= sm2_config.pass_threshold {
         current_state.correct_streak + 1
     } else {
         0
@@ -143,7 +159,7 @@ pub fn submit_review(
         next_review: next.next_review.format("%Y-%m-%d").to_string(),
         total_reviews: current_state.total_reviews + 1,
         correct_streak: new_streak,
-        last_review: Some(today.format("%Y-%m-%dT%H:%M:%S").to_string()),
+        last_review: Some(now_str),
     };
 
     db.repo.update_card_state(&updated_state)?;

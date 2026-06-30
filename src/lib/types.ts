@@ -31,3 +31,12 @@ export interface DueCard {
   card: Card;
   state: CardState;
 }
+
+export interface AppSettings {
+  theme: "light" | "dark" | "auto";
+  card_font_family: "serif" | "sans";
+  card_font_size: "small" | "medium" | "large";
+  session_limit: number;
+  sm2_initial_ef: number;
+  sm2_pass_threshold: number;
+}

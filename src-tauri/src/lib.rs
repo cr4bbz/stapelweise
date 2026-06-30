@@ -1,5 +1,6 @@
 mod commands;
 mod db;
+mod seed;
 mod srs;
 
 use db::Database;
@@ -35,6 +36,10 @@ pub fn run() {
             commands::cards::count_due_cards,
             commands::cards::count_total_cards,
             commands::cards::submit_review,
+            commands::cards::get_card_state,
+            commands::seed::seed_sample_data,
+            commands::settings::get_settings,
+            commands::settings::update_settings,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

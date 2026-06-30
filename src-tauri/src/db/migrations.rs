@@ -38,6 +38,11 @@ const MIGRATIONS: &[&str] = &[
     "CREATE INDEX IF NOT EXISTS idx_cards_deck ON cards(deck_id);",
     "CREATE INDEX IF NOT EXISTS idx_reviews_card ON reviews(card_id);",
     "CREATE INDEX IF NOT EXISTS idx_card_state_next ON card_state(next_review);",
+    // V2: User settings
+    "CREATE TABLE IF NOT EXISTS settings (
+        key   TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+    );",
 ];
 
 pub fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {

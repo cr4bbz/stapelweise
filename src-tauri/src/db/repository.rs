@@ -113,6 +113,48 @@ impl Repository {
         })
     }
 
+    /// Insert a card with a specific card_state (for seed data / testing).
+    /// Unlike create_card, this does NOT use default card_state values.
+    pub fn seed_insert_card_with_state(
+        &self,
+        deck_id: &str,
+        front: &str,
+        back: &str,
+        state: &CardState,
+    ) -> Result<Card> {
+        let id = Uuid::new_v4().to_string();
+        let now = Utc::now().format("%Y-%m-%dT%H:%M:%S").to_string();
+
+        self.conn.execute(
+            "INSERT INTO cards (id, deck_id, front, back, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![id, deck_id, front, back, now, now],
+        )?;
+
+        self.conn.execute(
+            "INSERT INTO card_state (card_id, interval, ease_factor, repetitions, next_review, total_reviews, correct_streak, last_review)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            params![
+                id,
+                state.interval,
+                state.ease_factor,
+                state.repetitions,
+                state.next_review,
+                state.total_reviews,
+                state.correct_streak,
+                state.last_review,
+            ],
+        )?;
+
+        Ok(Card {
+            id,
+            deck_id: deck_id.to_string(),
+            front: front.to_string(),
+            back: back.to_string(),
+            created_at: now.clone(),
+            updated_at: now,
+        })
+    }
+
     pub fn list_cards(&self, deck_id: &str) -> Result<Vec<Card>> {
         let mut stmt = self.conn.prepare(
             "SELECT id, deck_id, front, back, created_at, updated_at FROM cards WHERE deck_id = ?1 ORDER BY created_at DESC",
@@ -287,6 +329,37 @@ impl Repository {
             |row| row.get(0),
         )?;
         Ok(count as u32)
+    }
+
+    // ── Settings ───────────────────────────────────────
+
+    pub fn get_setting(&self, key: &str) -> Result<Option<String>> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT value FROM settings WHERE key = ?1")?;
+        let mut rows = stmt.query_map(params![key], |row| row.get(0))?;
+        match rows.next() {
+            Some(v) => Ok(Some(v?)),
+            None => Ok(None),
+        }
+    }
+
+    pub fn set_setting(&self, key: &str, value: &str) -> Result<()> {
+        self.conn.execute(
+            "INSERT INTO settings (key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            params![key, value],
+        )?;
+        Ok(())
+    }
+
+    pub fn get_all_settings(&self) -> Result<Vec<(String, String)>> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT key, value FROM settings ORDER BY key")?;
+        let rows = stmt
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
+            .collect::<Result<Vec<_>>>()?;
+        Ok(rows)
     }
 
     /// Count total cards in a deck

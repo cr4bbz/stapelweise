@@ -24,8 +24,13 @@ export default {
         },
         accent: {
           correct: "#E6A817",
+          "correct-dark": "#FACC15",
           incorrect: "#DC2626",
           "incorrect-dark": "#EF4444",
+          easy: "#22C55E",
+          "easy-dark": "#4ADE80",
+          hard: "#F97316",
+          "hard-dark": "#FB923C",
         },
         glass: {
           light: "rgba(255, 255, 255, 0.6)",
@@ -39,6 +44,11 @@ export default {
       borderRadius: {
         card: "1rem",
         button: "9999px",
+      },
+      boxShadow: {
+        'elevation-low':  '0 1px 2px rgba(0,0,0,0.04), 0 2px 4px rgba(0,0,0,0.04)',
+        'elevation-mid':  '0 2px 4px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.08)',
+        'elevation-high': '0 4px 8px rgba(0,0,0,0.04), 0 8px 24px rgba(0,0,0,0.12)',
       },
     },
   },

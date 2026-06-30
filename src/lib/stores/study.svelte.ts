@@ -1,5 +1,6 @@
 import * as api from "$lib/api";
 import type { DueCard, CardState } from "$lib/types";
+import { settingsStore } from "./settings.svelte";
 
 let dueCards = $state<DueCard[]>([]);
 let currentIndex = $state(0);
@@ -43,8 +44,8 @@ export function getStudyStore() {
       return (currentIndex + (isFlipped ? 1 : 0)) / (dueCards.length + 1);
     },
 
-    async startSession(deckId: string) {
-      const cards = await api.getDueCards(deckId, 50);
+    async startSession(deckId: string, limit: number = 50) {
+      const cards = await api.getDueCards(deckId, limit);
       if (cards.length === 0) return false;
       dueCards = cards;
       currentIndex = 0;
@@ -69,8 +70,8 @@ export function getStudyStore() {
         // Remove card from session (it's been reviewed)
         dueCards = [...dueCards.slice(0, idx), ...dueCards.slice(idx + 1)];
 
-        // If the card failed, re-add it at the end
-        if (quality < 3) {
+        // If the card failed (below pass threshold), re-add it at the end
+        if (quality < settingsStore.current.sm2_pass_threshold) {
           dueCards = [
             ...dueCards,
             { card: card.card, state: newState },
@@ -80,7 +81,7 @@ export function getStudyStore() {
 
       // Adjust index
       if (currentIndex >= dueCards.length) {
-        currentIndex = dueCards.length > 0 ? 0 : 0;
+        currentIndex = 0;
       }
 
       isFlipped = false;

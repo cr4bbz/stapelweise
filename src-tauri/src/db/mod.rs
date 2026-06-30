@@ -1,15 +1,18 @@
 pub mod migrations;
 pub mod models;
 pub mod repository;
+pub mod settings;
 
 use rusqlite::Connection;
 use std::path::PathBuf;
 use std::sync::Mutex;
 
 use self::repository::Repository;
+use self::settings::AppSettings;
 
 pub struct Database {
     pub repo: Repository,
+    settings: AppSettings,
 }
 
 impl Database {
@@ -26,7 +29,26 @@ impl Database {
 
         let repo = Repository::new(conn);
 
-        Ok(Self { repo })
+        // Load or initialize settings (cached in memory)
+        let settings = AppSettings::load(&repo).unwrap_or_else(|_| {
+            let defaults = AppSettings::defaults();
+            let _ = defaults.save(&repo);
+            defaults
+        });
+
+        Ok(Self { repo, settings })
+    }
+
+    pub fn settings(&self) -> AppSettings {
+        self.settings.clone()
+    }
+
+    /// Update settings in-memory and persist to DB.
+    /// Returns the previous settings on success.
+    pub fn update_settings(&mut self, settings: AppSettings) -> Result<(), rusqlite::Error> {
+        settings.save(&self.repo)?;
+        self.settings = settings;
+        Ok(())
     }
 }
 
