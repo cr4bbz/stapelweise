@@ -45,7 +45,7 @@
 
 {#key view}
   {#if view === "cards" && activeDeck}
-    <div transition:slide={{ duration: 200, axis: "x" }} class="h-full">
+    <div in:slide={{ duration: 250, axis: "x" }} out:slide={{ duration: 200, axis: "x" }} class="h-full">
       <CardEditor
         deck={activeDeck}
         onClose={goHome}
@@ -55,7 +55,7 @@
       />
     </div>
   {:else if view === "study" && activeDeck}
-    <div transition:slide={{ duration: 200, axis: "x" }} class="h-full">
+    <div in:slide={{ duration: 250, axis: "x" }} out:slide={{ duration: 200, axis: "x" }} class="h-full">
       <StudyView
         deckId={activeDeck.id}
         deckName={activeDeck.name}
@@ -63,11 +63,11 @@
       />
     </div>
   {:else if view === "settings"}
-    <div transition:slide={{ duration: 200, axis: "x" }} class="h-full">
+    <div in:slide={{ duration: 250, axis: "x" }} out:slide={{ duration: 200, axis: "x" }} class="h-full">
       <SettingsPanel onClose={goHome} />
     </div>
   {:else}
-    <div transition:fade={{ duration: 150 }} class="h-full">
+    <div in:fade={{ duration: 200 }} out:fade={{ duration: 150 }} class="h-full">
       {#if dashboard}
         <div class="grid grid-cols-3 gap-4 px-6 pt-6 pb-2">
           <div class="glass rounded-card p-4 text-center">

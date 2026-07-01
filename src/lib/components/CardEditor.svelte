@@ -8,6 +8,7 @@
   import ConfirmDialog from "./ConfirmDialog.svelte";
   import FlashCard from "./FlashCard.svelte";
   import { renderMath, hasMath } from "$lib/math";
+  import { fade, slide } from "svelte/transition";
 
   let { deck, onClose = () => {}, onStudy = () => {} } = $props<{
     deck: Deck;
@@ -159,11 +160,15 @@
 <svelte:window onkeydown={handleKeydown} />
 
 {#if showStats}
-  <StatsDashboard deckId={deck.id} deckName={deck.name} onClose={() => (showStats = false)} />
+  <div transition:fade={{ duration: 200 }} class="h-full">
+    <StatsDashboard deckId={deck.id} deckName={deck.name} onClose={() => (showStats = false)} />
+  </div>
 {:else if showBrowse}
-  <BrowseCards cards={cards} deckName={deck.name} onClose={() => (showBrowse = false)} />
+  <div transition:fade={{ duration: 200 }} class="h-full">
+    <BrowseCards cards={cards} deckName={deck.name} onClose={() => (showBrowse = false)} />
+  </div>
 {:else if viewingCard}
-  <div class="flex flex-col h-full">
+  <div transition:fade={{ duration: 200 }} class="flex flex-col h-full">
     <div class="flex items-center gap-3 p-6 pb-2">
       <button
         onclick={() => { viewingCard = null; cardFlipped = false; }}
@@ -201,7 +206,7 @@
     </div>
   </div>
 {:else}
-<div class="flex flex-col h-full">
+<div transition:fade={{ duration: 200 }} class="flex flex-col h-full">
   <!-- Header -->
   <div class="flex items-center gap-3 p-6 pb-4">
     <button
@@ -272,7 +277,7 @@
 
   <!-- Card Form (New or Edit) -->
   {#if showNewCard || editingCard}
-    <div class="px-6 pb-4">
+    <div transition:slide={{ duration: 200, axis: "y" }} class="px-6 pb-4">
       <div class="glass rounded-card p-4 space-y-3">
         <h3 class="text-sm font-medium text-secondary flex items-center gap-2">
           {editingCard ? "Karte bearbeiten" : "Neue Karteikarte"}
