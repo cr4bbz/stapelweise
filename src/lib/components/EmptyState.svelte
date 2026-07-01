@@ -1,13 +1,11 @@
 <script lang="ts">
-  import type { Snippet } from "svelte";
-
-  let { title = "Noch nichts da", description = "", actionLabel = "", onAction = () => {}, icon }: { title?: string; description?: string; actionLabel?: string; onAction?: () => void; icon?: Snippet } = $props();
+  let { title = "Noch nichts da", description = "", actionLabel = "", onAction = () => {}, icon }: { title?: string; description?: string; actionLabel?: string; onAction?: () => void; icon?: () => string } = $props();
 </script>
 
 <div class="flex flex-col items-center justify-center py-16 text-center">
   <div class="mb-6 text-6xl opacity-20 select-none">
     {#if icon}
-      {@render icon()}
+      {icon()}
     {:else}
       📚
     {/if}

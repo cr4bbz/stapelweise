@@ -6,6 +6,7 @@
   import StatsDashboard from "./StatsDashboard.svelte";
   import BrowseCards from "./BrowseCards.svelte";
   import ConfirmDialog from "./ConfirmDialog.svelte";
+  import FlashCard from "./FlashCard.svelte";
   import { renderMath, hasMath } from "$lib/math";
 
   let { deck, onClose = () => {}, onStudy = () => {} } = $props<{
@@ -25,6 +26,8 @@
   let showStats = $state(false);
   let showBrowse = $state(false);
   let deleteConfirmCardId = $state<string | null>(null);
+  let viewingCard = $state<Card | null>(null);
+  let cardFlipped = $state(false);
 
   async function loadCards() {
     loading = true;
@@ -67,12 +70,13 @@
   }
 
   async function handleUpdate() {
-    if (!editingCard || !front.trim() || !back.trim()) return;
+    const card = editingCard;
+    if (!card || !front.trim() || !back.trim()) return;
     error = null;
     try {
-      await api.updateCard(editingCard.id, front.trim(), back.trim());
+      await api.updateCard(card.id, front.trim(), back.trim());
       cards = cards.map((c) =>
-        c.id === editingCard.id ? { ...c, front: front.trim(), back: back.trim() } : c
+        c.id === card.id ? { ...c, front: front.trim(), back: back.trim() } : c
       );
       editingCard = null;
       front = "";
@@ -127,11 +131,23 @@
 
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === "Escape") {
+      if (viewingCard) {
+        viewingCard = null;
+        cardFlipped = false;
+        return;
+      }
       if (editingCard || showNewCard) {
         cancelEdit();
       } else {
         onClose();
       }
+    }
+    if (viewingCard) {
+      if (e.key === " " || e.key === "Spacebar") {
+        e.preventDefault();
+        cardFlipped = !cardFlipped;
+      }
+      return;
     }
     if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
       if (editingCard) handleUpdate();
@@ -146,6 +162,45 @@
   <StatsDashboard deckId={deck.id} deckName={deck.name} onClose={() => (showStats = false)} />
 {:else if showBrowse}
   <BrowseCards cards={cards} deckName={deck.name} onClose={() => (showBrowse = false)} />
+{:else if viewingCard}
+  <div class="flex flex-col h-full">
+    <div class="flex items-center gap-3 p-6 pb-2">
+      <button
+        onclick={() => { viewingCard = null; cardFlipped = false; }}
+        class="p-2 rounded-lg hover:bg-white/30 dark:hover:bg-white/10 text-secondary transition-colors"
+        title="Zurück (Esc)"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+          <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
+        </svg>
+      </button>
+      <h1 class="text-xl font-bold text-primary dark:text-primary-dark truncate">
+        {deck.name}
+      </h1>
+      <span class="text-secondary text-sm ml-auto">Klick zum Umdrehen</span>
+    </div>
+    <div class="flex-1 flex flex-col items-center justify-center px-6 pb-6 gap-6">
+      <div
+        class="flex flex-col items-center gap-6 w-full cursor-pointer"
+        role="button"
+        tabindex="0"
+        onclick={() => (cardFlipped = !cardFlipped)}
+        onkeydown={(e) => e.key === " " && (cardFlipped = !cardFlipped)}
+      >
+        <FlashCard
+          front={viewingCard.front}
+          back={viewingCard.back}
+          flipped={cardFlipped}
+        />
+      </div>
+      <button
+        onclick={() => (cardFlipped = !cardFlipped)}
+        class="rounded-button bg-accent-correct text-white px-5 py-2 text-sm font-semibold hover:scale-[1.02] transition-transform"
+      >
+        {cardFlipped ? "Vorderseite zeigen" : "Rückseite zeigen"}
+      </button>
+    </div>
+  </div>
 {:else}
 <div class="flex flex-col h-full">
   <!-- Header -->
@@ -315,7 +370,7 @@
     <div class="flex-1 overflow-y-auto px-6 pb-6">
       <div class="space-y-2">
         {#each cards as card (card.id)}
-          <div class="glass rounded-card p-4 flex items-start gap-4 group">
+          <div class="glass rounded-card p-4 flex items-start gap-4 group cursor-pointer hover:bg-white/5 dark:hover:bg-white/5 transition-colors" onclick={() => { viewingCard = card; cardFlipped = false; }} role="button" tabindex="0" onkeydown={(e) => e.key === "Enter" && (viewingCard = card, cardFlipped = false)}>
             <div class="flex-1 min-w-0 grid grid-cols-2 gap-4">
               <div>
                 <span class="text-xs font-medium text-secondary uppercase tracking-wide">Frage</span>
@@ -326,7 +381,7 @@
                 <p class="font-card text-primary dark:text-primary-dark mt-0.5 max-h-20 overflow-hidden">{@html renderMath(card.back)}</p>
               </div>
             </div>
-            <div class="flex items-center gap-1 shrink-0">
+            <div class="flex items-center gap-1 shrink-0" onclick={(e) => e.stopPropagation()}>
               <button
                 class="p-1.5 rounded-lg hover:bg-white/30 dark:hover:bg-white/10 text-secondary transition-colors"
                 title="SM-2 Kartenzustand"
