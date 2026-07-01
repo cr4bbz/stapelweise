@@ -172,8 +172,8 @@ pub fn submit_review(
 }
 
 #[tauri::command(rename_all = "camelCase")]
-pub fn undo_last_review(state: State<DbState>) -> Result<Option<DueCard>, CommandError> {
+pub fn undo_last_review(state: State<DbState>, deck_id: String) -> Result<Option<DueCard>, CommandError> {
     let db = state.lock().map_err(|e| CommandError(format!("Lock error: {}", e)))?;
-    let restored = db.repo.undo_last_review()?;
+    let restored = db.repo.undo_last_review(&deck_id)?;
     Ok(restored.map(|(card, state)| DueCard { card, state }))
 }

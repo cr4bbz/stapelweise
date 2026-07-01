@@ -91,8 +91,8 @@ export async function submitReview(
   return cmd("submit_review", { cardId, quality });
 }
 
-export async function undoLastReview(): Promise<DueCard | null> {
-  return cmd("undo_last_review");
+export async function undoLastReview(deckId: string): Promise<DueCard | null> {
+  return cmd("undo_last_review", { deckId });
 }
 
 // ── Settings ──────────────────────────────────────────

@@ -277,15 +277,17 @@ impl Repository {
         Ok(())
     }
 
-    /// Get the most recent review for undo purposes.
-    pub fn get_last_review(&self) -> Result<Option<Review>> {
+    /// Get the most recent review in a deck for undo purposes.
+    pub fn get_last_review(&self, deck_id: &str) -> Result<Option<Review>> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, card_id, quality, reviewed_at, interval, ease_factor, repetitions, prev_state
-             FROM reviews
-             ORDER BY reviewed_at DESC
+            "SELECT r.id, r.card_id, r.quality, r.reviewed_at, r.interval, r.ease_factor, r.repetitions, r.prev_state
+             FROM reviews r
+             JOIN cards c ON c.id = r.card_id
+             WHERE c.deck_id = ?1
+             ORDER BY r.reviewed_at DESC
              LIMIT 1",
         )?;
-        let mut rows = stmt.query_map([], |row| {
+        let mut rows = stmt.query_map(params![deck_id], |row| {
             Ok(Review {
                 id: row.get(0)?,
                 card_id: row.get(1)?,
@@ -303,10 +305,10 @@ impl Repository {
         }
     }
 
-    /// Undo the last review: restore previous card state and delete the review.
+    /// Undo the last review in a deck: restore previous card state and delete the review.
     /// Returns None if there is no review to undo or if the previous state is missing.
-    pub fn undo_last_review(&self) -> Result<Option<(Card, CardState)>> {
-        let review = match self.get_last_review()? {
+    pub fn undo_last_review(&self, deck_id: &str) -> Result<Option<(Card, CardState)>> {
+        let review = match self.get_last_review(deck_id)? {
             Some(r) => r,
             None => return Ok(None),
         };
