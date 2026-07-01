@@ -275,6 +275,54 @@ impl Repository {
         Ok(())
     }
 
+    /// Atomically insert a review and update the corresponding card_state.
+    /// Both operations happen in a single transaction — if either fails,
+    /// neither is persisted.
+    pub fn apply_review(&self, review: &Review, updated_state: &CardState) -> Result<()> {
+        self.conn.execute_batch("BEGIN IMMEDIATE")?;
+
+        let result = self.conn.execute(
+            "INSERT INTO reviews (id, card_id, quality, reviewed_at, interval, ease_factor, repetitions, prev_state) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            params![
+                review.id,
+                review.card_id,
+                review.quality,
+                review.reviewed_at,
+                review.interval,
+                review.ease_factor,
+                review.repetitions,
+                review.prev_state,
+            ],
+        );
+
+        if let Err(e) = result {
+            let _ = self.conn.execute_batch("ROLLBACK");
+            return Err(e);
+        }
+
+        let result = self.conn.execute(
+            "UPDATE card_state SET interval = ?1, ease_factor = ?2, repetitions = ?3, next_review = ?4, total_reviews = ?5, correct_streak = ?6, last_review = ?7 WHERE card_id = ?8",
+            params![
+                updated_state.interval,
+                updated_state.ease_factor,
+                updated_state.repetitions,
+                updated_state.next_review,
+                updated_state.total_reviews,
+                updated_state.correct_streak,
+                updated_state.last_review,
+                updated_state.card_id,
+            ],
+        );
+
+        if let Err(e) = result {
+            let _ = self.conn.execute_batch("ROLLBACK");
+            return Err(e);
+        }
+
+        self.conn.execute_batch("COMMIT")?;
+        Ok(())
+    }
+
     /// Get the most recent review in a deck for undo purposes.
     pub fn get_last_review(&self, deck_id: &str) -> Result<Option<Review>> {
         let mut stmt = self.conn.prepare(
