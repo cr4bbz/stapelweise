@@ -9,11 +9,14 @@ let sessionActive = $state(false);
 let dueCount = $state(0);
 let totalCount = $state(0);
 
+let currentDeckId = $state<string | null>(null);
+
 function reset() {
   dueCards = [];
   currentIndex = 0;
   isFlipped = false;
   sessionActive = false;
+  currentDeckId = null;
 }
 
 export function getStudyStore() {
@@ -45,6 +48,7 @@ export function getStudyStore() {
     },
 
     async startSession(deckId: string, limit: number = 50) {
+      currentDeckId = deckId;
       const cards = await api.getDueCards(deckId, limit);
       if (cards.length === 0) return false;
       dueCards = cards;
@@ -100,7 +104,8 @@ export function getStudyStore() {
     },
 
     async undo() {
-      const dueCard = await api.undoLastReview();
+      if (!currentDeckId) return;
+      const dueCard = await api.undoLastReview(currentDeckId);
       if (dueCard) {
         // Re-insert undone card at the current position
         dueCards = [
