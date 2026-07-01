@@ -7,7 +7,8 @@
   import BrowseCards from "./BrowseCards.svelte";
   import ConfirmDialog from "./ConfirmDialog.svelte";
   import FlashCard from "./FlashCard.svelte";
-  import { renderMath, hasMath } from "$lib/math";
+  import { renderMarkdown } from "$lib/markdown";
+  import { hasMath } from "$lib/math";
   import { fade, slide } from "svelte/transition";
 
   let { deck, onClose = () => {}, onStudy = () => {} } = $props<{
@@ -299,7 +300,7 @@
             <div class="mt-2 p-3 rounded-lg border border-dashed border-accent-correct/40 bg-white/50 dark:bg-black/20">
               <span class="text-xs text-secondary mb-1 block">Vorschau</span>
               <div class="font-card text-primary dark:text-primary-dark text-sm">
-                {@html renderMath(front)}
+                {@html renderMarkdown(front)}
               </div>
             </div>
           {/if}
@@ -316,7 +317,7 @@
             <div class="mt-2 p-3 rounded-lg border border-dashed border-accent-correct/40 bg-white/50 dark:bg-black/20">
               <span class="text-xs text-secondary mb-1 block">Vorschau</span>
               <div class="font-card text-primary dark:text-primary-dark text-sm">
-                {@html renderMath(back)}
+                {@html renderMarkdown(back)}
               </div>
             </div>
           {/if}
@@ -378,11 +379,11 @@
             <div class="flex-1 min-w-0 grid grid-cols-2 gap-4">
               <div>
                 <span class="text-xs font-medium text-secondary uppercase tracking-wide">Frage</span>
-                <p class="font-card text-primary dark:text-primary-dark mt-0.5 max-h-20 overflow-hidden">{@html renderMath(card.front)}</p>
+                <p class="font-card text-primary dark:text-primary-dark mt-0.5 max-h-20 overflow-hidden">{@html renderMarkdown(card.front)}</p>
               </div>
               <div>
                 <span class="text-xs font-medium text-secondary uppercase tracking-wide">Antwort</span>
-                <p class="font-card text-primary dark:text-primary-dark mt-0.5 max-h-20 overflow-hidden">{@html renderMath(card.back)}</p>
+                <p class="font-card text-primary dark:text-primary-dark mt-0.5 max-h-20 overflow-hidden">{@html renderMarkdown(card.back)}</p>
               </div>
             </div>
             <div class="flex items-center gap-1 shrink-0" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
