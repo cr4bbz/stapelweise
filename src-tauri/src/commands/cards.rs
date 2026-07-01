@@ -2,7 +2,7 @@ use crate::db::DbState;
 use crate::db::models::{Card, CardState, Review};
 use crate::srs::sm2;
 use super::CommandError;
-use chrono::{Utc, NaiveDate};
+use chrono::{Utc, Local, NaiveDate};
 use tauri::State;
 use uuid::Uuid;
 
@@ -104,7 +104,7 @@ pub fn submit_review(
 
     let db = state.lock().map_err(|e| CommandError(format!("Lock error: {}", e)))?;
     let now = Utc::now();
-    let today = now.date_naive();
+    let today = Local::now().date_naive();
 
     // Load user settings for SM-2 config
     let settings = db.settings();
