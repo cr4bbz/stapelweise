@@ -1,5 +1,5 @@
 use crate::db::DbState;
-use crate::db::models::{Card, CardState, Review};
+use crate::db::models::{Card, CardState, Review, SearchResult};
 use crate::srs::sm2;
 use super::CommandError;
 use chrono::{Utc, NaiveDate};
@@ -65,13 +65,13 @@ pub struct DueCard {
 #[tauri::command(rename_all = "camelCase")]
 pub fn get_due_cards(
     state: State<DbState>,
-    deck_id: String,
+    deck_ids: Vec<String>,
     limit: u32,
 ) -> Result<Vec<DueCard>, CommandError> {
     let db = state.lock().map_err(|e| CommandError(format!("Lock error: {}", e)))?;
     let settings = db.settings();
     let effective_limit = limit.min(settings.session_limit);
-    let cards = db.repo.get_due_cards(&deck_id, effective_limit)?;
+    let cards = db.repo.get_due_cards(&deck_ids, effective_limit)?;
     Ok(cards
         .into_iter()
         .map(|(card, state)| DueCard { card, state })
@@ -146,9 +146,6 @@ pub fn submit_review(
         repetitions: next.repetitions,
         prev_state: prev_state_json,
     };
-    db.repo.insert_review(&review)?;
-
-    // Update card state
     let new_streak = if quality >= sm2_config.pass_threshold {
         current_state.correct_streak + 1
     } else {
@@ -166,9 +163,19 @@ pub fn submit_review(
         last_review: Some(now_str),
     };
 
-    db.repo.update_card_state(&updated_state)?;
+    db.repo.apply_review(&review, &updated_state)?;
 
     Ok(updated_state)
+}
+
+#[tauri::command(rename_all = "camelCase")]
+pub fn search_cards(state: State<DbState>, query: String) -> Result<Vec<SearchResult>, CommandError> {
+    if query.trim().is_empty() {
+        return Ok(vec![]);
+    }
+    let db = state.lock().map_err(|e| CommandError(format!("Lock error: {}", e)))?;
+    let results = db.repo.search_cards(&query)?;
+    Ok(results)
 }
 
 #[tauri::command(rename_all = "camelCase")]

@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { AppSettings, Card, CardState, DashboardStats, Deck, DeckStats, DueCard } from "./types";
+import type { AppSettings, Card, CardState, DashboardStats, Deck, DeckStats, DueCard, SearchResult } from "./types";
 
 // Helper to log and rethrow
 async function cmd<T>(name: string, args?: Record<string, unknown>): Promise<T> {
@@ -70,10 +70,10 @@ export async function getCardState(cardId: string): Promise<CardState | null> {
 // ── Study ────────────────────────────────────────────
 
 export async function getDueCards(
-  deckId: string,
+  deckIds: string[],
   limit: number
 ): Promise<DueCard[]> {
-  return cmd("get_due_cards", { deckId, limit });
+  return cmd("get_due_cards", { deckIds, limit });
 }
 
 export async function countDueCards(deckId: string): Promise<number> {
@@ -103,6 +103,12 @@ export async function getSettings(): Promise<AppSettings> {
 
 export async function updateSettings(settings: AppSettings): Promise<void> {
   return cmd("update_settings", { settings });
+}
+
+// ── Search ────────────────────────────────────────────
+
+export async function searchCards(query: string): Promise<SearchResult[]> {
+  return cmd("search_cards", { query });
 }
 
 // ── Stats ──────────────────────────────────────────────

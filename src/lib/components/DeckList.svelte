@@ -9,9 +9,11 @@
   let {
     onSelectDeck = (_deck: Deck) => {},
     onStudyDeck = (_deck: Deck) => {},
+    onStudyDecks = (_decks: Deck[]) => {},
   } = $props<{
     onSelectDeck?: (deck: Deck) => void;
     onStudyDeck?: (deck: Deck) => void;
+    onStudyDecks?: (decks: Deck[]) => void;
   }>();
 
   let showNewDeck = $state(false);
@@ -22,6 +24,7 @@
   let totalCounts = $state<Record<string, number>>({});
   let error = $state<string | null>(null);
   let deleteConfirmDeck = $state<Deck | null>(null);
+  let selectedDeckIds = $state<Set<string>>(new Set());
 
   const store = deckStore;
 
@@ -85,6 +88,11 @@
       dueCounts = rest;
       const { [deck.id]: __, ...rest2 } = totalCounts;
       totalCounts = rest2;
+      if (selectedDeckIds.has(deck.id)) {
+        const next = new Set(selectedDeckIds);
+        next.delete(deck.id);
+        selectedDeckIds = next;
+      }
     } catch (e: any) {
       error = e?.toString() || "Fehler beim Löschen";
     }
@@ -107,6 +115,18 @@
       Deine Stapel
     </h1>
     <div class="flex gap-2">
+      {#if selectedDeckIds.size > 0}
+        <button
+          onclick={() => {
+            const decks = store.decks.filter((d) => selectedDeckIds.has(d.id));
+            selectedDeckIds = new Set();
+            onStudyDecks(decks);
+          }}
+          class="rounded-button bg-accent-correct text-white px-4 py-2 text-sm font-medium hover:scale-[1.02] transition-transform"
+        >
+          {selectedDeckIds.size} lernen
+        </button>
+      {/if}
       <button
         onclick={async () => {
           try {
@@ -116,11 +136,11 @@
             error = e?.toString() || "Fehler beim Laden der Beispieldaten";
           }
         }}
-        disabled={store.hasSeeded}
+        disabled={store.hasSeeded && store.decks.length > 0}
         class="rounded-button bg-accent-correct text-white px-4 py-2 text-sm font-medium hover:scale-[1.02] transition-transform disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
-        title={store.hasSeeded ? "Bereits geladen" : "3 thematische Decks mit 18 Karten in verschiedenen Lernzuständen"}
+        title={store.hasSeeded && store.decks.length > 0 ? "Bereits geladen" : "3 thematische Decks mit 18 Karten in verschiedenen Lernzuständen"}
       >
-        {store.hasSeeded ? "Geladen" : "Beispieldaten"}
+        {store.hasSeeded && store.decks.length > 0 ? "Geladen" : "Beispieldaten"}
       </button>
       <button
         onclick={() => (showNewDeck = true)}
@@ -184,6 +204,20 @@
       <div class="grid gap-3">
         {#each store.decks as deck (deck.id)}
           <div class="glass rounded-card p-4 transition-shadow flex items-center gap-3 shadow-elevation-low hover:shadow-elevation-mid">
+            {#if (totalCounts[deck.id] ?? 0) > 0}
+              <input
+                type="checkbox"
+                checked={selectedDeckIds.has(deck.id)}
+                onchange={() => {
+                  const next = new Set(selectedDeckIds);
+                  if (next.has(deck.id)) next.delete(deck.id);
+                  else next.add(deck.id);
+                  selectedDeckIds = next;
+                }}
+                class="w-5 h-5 accent-accent-correct shrink-0 cursor-pointer"
+                title="Zum Lernen auswählen"
+              />
+            {/if}
             <!-- Deck info (clickable → opens cards) -->
             <button
               class="flex-1 min-w-0 text-left"

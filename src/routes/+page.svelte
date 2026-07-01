@@ -3,13 +3,16 @@
   import DeckList from "$lib/components/DeckList.svelte";
   import CardEditor from "$lib/components/CardEditor.svelte";
   import StudyView from "$lib/components/StudyView.svelte";
+  import SearchView from "$lib/components/SearchView.svelte";
   import SettingsPanel from "$lib/components/SettingsPanel.svelte";
   import * as api from "$lib/api";
   import { deckStore } from "$lib/stores/decks.svelte";
   import type { DashboardStats, Deck } from "$lib/types";
 
-  let view = $state<"decks" | "cards" | "study" | "settings">("decks");
+  let view = $state<"decks" | "cards" | "study" | "search" | "settings">("decks");
   let activeDeck = $state<Deck | null>(null);
+  let activeDeckIds = $state<string[]>([]);
+  let activeDeckName = $state("");
   let dashboard = $state<DashboardStats | null>(null);
 
   deckStore.load();
@@ -22,9 +25,17 @@
     view = "settings";
   }
 
+  function handleOpenSearch() {
+    view = "search";
+  }
+
   $effect(() => {
     window.addEventListener("open-settings", handleOpenSettings);
-    return () => window.removeEventListener("open-settings", handleOpenSettings);
+    window.addEventListener("open-search", handleOpenSearch);
+    return () => {
+      window.removeEventListener("open-settings", handleOpenSettings);
+      window.removeEventListener("open-search", handleOpenSearch);
+    };
   });
 
   function handleSelectDeck(deck: Deck) {
@@ -34,12 +45,22 @@
 
   function handleStudyDeck(deck: Deck) {
     activeDeck = deck;
+    activeDeckIds = [deck.id];
+    activeDeckName = deck.name;
+    view = "study";
+  }
+
+  function handleStudyDecks(decks: Deck[]) {
+    activeDeckIds = decks.map((d) => d.id);
+    activeDeckName = decks.length === 1 ? decks[0].name : `${decks.length} Stapel`;
     view = "study";
   }
 
   function goHome() {
     view = "decks";
     activeDeck = null;
+    activeDeckIds = [];
+    activeDeckName = "";
   }
 </script>
 
@@ -50,16 +71,33 @@
         deck={activeDeck}
         onClose={goHome}
         onStudy={() => {
+          activeDeckIds = [activeDeck!.id];
+          activeDeckName = activeDeck!.name;
           view = "study";
         }}
       />
     </div>
-  {:else if view === "study" && activeDeck}
+  {:else if view === "study" && activeDeckIds.length > 0}
     <div transition:slide={{ duration: 200, axis: "x" }} class="h-full">
       <StudyView
-        deckId={activeDeck.id}
-        deckName={activeDeck.name}
+        deckIds={activeDeckIds}
+        deckName={activeDeckName}
         onClose={goHome}
+      />
+    </div>
+  {:else if view === "search"}
+    <div transition:slide={{ duration: 200, axis: "x" }} class="h-full">
+      <SearchView
+        onClose={goHome}
+        onSelectCard={(deckId: string) => {
+          const deck = deckStore.decks.find((d) => d.id === deckId);
+          if (deck) {
+            activeDeck = deck;
+            activeDeckIds = [];
+            activeDeckName = "";
+            view = "cards";
+          }
+        }}
       />
     </div>
   {:else if view === "settings"}
@@ -87,6 +125,7 @@
       <DeckList
         onSelectDeck={handleSelectDeck}
         onStudyDeck={handleStudyDeck}
+        onStudyDecks={handleStudyDecks}
       />
     </div>
   {/if}

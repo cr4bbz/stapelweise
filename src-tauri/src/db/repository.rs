@@ -4,7 +4,7 @@ use rusqlite::{params, Connection, Result};
 use uuid::Uuid;
 use chrono::Utc;
 
-use super::models::{Card, CardState, DashboardStats, Deck, DeckStats, Review};
+use super::models::{Card, CardState, DashboardStats, Deck, DeckStats, Review, SearchResult};
 
 pub struct Repository {
     conn: Connection,
@@ -277,6 +277,54 @@ impl Repository {
         Ok(())
     }
 
+    /// Atomically insert a review and update the corresponding card_state.
+    /// Both operations happen in a single transaction — if either fails,
+    /// neither is persisted.
+    pub fn apply_review(&self, review: &Review, updated_state: &CardState) -> Result<()> {
+        self.conn.execute_batch("BEGIN IMMEDIATE")?;
+
+        let result = self.conn.execute(
+            "INSERT INTO reviews (id, card_id, quality, reviewed_at, interval, ease_factor, repetitions, prev_state) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            params![
+                review.id,
+                review.card_id,
+                review.quality,
+                review.reviewed_at,
+                review.interval,
+                review.ease_factor,
+                review.repetitions,
+                review.prev_state,
+            ],
+        );
+
+        if let Err(e) = result {
+            let _ = self.conn.execute_batch("ROLLBACK");
+            return Err(e);
+        }
+
+        let result = self.conn.execute(
+            "UPDATE card_state SET interval = ?1, ease_factor = ?2, repetitions = ?3, next_review = ?4, total_reviews = ?5, correct_streak = ?6, last_review = ?7 WHERE card_id = ?8",
+            params![
+                updated_state.interval,
+                updated_state.ease_factor,
+                updated_state.repetitions,
+                updated_state.next_review,
+                updated_state.total_reviews,
+                updated_state.correct_streak,
+                updated_state.last_review,
+                updated_state.card_id,
+            ],
+        );
+
+        if let Err(e) = result {
+            let _ = self.conn.execute_batch("ROLLBACK");
+            return Err(e);
+        }
+
+        self.conn.execute_batch("COMMIT")?;
+        Ok(())
+    }
+
     /// Get the most recent review for undo purposes.
     pub fn get_last_review(&self) -> Result<Option<Review>> {
         let mut stmt = self.conn.prepare(
@@ -348,22 +396,45 @@ impl Repository {
     // ── Study Queries ──────────────────────────────────
 
     /// Returns cards that are due for review (next_review <= today)
-    pub fn get_due_cards(&self, deck_id: &str, limit: u32) -> Result<Vec<(Card, CardState)>> {
+    pub fn get_due_cards(&self, deck_ids: &[String], limit: u32) -> Result<Vec<(Card, CardState)>> {
         let today = Utc::now().format("%Y-%m-%d").to_string();
 
-        let mut stmt = self.conn.prepare(
+        if deck_ids.is_empty() {
+            return Ok(vec![]);
+        }
+
+        let n = deck_ids.len();
+        let placeholders: Vec<String> = (1..=n).map(|i| format!("?{}", i)).collect();
+        let today_param = format!("?{}", n + 1);
+        let limit_param = format!("?{}", n + 2);
+
+        let sql = format!(
             "SELECT c.id, c.deck_id, c.front, c.back, c.created_at, c.updated_at,
                     cs.interval, cs.ease_factor, cs.repetitions, cs.next_review,
                     cs.total_reviews, cs.correct_streak, cs.last_review
              FROM cards c
              JOIN card_state cs ON cs.card_id = c.id
-             WHERE c.deck_id = ?1 AND cs.next_review <= ?2
+             WHERE c.deck_id IN ({}) AND cs.next_review <= {}
              ORDER BY cs.next_review ASC
-             LIMIT ?3",
-        )?;
+             LIMIT {}",
+            placeholders.join(", "),
+            today_param,
+            limit_param,
+        );
+
+        let mut stmt = self.conn.prepare(&sql)?;
+
+        let mut param_values: Vec<Box<dyn rusqlite::types::ToSql>> = vec![];
+        for id in deck_ids {
+            param_values.push(Box::new(id.clone()));
+        }
+        param_values.push(Box::new(today));
+        param_values.push(Box::new(limit));
+
+        let params_ref: Vec<&dyn rusqlite::types::ToSql> = param_values.iter().map(|p| p.as_ref()).collect();
 
         let results = stmt
-            .query_map(params![deck_id, today, limit], |row| {
+            .query_map(params_ref.as_slice(), |row| {
                 let card = Card {
                     id: row.get(0)?,
                     deck_id: row.get(1)?,
@@ -498,6 +569,37 @@ impl Repository {
             total_reviews_sum,
             reviews_today: reviews_today as u32,
         })
+    }
+
+    // ── Search ─────────────────────────────────────────
+
+    pub fn search_cards(&self, query: &str) -> Result<Vec<SearchResult>> {
+        let pattern = format!("%{}%", query);
+        let mut stmt = self.conn.prepare(
+            "SELECT c.id, c.deck_id, c.front, c.back, c.created_at, c.updated_at,
+                    d.name as deck_name
+             FROM cards c
+             JOIN decks d ON d.id = c.deck_id
+             WHERE c.front LIKE ?1 OR c.back LIKE ?1
+             ORDER BY c.updated_at DESC
+             LIMIT 50",
+        )?;
+        let results = stmt
+            .query_map(params![pattern], |row| {
+                Ok(SearchResult {
+                    card: Card {
+                        id: row.get(0)?,
+                        deck_id: row.get(1)?,
+                        front: row.get(2)?,
+                        back: row.get(3)?,
+                        created_at: row.get(4)?,
+                        updated_at: row.get(5)?,
+                    },
+                    deck_name: row.get(6)?,
+                })
+            })?
+            .collect::<Result<Vec<_>>>()?;
+        Ok(results)
     }
 
     // ── Dashboard ─────────────────────────────────────
