@@ -3,12 +3,13 @@
   import DeckList from "$lib/components/DeckList.svelte";
   import CardEditor from "$lib/components/CardEditor.svelte";
   import StudyView from "$lib/components/StudyView.svelte";
+  import SearchView from "$lib/components/SearchView.svelte";
   import SettingsPanel from "$lib/components/SettingsPanel.svelte";
   import * as api from "$lib/api";
   import { deckStore } from "$lib/stores/decks.svelte";
   import type { DashboardStats, Deck } from "$lib/types";
 
-  let view = $state<"decks" | "cards" | "study" | "settings">("decks");
+  let view = $state<"decks" | "cards" | "study" | "search" | "settings">("decks");
   let activeDeck = $state<Deck | null>(null);
   let activeDeckIds = $state<string[]>([]);
   let activeDeckName = $state("");
@@ -24,9 +25,17 @@
     view = "settings";
   }
 
+  function handleOpenSearch() {
+    view = "search";
+  }
+
   $effect(() => {
     window.addEventListener("open-settings", handleOpenSettings);
-    return () => window.removeEventListener("open-settings", handleOpenSettings);
+    window.addEventListener("open-search", handleOpenSearch);
+    return () => {
+      window.removeEventListener("open-settings", handleOpenSettings);
+      window.removeEventListener("open-search", handleOpenSearch);
+    };
   });
 
   function handleSelectDeck(deck: Deck) {
@@ -74,6 +83,19 @@
         deckIds={activeDeckIds}
         deckName={activeDeckName}
         onClose={goHome}
+      />
+    </div>
+  {:else if view === "search"}
+    <div in:slide={{ duration: 250, axis: "x" }} out:slide={{ duration: 200, axis: "x" }} class="h-full">
+      <SearchView
+        onClose={goHome}
+        onSelectCard={(deckId: string) => {
+          const deck = deckStore.decks.find((d) => d.id === deckId);
+          if (deck) {
+            activeDeck = deck;
+            view = "cards";
+          }
+        }}
       />
     </div>
   {:else if view === "settings"}

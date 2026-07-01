@@ -2,7 +2,7 @@ use rusqlite::{params, Connection, Result};
 use uuid::Uuid;
 use chrono::{Utc, Local, TimeZone, NaiveDate, Duration};
 
-use super::models::{Card, CardState, DashboardStats, Deck, DeckStats, Review};
+use super::models::{Card, CardState, DashboardStats, Deck, DeckStats, Review, SearchResult};
 
 pub struct Repository {
     conn: Connection,
@@ -592,6 +592,37 @@ impl Repository {
             total_reviews_sum,
             reviews_today: reviews_today as u32,
         })
+    }
+
+    // ── Search ─────────────────────────────────────────
+
+    pub fn search_cards(&self, query: &str) -> Result<Vec<SearchResult>> {
+        let pattern = format!("%{}%", query);
+        let mut stmt = self.conn.prepare(
+            "SELECT c.id, c.deck_id, c.front, c.back, c.created_at, c.updated_at,
+                    d.name as deck_name
+             FROM cards c
+             JOIN decks d ON d.id = c.deck_id
+             WHERE c.front LIKE ?1 OR c.back LIKE ?1
+             ORDER BY c.updated_at DESC
+             LIMIT 50",
+        )?;
+        let results = stmt
+            .query_map(params![pattern], |row| {
+                Ok(SearchResult {
+                    card: Card {
+                        id: row.get(0)?,
+                        deck_id: row.get(1)?,
+                        front: row.get(2)?,
+                        back: row.get(3)?,
+                        created_at: row.get(4)?,
+                        updated_at: row.get(5)?,
+                    },
+                    deck_name: row.get(6)?,
+                })
+            })?
+            .collect::<Result<Vec<_>>>()?;
+        Ok(results)
     }
 
     // ── Dashboard ─────────────────────────────────────

@@ -65,6 +65,12 @@ pub struct DashboardStats {
     pub streak_days: u32,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SearchResult {
+    pub card: Card,
+    pub deck_name: String,
+}
+
 impl CardState {
     pub fn new(card_id: &str) -> Self {
         Self {

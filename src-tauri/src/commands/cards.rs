@@ -1,5 +1,5 @@
 use crate::db::DbState;
-use crate::db::models::{Card, CardState, Review};
+use crate::db::models::{Card, CardState, Review, SearchResult};
 use crate::srs::sm2;
 use super::CommandError;
 use chrono::{Utc, Local, NaiveDate};
@@ -173,4 +173,14 @@ pub fn undo_last_review(state: State<DbState>, deck_id: String) -> Result<Option
     let db = state.lock().map_err(|e| CommandError(format!("Lock error: {}", e)))?;
     let restored = db.repo.undo_last_review(&deck_id)?;
     Ok(restored.map(|(card, state)| DueCard { card, state }))
+}
+
+#[tauri::command(rename_all = "camelCase")]
+pub fn search_cards(state: State<DbState>, query: String) -> Result<Vec<SearchResult>, CommandError> {
+    if query.trim().is_empty() {
+        return Ok(vec![]);
+    }
+    let db = state.lock().map_err(|e| CommandError(format!("Lock error: {}", e)))?;
+    let results = db.repo.search_cards(&query)?;
+    Ok(results)
 }
