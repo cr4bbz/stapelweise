@@ -143,7 +143,7 @@
       }
     }
     if (viewingCard) {
-      if (e.key === " " || e.key === "Spacebar") {
+      if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
         e.preventDefault();
         cardFlipped = !cardFlipped;
       }
@@ -185,7 +185,6 @@
         role="button"
         tabindex="0"
         onclick={() => (cardFlipped = !cardFlipped)}
-        onkeydown={(e) => e.key === " " && (cardFlipped = !cardFlipped)}
       >
         <FlashCard
           front={viewingCard.front}
@@ -370,7 +369,7 @@
     <div class="flex-1 overflow-y-auto px-6 pb-6">
       <div class="space-y-2">
         {#each cards as card (card.id)}
-          <div class="glass rounded-card p-4 flex items-start gap-4 group cursor-pointer hover:bg-white/5 dark:hover:bg-white/5 transition-colors" onclick={() => { viewingCard = card; cardFlipped = false; }} role="button" tabindex="0" onkeydown={(e) => e.key === "Enter" && (viewingCard = card, cardFlipped = false)}>
+          <div class="glass rounded-card p-4 flex items-start gap-4 group cursor-pointer hover:bg-white/5 dark:hover:bg-white/5 transition-colors" onclick={() => { viewingCard = card; cardFlipped = false; }} role="button" tabindex="0" onkeydown={(e) => (e.key === "Enter" || e.key === " ") && (viewingCard = card, cardFlipped = false)}>
             <div class="flex-1 min-w-0 grid grid-cols-2 gap-4">
               <div>
                 <span class="text-xs font-medium text-secondary uppercase tracking-wide">Frage</span>
@@ -381,7 +380,7 @@
                 <p class="font-card text-primary dark:text-primary-dark mt-0.5 max-h-20 overflow-hidden">{@html renderMath(card.back)}</p>
               </div>
             </div>
-            <div class="flex items-center gap-1 shrink-0" onclick={(e) => e.stopPropagation()}>
+            <div class="flex items-center gap-1 shrink-0" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
               <button
                 class="p-1.5 rounded-lg hover:bg-white/30 dark:hover:bg-white/10 text-secondary transition-colors"
                 title="SM-2 Kartenzustand"
