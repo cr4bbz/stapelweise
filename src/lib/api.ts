@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { AppSettings, Card, CardState, DashboardStats, Deck, DeckStats, DueCard } from "./types";
+import type { AppSettings, Card, CardState, DashboardStats, Deck, DeckStats, DueCard, SearchResult } from "./types";
 
 // Helper to log and rethrow
 async function cmd<T>(name: string, args?: Record<string, unknown>): Promise<T> {
@@ -93,6 +93,12 @@ export async function submitReview(
 
 export async function undoLastReview(deckId: string): Promise<DueCard | null> {
   return cmd("undo_last_review", { deckId });
+}
+
+// ── Search ────────────────────────────────────────────
+
+export async function searchCards(query: string): Promise<SearchResult[]> {
+  return cmd("search_cards", { query });
 }
 
 // ── Settings ──────────────────────────────────────────

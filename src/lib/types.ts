@@ -45,6 +45,11 @@ export interface DeckStats {
   reviews_today: number;
 }
 
+export interface SearchResult {
+  card: Card;
+  deck_name: string;
+}
+
 export interface DashboardStats {
   total_cards: number;
   due_cards: number;
