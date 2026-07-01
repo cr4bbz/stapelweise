@@ -59,4 +59,4 @@ npm run tauri build
 
 ## Lizenz
 
-TBD
+MIT
