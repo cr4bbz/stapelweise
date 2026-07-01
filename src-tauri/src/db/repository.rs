@@ -1,8 +1,6 @@
-use std::collections::HashSet;
-
 use rusqlite::{params, Connection, Result};
 use uuid::Uuid;
-use chrono::Utc;
+use chrono::{Utc, Local, TimeZone, NaiveDate, Duration};
 
 use super::models::{Card, CardState, DashboardStats, Deck, DeckStats, Review};
 
@@ -351,7 +349,7 @@ impl Repository {
 
     /// Returns cards that are due for review (next_review <= today)
     pub fn get_due_cards(&self, deck_id: &str, limit: u32) -> Result<Vec<(Card, CardState)>> {
-        let today = Utc::now().format("%Y-%m-%d").to_string();
+        let today = Local::now().format("%Y-%m-%d").to_string();
 
         let mut stmt = self.conn.prepare(
             "SELECT c.id, c.deck_id, c.front, c.back, c.created_at, c.updated_at,
@@ -393,7 +391,7 @@ impl Repository {
 
     /// Count due cards in a deck
     pub fn count_due_cards(&self, deck_id: &str) -> Result<u32> {
-        let today = Utc::now().format("%Y-%m-%d").to_string();
+        let today = Local::now().format("%Y-%m-%d").to_string();
         let count: i64 = self.conn.query_row(
             "SELECT COUNT(*) FROM cards c
              JOIN card_state cs ON cs.card_id = c.id
@@ -447,6 +445,25 @@ impl Repository {
 
     // ── Stats ─────────────────────────────────────────
 
+    /// Compute UTC timestamp bounds for a local calendar day.
+    /// Returns (lower_utc, upper_utc) for use in `reviewed_at >= ? AND reviewed_at < ?`.
+    fn day_utc_bounds(local_date: NaiveDate) -> (String, String) {
+        let midnight = local_date.and_hms_opt(0, 0, 0).unwrap();
+        let next_midnight = (local_date + Duration::days(1)).and_hms_opt(0, 0, 0).unwrap();
+        let lower = Local.from_local_datetime(&midnight)
+            .single()
+            .map(|dt| dt.with_timezone(&Utc))
+            .unwrap_or_else(Utc::now);
+        let upper = Local.from_local_datetime(&next_midnight)
+            .single()
+            .map(|dt| dt.with_timezone(&Utc))
+            .unwrap_or_else(Utc::now);
+        (
+            lower.format("%Y-%m-%dT%H:%M:%S").to_string(),
+            upper.format("%Y-%m-%dT%H:%M:%S").to_string(),
+        )
+    }
+
     pub fn get_deck_stats(&self, deck_id: &str, today_start: &str) -> Result<DeckStats> {
         let agg_result = self.conn.query_row(
             "SELECT
@@ -480,11 +497,15 @@ impl Repository {
 
         let (total, new_cards, learning, reviewing, mastered, due_cards, avg_ef, avg_interval, total_reviews_sum) = agg_result?;
 
+        let today_dt = NaiveDate::parse_from_str(today_start, "%Y-%m-%d")
+            .unwrap_or_else(|_| Local::now().date_naive());
+        let (utc_lower, utc_upper) = Self::day_utc_bounds(today_dt);
+
         let reviews_today: i64 = self.conn.query_row(
             "SELECT COUNT(*) FROM reviews r
              JOIN cards c ON r.card_id = c.id
-             WHERE c.deck_id = ?1 AND r.reviewed_at >= ?2",
-            params![deck_id, today_start],
+             WHERE c.deck_id = ?1 AND r.reviewed_at >= ?2 AND r.reviewed_at < ?3",
+            params![deck_id, utc_lower, utc_upper],
             |row| row.get(0),
         )?;
 
@@ -524,37 +545,37 @@ impl Repository {
 
         let (total_cards, due_cards, avg_ease_factor) = agg;
 
+        let today_dt = NaiveDate::parse_from_str(today, "%Y-%m-%d")
+            .unwrap_or_else(|_| Local::now().date_naive());
+        let (utc_lower, utc_upper) = Self::day_utc_bounds(today_dt);
+
         let reviews_today: i64 = self.conn.query_row(
-            "SELECT COUNT(*) FROM reviews WHERE reviewed_at >= ?1",
-            params![today],
+            "SELECT COUNT(*) FROM reviews WHERE reviewed_at >= ?1 AND reviewed_at < ?2",
+            params![utc_lower, utc_upper],
             |row| row.get(0),
         )?;
 
-        // Compute streak: consecutive days with at least one review going back from today
+        // Compute streak: consecutive days with at least one review going back from today.
+        // Each local day is checked via UTC bounds so DST transitions are handled correctly.
         let mut streak = 0u32;
-        let mut stmt = self.conn.prepare(
-            "SELECT DISTINCT substr(reviewed_at, 1, 10) as day
-             FROM reviews
-             ORDER BY day DESC
-             LIMIT 366",
+        let mut streak_stmt = self.conn.prepare(
+            "SELECT COUNT(*) FROM reviews WHERE reviewed_at >= ?1 AND reviewed_at < ?2",
         )?;
-        let days: HashSet<String> = stmt
-            .query_map([], |row| row.get(0))?
-            .collect::<Result<HashSet<_>>>()?;
 
-        if !days.is_empty() {
-            let today_dt = chrono::NaiveDate::parse_from_str(today, "%Y-%m-%d")
-                .unwrap_or_else(|_| chrono::Utc::now().date_naive());
-            for i in 0i64..366 {
-                let check = today_dt - chrono::Duration::days(i);
-                let check_str = check.format("%Y-%m-%d").to_string();
-                if days.contains(&check_str) {
-                    streak += 1;
-                } else if i == 0 {
-                    continue;
-                } else {
-                    break;
-                }
+        for i in 0i64..366 {
+            let check_date = today_dt - Duration::days(i);
+            let (check_lower, check_upper) = Self::day_utc_bounds(check_date);
+            let has_review: bool = streak_stmt
+                .query_row(params![check_lower, check_upper], |row| row.get::<_, i64>(0))
+                .map(|c| c > 0)
+                .unwrap_or(false);
+            if has_review {
+                streak += 1;
+            } else if i == 0 {
+                // Today may not have any reviews yet, keep checking
+                continue;
+            } else {
+                break;
             }
         }
 
