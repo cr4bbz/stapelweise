@@ -146,9 +146,6 @@ pub fn submit_review(
         repetitions: next.repetitions,
         prev_state: prev_state_json,
     };
-    db.repo.insert_review(&review)?;
-
-    // Update card state
     let new_streak = if quality >= sm2_config.pass_threshold {
         current_state.correct_streak + 1
     } else {
@@ -166,7 +163,7 @@ pub fn submit_review(
         last_review: Some(now_str),
     };
 
-    db.repo.update_card_state(&updated_state)?;
+    db.repo.apply_review(&review, &updated_state)?;
 
     Ok(updated_state)
 }
