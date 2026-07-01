@@ -47,9 +47,9 @@ export function getStudyStore() {
       return (currentIndex + (isFlipped ? 1 : 0)) / (dueCards.length + 1);
     },
 
-    async startSession(deckId: string, limit: number = 50) {
-      currentDeckId = deckId;
-      const cards = await api.getDueCards(deckId, limit);
+    async startSession(deckIds: string[], limit: number = 50) {
+      currentDeckId = deckIds.length === 1 ? deckIds[0] : null;
+      const cards = await api.getDueCards(deckIds, limit);
       if (cards.length === 0) return false;
       dueCards = cards;
       currentIndex = 0;

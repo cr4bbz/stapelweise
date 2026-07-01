@@ -10,6 +10,8 @@
 
   let view = $state<"decks" | "cards" | "study" | "settings">("decks");
   let activeDeck = $state<Deck | null>(null);
+  let activeDeckIds = $state<string[]>([]);
+  let activeDeckName = $state("");
   let dashboard = $state<DashboardStats | null>(null);
 
   deckStore.load();
@@ -34,12 +36,22 @@
 
   function handleStudyDeck(deck: Deck) {
     activeDeck = deck;
+    activeDeckIds = [deck.id];
+    activeDeckName = deck.name;
+    view = "study";
+  }
+
+  function handleStudyDecks(decks: Deck[]) {
+    activeDeckIds = decks.map((d) => d.id);
+    activeDeckName = decks.length === 1 ? decks[0].name : `${decks.length} Stapel`;
     view = "study";
   }
 
   function goHome() {
     view = "decks";
     activeDeck = null;
+    activeDeckIds = [];
+    activeDeckName = "";
   }
 </script>
 
@@ -50,15 +62,17 @@
         deck={activeDeck}
         onClose={goHome}
         onStudy={() => {
+          activeDeckIds = [activeDeck!.id];
+          activeDeckName = activeDeck!.name;
           view = "study";
         }}
       />
     </div>
-  {:else if view === "study" && activeDeck}
+  {:else if view === "study" && activeDeckIds.length > 0}
     <div in:slide={{ duration: 250, axis: "x" }} out:slide={{ duration: 200, axis: "x" }} class="h-full">
       <StudyView
-        deckId={activeDeck.id}
-        deckName={activeDeck.name}
+        deckIds={activeDeckIds}
+        deckName={activeDeckName}
         onClose={goHome}
       />
     </div>
@@ -87,6 +101,7 @@
       <DeckList
         onSelectDeck={handleSelectDeck}
         onStudyDeck={handleStudyDeck}
+        onStudyDecks={handleStudyDecks}
       />
     </div>
   {/if}

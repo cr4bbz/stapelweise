@@ -65,13 +65,13 @@ pub struct DueCard {
 #[tauri::command(rename_all = "camelCase")]
 pub fn get_due_cards(
     state: State<DbState>,
-    deck_id: String,
+    deck_ids: Vec<String>,
     limit: u32,
 ) -> Result<Vec<DueCard>, CommandError> {
     let db = state.lock().map_err(|e| CommandError(format!("Lock error: {}", e)))?;
     let settings = db.settings();
     let effective_limit = limit.min(settings.session_limit);
-    let cards = db.repo.get_due_cards(&deck_id, effective_limit)?;
+    let cards = db.repo.get_due_cards(&deck_ids, effective_limit)?;
     Ok(cards
         .into_iter()
         .map(|(card, state)| DueCard { card, state })
