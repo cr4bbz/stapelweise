@@ -7,9 +7,13 @@ const MATH_REGEX = /(\$\$[\s\S]*?\$\$|\$[\s\S]*?\$)/g;
 
 marked.use({
   renderer: {
-    // Strip raw HTML — any user-supplied HTML is returned as plain text
+    // Strip raw HTML — escape it so it appears as text, not executable HTML
     html({ text }: { text: string }) {
-      return text;
+      return text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
     },
     // Block javascript: and data: URLs in links
     link({ href, title, text }: { href: string; title?: string | null; text: string }) {
