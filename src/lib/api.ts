@@ -70,10 +70,10 @@ export async function getCardState(cardId: string): Promise<CardState | null> {
 // ── Study ────────────────────────────────────────────
 
 export async function getDueCards(
-  deckId: string,
+  deckIds: string[],
   limit: number
 ): Promise<DueCard[]> {
-  return cmd("get_due_cards", { deckId, limit });
+  return cmd("get_due_cards", { deckIds, limit });
 }
 
 export async function countDueCards(deckId: string): Promise<number> {

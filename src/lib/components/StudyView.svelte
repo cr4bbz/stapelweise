@@ -6,8 +6,8 @@
   import ScoreButtons from "./ScoreButtons.svelte";
   import ProgressBar from "./ProgressBar.svelte";
 
-  let { deckId, deckName = "", onClose = () => {} } = $props<{
-    deckId: string;
+  let { deckIds, deckName = "", onClose = () => {} } = $props<{
+    deckIds: string[];
     deckName?: string;
     onClose?: () => void;
   }>();
@@ -21,7 +21,7 @@
     loading = true;
     untrack(() => {
       settingsStore.load().then(() => {
-        s.startSession(deckId, settingsStore.current.session_limit).then((hasCards) => {
+        s.startSession(deckIds, settingsStore.current.session_limit).then((hasCards) => {
           empty = !hasCards;
           loading = false;
         });
@@ -77,7 +77,7 @@
 
   async function continueSession() {
     loading = true;
-    const hasCards = await s.startSession(deckId, settingsStore.current.session_limit);
+    const hasCards = await s.startSession(deckIds, settingsStore.current.session_limit);
     empty = !hasCards;
     loading = false;
   }

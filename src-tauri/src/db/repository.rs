@@ -395,23 +395,46 @@ impl Repository {
 
     // ── Study Queries ──────────────────────────────────
 
-    /// Returns cards that are due for review (next_review <= today)
-    pub fn get_due_cards(&self, deck_id: &str, limit: u32) -> Result<Vec<(Card, CardState)>> {
+    /// Returns cards that are due for review (next_review <= today) across one or more decks.
+    pub fn get_due_cards(&self, deck_ids: &[String], limit: u32) -> Result<Vec<(Card, CardState)>> {
         let today = Local::now().format("%Y-%m-%d").to_string();
 
-        let mut stmt = self.conn.prepare(
+        if deck_ids.is_empty() {
+            return Ok(vec![]);
+        }
+
+        let n = deck_ids.len();
+        let placeholders: Vec<String> = (1..=n).map(|i| format!("?{}", i)).collect();
+        let today_param = format!("?{}", n + 1);
+        let limit_param = format!("?{}", n + 2);
+
+        let sql = format!(
             "SELECT c.id, c.deck_id, c.front, c.back, c.created_at, c.updated_at,
                     cs.interval, cs.ease_factor, cs.repetitions, cs.next_review,
                     cs.total_reviews, cs.correct_streak, cs.last_review
              FROM cards c
              JOIN card_state cs ON cs.card_id = c.id
-             WHERE c.deck_id = ?1 AND cs.next_review <= ?2
+             WHERE c.deck_id IN ({}) AND cs.next_review <= {}
              ORDER BY cs.next_review ASC
-             LIMIT ?3",
-        )?;
+             LIMIT {}",
+            placeholders.join(", "),
+            today_param,
+            limit_param,
+        );
+
+        let mut stmt = self.conn.prepare(&sql)?;
+
+        let mut param_values: Vec<Box<dyn rusqlite::types::ToSql>> = vec![];
+        for id in deck_ids {
+            param_values.push(Box::new(id.clone()));
+        }
+        param_values.push(Box::new(today));
+        param_values.push(Box::new(limit));
+
+        let params_ref: Vec<&dyn rusqlite::types::ToSql> = param_values.iter().map(|p| p.as_ref()).collect();
 
         let results = stmt
-            .query_map(params![deck_id, today, limit], |row| {
+            .query_map(params_ref.as_slice(), |row| {
                 let card = Card {
                     id: row.get(0)?,
                     deck_id: row.get(1)?,
