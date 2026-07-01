@@ -39,6 +39,10 @@ export function getDeckStore() {
     async remove(deckId: string) {
       await api.deleteDeck(deckId);
       decks = decks.filter((d) => d.id !== deckId);
+      if (decks.length === 0) {
+        hasSeeded = false;
+        localStorage.removeItem('stapelweise_seeded');
+      }
     },
     async seed() {
       loading = true;
