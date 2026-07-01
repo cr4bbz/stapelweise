@@ -1,11 +1,11 @@
 <script lang="ts">
   import { settingsStore } from "$lib/stores/settings.svelte";
-  import { renderMath } from "$lib/math";
+  import { renderMarkdown } from "$lib/markdown";
 
   let { front = "", back = "", flipped = false } = $props();
 
-  let renderedFront = $derived(renderMath(front));
-  let renderedBack = $derived(renderMath(back));
+  let renderedFront = $derived(renderMarkdown(front));
+  let renderedBack = $derived(renderMarkdown(back));
   let shortCard = $derived(front.length + back.length <= 60);
 
   let sizeClass = $derived(settingsStore.fontSizeClass(settingsStore.current.card_font_size, shortCard));

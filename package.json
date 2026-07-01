@@ -16,7 +16,8 @@
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-opener": "^2",
     "@tauri-apps/plugin-window-state": "^2",
-    "katex": "^0.17.0"
+    "katex": "^0.17.0",
+    "marked": "^18.0.5"
   },
   "devDependencies": {
     "@sveltejs/adapter-static": "^3.0.6",
@@ -24,6 +25,7 @@
     "@sveltejs/vite-plugin-svelte": "^5.0.0",
     "@tauri-apps/cli": "^2",
     "@types/katex": "^0.16.8",
+    "@types/marked": "^5.0.2",
     "autoprefixer": "^10.5.2",
     "postcss": "^8.5.16",
     "svelte": "^5.0.0",
