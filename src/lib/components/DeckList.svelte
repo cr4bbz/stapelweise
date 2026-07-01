@@ -116,11 +116,10 @@
             error = e?.toString() || "Fehler beim Laden der Beispieldaten";
           }
         }}
-        disabled={store.hasSeeded && store.decks.length > 0}
-        class="rounded-button bg-accent-correct text-white px-4 py-2 text-sm font-medium hover:scale-[1.02] transition-transform disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
-        title={store.hasSeeded && store.decks.length > 0 ? "Bereits geladen" : "3 thematische Decks mit 18 Karten in verschiedenen Lernzuständen"}
+        class="rounded-button bg-accent-correct text-white px-4 py-2 text-sm font-medium hover:scale-[1.02] transition-transform"
+        title="3 thematische Decks mit 18 Karten in verschiedenen Lernzuständen"
       >
-        {store.hasSeeded && store.decks.length > 0 ? "Geladen" : "Beispieldaten"}
+        Beispieldaten
       </button>
       <button
         onclick={() => (showNewDeck = true)}

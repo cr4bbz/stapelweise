@@ -3,7 +3,6 @@ import type { Deck } from "$lib/types";
 
 let decks = $state<Deck[]>([]);
 let loading = $state(false);
-let hasSeeded = $state(typeof localStorage !== 'undefined' && localStorage.getItem('stapelweise_seeded') === '1');
 
 export function getDeckStore() {
   return {
@@ -12,9 +11,6 @@ export function getDeckStore() {
     },
     get loading() {
       return loading;
-    },
-    get hasSeeded() {
-      return hasSeeded;
     },
     async load() {
       loading = true;
@@ -39,18 +35,12 @@ export function getDeckStore() {
     async remove(deckId: string) {
       await api.deleteDeck(deckId);
       decks = decks.filter((d) => d.id !== deckId);
-      if (decks.length === 0) {
-        hasSeeded = false;
-        localStorage.removeItem('stapelweise_seeded');
-      }
     },
     async seed() {
       loading = true;
       try {
         const seeded = await api.seedSampleData();
         decks = [...decks, ...seeded];
-        hasSeeded = true;
-        localStorage.setItem('stapelweise_seeded', '1');
       } finally {
         loading = false;
       }

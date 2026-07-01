@@ -109,13 +109,32 @@ pub struct SeedGenerator;
 impl SeedGenerator {
     /// Generate 3 sample decks with cards in varied SM-2 states.
     /// Returns all decks so the frontend can display them immediately.
+    fn build_deck(repo: &Repository, name: &str, cards: Vec<(&str, &str, Scenario)>, today: NaiveDate, skip: &[String]) -> Result<Option<Deck>, String> {
+        if skip.contains(&name.to_string()) {
+            return Ok(None);
+        }
+        let deck = repo.create_deck(name).map_err(|e| e.to_string())?;
+        for (front, back, scenario) in cards {
+            repo.seed_insert_card_with_state(&deck.id, front, back, &scenario.build_state("", today))
+                .map_err(|e| e.to_string())?;
+        }
+        Ok(Some(deck))
+    }
+
+    /// Generate 3 sample decks with cards in varied SM-2 states.
+    /// Skips decks whose names already exist — safe to call repeatedly.
     pub fn generate(repo: &Repository) -> Result<Vec<Deck>, String> {
         let today = Utc::now().date_naive();
+        let existing_names: Vec<String> = repo
+            .list_decks()
+            .map_err(|e| e.to_string())?
+            .iter()
+            .map(|d| d.name.clone())
+            .collect();
         let mut decks = Vec::new();
 
         // ── Deck 1: Deutsche Grammatik (8 Karten) ────────
-        let deck1 = repo.create_deck("Deutsche Grammatik").map_err(|e| e.to_string())?;
-        let cards1: Vec<(&str, &str, Scenario)> = vec![
+        let cards1 = vec![
             ("der, die, das", "Bestimmte Artikel im Nominativ: der (m), die (f), das (n)", Scenario::New),
             ("Konjunktiv II", "würde + Infinitiv: Ich würde gehen. Bei Hilfsverben: ich hätte, ich wäre", Scenario::New),
             ("Weil-Sätze", "Das finite Verb steht am Ende: ..., weil ich müde bin.", Scenario::DueTodayFirst),
@@ -125,15 +144,12 @@ impl SeedGenerator {
             ("Relativpronomen", "der, die, das (bezogen auf das Nomen): Der Mann, der dort steht...", Scenario::DueTomorrow),
             ("Trennbare Verben", "aufstehen → ich stehe auf, anrufen → ich rufe an", Scenario::DueIn7Days),
         ];
-        for (front, back, scenario) in cards1 {
-            repo.seed_insert_card_with_state(&deck1.id, front, back, &scenario.build_state("", today))
-                .map_err(|e| e.to_string())?;
+        if let Some(d) = Self::build_deck(repo, "Deutsche Grammatik", cards1, today, &existing_names)? {
+            decks.push(d);
         }
-        decks.push(deck1);
 
         // ── Deck 2: Weltgeschichte (6 Karten) ────────────
-        let deck2 = repo.create_deck("Weltgeschichte").map_err(|e| e.to_string())?;
-        let cards2: Vec<(&str, &str, Scenario)> = vec![
+        let cards2 = vec![
             ("Wann endete der Zweite Weltkrieg?", "1945 — mit der bedingungslosen Kapitulation Deutschlands am 8. Mai", Scenario::New),
             ("Was war die Französische Revolution?", "1789: Sturz der Monarchie, Erklärung der Menschenrechte, Ende des Ancien Régime", Scenario::DueTodayFirst),
             ("Wer war Kleopatra?", "Letzte Pharaonin Ägyptens (69–30 v.Chr.), verband sich mit Caesar und Marcus Antonius", Scenario::DueTodayFirst),
@@ -141,25 +157,20 @@ impl SeedGenerator {
             ("Wann fiel die Berliner Mauer?", "9. November 1989 — Ende der deutschen Teilung, Symbol des Endes des Kalten Krieges", Scenario::Graduated),
             ("Was war die industrielle Revolution?", "Übergang von Handarbeit zur Maschinenproduktion, ~1760–1840, begann in England", Scenario::DueIn7Days),
         ];
-        for (front, back, scenario) in cards2 {
-            repo.seed_insert_card_with_state(&deck2.id, front, back, &scenario.build_state("", today))
-                .map_err(|e| e.to_string())?;
+        if let Some(d) = Self::build_deck(repo, "Weltgeschichte", cards2, today, &existing_names)? {
+            decks.push(d);
         }
-        decks.push(deck2);
 
         // ── Deck 3: Biologie Grundlagen (4 Karten, alle neu) ───────
-        let deck3 = repo.create_deck("Biologie Grundlagen").map_err(|e| e.to_string())?;
-        let cards3: Vec<(&str, &str, Scenario)> = vec![
+        let cards3 = vec![
             ("Zellatmung", "C₆H₁₂O₆ + 6O₂ → 6CO₂ + 6H₂O + Energie (ATP)", Scenario::New),
             ("Photosynthese", "6CO₂ + 6H₂O + Licht → C₆H₁₂O₆ + 6O₂", Scenario::New),
             ("DNA-Basenpaarung", "Adenin-Thymin (A-T), Guanin-Cytosin (G-C)", Scenario::New),
             ("Mitose vs. Meiose", "Mitose: 2 identische Tochterzellen (2n). Meiose: 4 Keimzellen mit halbem Satz (n).", Scenario::New),
         ];
-        for (front, back, scenario) in cards3 {
-            repo.seed_insert_card_with_state(&deck3.id, front, back, &scenario.build_state("", today))
-                .map_err(|e| e.to_string())?;
+        if let Some(d) = Self::build_deck(repo, "Biologie Grundlagen", cards3, today, &existing_names)? {
+            decks.push(d);
         }
-        decks.push(deck3);
 
         Ok(decks)
     }
