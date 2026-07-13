@@ -59,7 +59,7 @@
 
 <svelte:window onkeydown={handleKeydown} />
 
-<div class="flex flex-col h-full">
+<div class="flex flex-col h-full overflow-y-auto">
   <!-- Top Bar -->
   <div class="flex flex-col gap-2 p-6 pb-2">
     <div class="flex items-center gap-3">

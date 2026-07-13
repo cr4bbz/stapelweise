@@ -49,7 +49,7 @@
 
 <svelte:window onkeydown={handleKeydown} />
 
-<div class="flex flex-col h-full">
+<div class="flex flex-col h-full overflow-hidden">
   <!-- Header -->
   <div class="flex items-center gap-3 p-6 pb-4">
     <button

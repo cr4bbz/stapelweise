@@ -95,7 +95,7 @@
 
 <div class="grid h-full w-full">
   {#if view === "cards" && activeDeck}
-    <div in:fade={{ duration: 150 }} out:fade={{ duration: 100 }} class="col-start-1 row-start-1 h-full w-full overflow-hidden">
+    <div in:fade={{ duration: 150 }} out:fade={{ duration: 100 }} class="col-start-1 row-start-1 h-full w-full overflow-y-auto">
       <CardEditor
         deck={activeDeck}
         onClose={goHome}
@@ -107,7 +107,7 @@
       />
     </div>
   {:else if view === "study" && (activeDeckIds.length > 0 || activeTags.length > 0)}
-    <div in:fade={{ duration: 150 }} out:fade={{ duration: 100 }} class="col-start-1 row-start-1 h-full w-full overflow-hidden">
+    <div in:fade={{ duration: 150 }} out:fade={{ duration: 100 }} class="col-start-1 row-start-1 h-full w-full overflow-y-auto">
       <StudyView
         deckIds={activeDeckIds}
         tags={activeTags}
@@ -117,7 +117,7 @@
       />
     </div>
   {:else if view === "search"}
-    <div in:fade={{ duration: 150 }} out:fade={{ duration: 100 }} class="col-start-1 row-start-1 h-full w-full overflow-hidden">
+    <div in:fade={{ duration: 150 }} out:fade={{ duration: 100 }} class="col-start-1 row-start-1 h-full w-full overflow-y-auto">
       <SearchView
         onClose={goHome}
         onSelectCard={(deckId: string) => {
@@ -130,7 +130,7 @@
       />
     </div>
   {:else if view === "settings"}
-    <div in:fade={{ duration: 150 }} out:fade={{ duration: 100 }} class="col-start-1 row-start-1 h-full w-full overflow-hidden">
+    <div in:fade={{ duration: 150 }} out:fade={{ duration: 100 }} class="col-start-1 row-start-1 h-full w-full overflow-y-auto">
       <SettingsPanel onClose={goHome} />
     </div>
   {:else if view === "decks"}
@@ -160,7 +160,7 @@
       />
     </div>
   {:else if view === "test"}
-    <div in:fade={{ duration: 150 }} out:fade={{ duration: 100 }} class="col-start-1 row-start-1 h-full w-full overflow-hidden">
+    <div in:fade={{ duration: 150 }} out:fade={{ duration: 100 }} class="col-start-1 row-start-1 h-full w-full overflow-y-auto">
       <TestView
         deckIds={activeDeckIds}
         tags={activeTags}

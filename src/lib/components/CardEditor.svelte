@@ -402,7 +402,7 @@
 
 <svelte:window onkeydown={handleKeydown} />
 
-<div class="flex-1 grid overflow-hidden w-full h-full">
+<div class="flex-1 grid overflow-y-auto w-full h-full">
   {#if showStats}
     <div in:fade={{ duration: 150 }} out:fade={{ duration: 100 }} class="col-start-1 row-start-1 h-full w-full">
     <StatsDashboard deckId={deck.id} deckName={deck.name} onClose={() => (showStats = false)} />

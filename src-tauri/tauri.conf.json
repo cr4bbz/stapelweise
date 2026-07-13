@@ -14,10 +14,10 @@
       {
         "label": "main",
         "title": "Stapelweise",
-        "width": 1000,
-        "height": 700,
-        "minWidth": 600,
-        "minHeight": 400
+        "width": 1280,
+        "height": 720,
+        "minWidth": 960,
+        "minHeight": 540
       }
     ],
     "security": {
