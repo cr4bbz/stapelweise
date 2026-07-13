@@ -26,7 +26,7 @@
   <header class="border-b border-[#E4E7EC] dark:border-[#2A303B] bg-white/90 dark:bg-[#171B24]/90 backdrop-blur">
     <div class="app-container flex h-14 items-center justify-between">
       <a href="/" class="flex items-center gap-2 text-base font-bold text-primary dark:text-primary-dark tracking-tight">
-        <span class="flex h-7 w-7 items-center justify-center rounded-lg bg-accent-correct text-white text-sm font-black">S</span>
+        <span class="font-pixel flex h-7 w-7 items-center justify-center rounded-lg bg-accent-correct text-white text-sm font-black">S</span>
         <span>stapelweise</span>
       </a>
       <div class="flex items-center gap-1">

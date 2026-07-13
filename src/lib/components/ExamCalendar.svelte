@@ -239,7 +239,7 @@
                 {exam.exam_type}
               </span>
               <div class="flex items-baseline justify-center gap-1">
-                <span class="text-2xl font-black leading-none">{stats ? Math.max(0, stats.days_left) : '-'}</span>
+                <span class="font-pixel text-2xl font-black leading-none">{stats ? Math.max(0, stats.days_left) : '-'}</span>
                 <span class="text-[10px] font-bold uppercase tracking-wide">Tage</span>
               </div>
               <span class="mt-1 block text-[10px] font-semibold uppercase tracking-wide opacity-80">

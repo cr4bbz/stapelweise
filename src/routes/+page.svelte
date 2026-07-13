@@ -203,7 +203,7 @@
                   <p class="mt-2 max-w-xl text-sm text-secondary sm:text-base">{todayNudge}</p>
                 </div>
                 <div class="rounded-xl border border-[#E4E7EC] bg-[#F8FAFC] px-4 py-3 text-left dark:border-[#2A303B] dark:bg-[#10131A] sm:text-right">
-                  <p class="text-3xl font-bold text-primary dark:text-primary-dark">{dashboard.due_cards}</p>
+                  <p class="font-pixel text-3xl font-bold text-primary dark:text-primary-dark">{dashboard.due_cards}</p>
                   <p class="text-xs font-semibold uppercase tracking-wide text-secondary">Karten fällig</p>
                 </div>
               </div>
@@ -233,15 +233,15 @@
             <div class="grid grid-cols-3 border-t border-[#E4E7EC] bg-[#F8FAFC] dark:border-[#2A303B] dark:bg-[#10131A]">
               <div class="border-r border-[#E4E7EC] p-4 dark:border-[#2A303B]">
                 <p class="text-xs font-medium text-secondary">Heute gelernt</p>
-                <p class="mt-1 text-xl font-bold text-accent-easy dark:text-accent-easy-dark">{dashboard.reviews_today}</p>
+                <p class="font-pixel mt-1 text-xl font-bold text-accent-easy dark:text-accent-easy-dark">{dashboard.reviews_today}</p>
               </div>
               <div class="border-r border-[#E4E7EC] p-4 dark:border-[#2A303B]">
                 <p class="text-xs font-medium text-secondary">Serie</p>
-                <p class="mt-1 text-xl font-bold text-accent-hard dark:text-accent-hard-dark">{dashboard.streak_days} <span class="text-sm font-semibold text-secondary">Tage</span></p>
+                <p class="font-pixel mt-1 text-xl font-bold text-accent-hard dark:text-accent-hard-dark">{dashboard.streak_days} <span class="font-sans text-sm font-semibold text-secondary">Tage</span></p>
               </div>
               <div class="p-4">
                 <p class="text-xs font-medium text-secondary">Gesamt</p>
-                <p class="mt-1 text-xl font-bold text-primary dark:text-primary-dark">{dashboard.total_cards}</p>
+                <p class="font-pixel mt-1 text-xl font-bold text-primary dark:text-primary-dark">{dashboard.total_cards}</p>
               </div>
             </div>
           </section>
@@ -251,7 +251,7 @@
             <div class="space-y-4">
               <div>
                 <div class="mb-1 flex items-center justify-between text-sm">
-                  <span class="font-semibold text-primary dark:text-primary-dark">Tagesdruck</span>
+                  <span class="font-semibold text-primary dark:text-primary-dark">Lernpensum</span>
                   <span class="text-secondary">{dashboard.due_cards === 0 ? "frei" : dashboard.due_cards <= 20 ? "normal" : "hoch"}</span>
                 </div>
                 <div class="h-2 overflow-hidden rounded-full bg-[#E4E7EC] dark:bg-[#2A303B]">
@@ -279,11 +279,11 @@
               <div class="grid grid-cols-2 gap-3">
                 <div class="rounded-lg border border-[#E4E7EC] p-3 dark:border-[#2A303B]">
                   <p class="text-xs text-secondary">Ø Ease</p>
-                  <p class="text-lg font-bold text-primary dark:text-primary-dark">{dashboard.avg_ease_factor.toFixed(2)}</p>
+                  <p class="font-pixel text-lg font-bold text-primary dark:text-primary-dark">{dashboard.avg_ease_factor.toFixed(2)}</p>
                 </div>
                 <div class="rounded-lg border border-[#E4E7EC] p-3 dark:border-[#2A303B]">
                   <p class="text-xs text-secondary">Bibliothek</p>
-                  <p class="text-lg font-bold text-primary dark:text-primary-dark">{deckStore.decks.length}</p>
+                  <p class="font-pixel text-lg font-bold text-primary dark:text-primary-dark">{deckStore.decks.length}</p>
                 </div>
               </div>
               <p class="text-sm leading-relaxed text-secondary">

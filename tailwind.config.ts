@@ -40,6 +40,7 @@ export default {
       fontFamily: {
         sans: ["Source Sans 3", "Avenir", "Helvetica", "Arial", "sans-serif"],
         serif: ["Source Serif 4", "Georgia", "serif"],
+        pixel: ["Pixelify Sans", "Press Start 2P", "Silkscreen", "monospace"],
       },
       borderRadius: {
         card: "0.75rem",

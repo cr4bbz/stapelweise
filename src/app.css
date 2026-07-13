@@ -168,6 +168,13 @@
     font-family: 'Source Sans 3', system-ui, -apple-system, sans-serif;
   }
 
+  .font-pixel {
+    font-family: "Pixelify Sans", "Press Start 2P", "Silkscreen", ui-monospace, monospace;
+    font-synthesis: none;
+    letter-spacing: 0;
+    text-rendering: geometricPrecision;
+  }
+
   .app-container {
     width: min(100%, 1180px);
     margin-inline: auto;
