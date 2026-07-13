@@ -15,6 +15,7 @@ import {
   type ExamSession,
   type ExamStats,
   type ExamTemplate,
+  type ImportInspection,
   type JsonCardInput,
   type SearchResult,
   type SerializedAppError,
@@ -306,4 +307,21 @@ export async function finishExamSession(
 
 export async function getExamResult(sessionId: string): Promise<ExamResult | null> {
   return cmd("get_exam_result", { sessionId });
+}
+
+// ── BACKUP & DATA SOVEREIGNTY ──────────────────────────
+
+export async function exportBackupData(): Promise<string> {
+  return cmd("export_backup_data");
+}
+
+export async function inspectBackupData(jsonData: string): Promise<ImportInspection> {
+  return cmd("inspect_backup_data", { jsonData });
+}
+
+export async function restoreBackupData(
+  jsonData: string,
+  conflictStrategy: "overwrite" | "skip" | "merge"
+): Promise<void> {
+  return cmd("restore_backup_data", { jsonData, conflictStrategy });
 }

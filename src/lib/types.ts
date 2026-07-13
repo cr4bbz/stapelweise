@@ -203,6 +203,18 @@ export interface ExamResult {
   breakdown: ExamResultBreakdown;
 }
 
+export interface ImportInspection {
+  package_version: number;
+  exported_at: string;
+  deck_count: number;
+  card_count: number;
+  review_count: number;
+  template_count: number;
+  existing_deck_conflicts: string[];
+  existing_card_conflicts: number;
+  warnings: string[];
+}
+
 // Structured error payload from Rust backend
 export type ErrorCode =
   | "VALIDATION_FAILED"

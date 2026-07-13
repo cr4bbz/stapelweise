@@ -2,6 +2,7 @@ pub mod migrations;
 pub mod models;
 pub mod repository;
 pub mod settings;
+pub mod backup;
 
 use rusqlite::Connection;
 use std::path::PathBuf;

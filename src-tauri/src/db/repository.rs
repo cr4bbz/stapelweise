@@ -13,6 +13,10 @@ impl Repository {
         Self { conn }
     }
 
+    pub fn conn(&self) -> &Connection {
+        &self.conn
+    }
+
     // ── Decks ──────────────────────────────────────────
 
     pub fn create_deck(&self, name: &str) -> Result<Deck> {
@@ -310,6 +314,29 @@ impl Repository {
             .collect::<Result<Vec<_>>>()?;
 
         Ok(cards)
+    }
+
+    pub fn list_all_reviews(&self) -> Result<Vec<Review>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, card_id, quality, reviewed_at, interval, ease_factor, repetitions, prev_state FROM reviews"
+        )?;
+
+        let reviews = stmt
+            .query_map([], |row| {
+                Ok(Review {
+                    id: row.get(0)?,
+                    card_id: row.get(1)?,
+                    quality: row.get(2)?,
+                    reviewed_at: row.get(3)?,
+                    interval: row.get(4)?,
+                    ease_factor: row.get(5)?,
+                    repetitions: row.get(6)?,
+                    prev_state: row.get(7)?,
+                })
+            })?
+            .collect::<Result<Vec<_>>>()?;
+
+        Ok(reviews)
     }
 
     pub fn get_card(&self, card_id: &str) -> Result<Option<Card>> {
