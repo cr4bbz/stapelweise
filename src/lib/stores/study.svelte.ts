@@ -42,9 +42,25 @@ export function getStudyStore() {
     get totalCount() {
       return totalCount;
     },
-    get progress(): number {
-      if (dueCards.length === 0) return 0;
-      return (currentIndex + (isFlipped ? 1 : 0)) / (dueCards.length + 1);
+    async startCustomSession(cards: any[]) {
+      reset();
+      if (cards.length === 0) return false;
+
+      // Map Card to DueCard format (pairing card with dummy/current state)
+      const dueCardsList = await Promise.all(
+        cards.map(async (card) => {
+          try {
+            const state = await api.getCardState(card.id);
+            return [card, state] as [any, any];
+          } catch {
+            return [card, { interval: 0, ease_factor: 2.5, repetitions: 0, next_review: "", total_reviews: 0, correct_streak: 0, last_review: null }] as [any, any];
+          }
+        })
+      );
+
+      dueCards = dueCardsList as unknown as DueCard[];
+      sessionActive = true;
+      return true;
     },
 
     async startSession(deckIds: string[], limit: number = 50) {

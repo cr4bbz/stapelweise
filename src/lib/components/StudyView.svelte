@@ -7,9 +7,10 @@
   import ScoreButtons from "./ScoreButtons.svelte";
   import ProgressBar from "./ProgressBar.svelte";
 
-  let { deckIds = [], tags = [], deckName = "", onClose = () => {} } = $props<{
+  let { deckIds = [], tags = [], customCards = [], deckName = "", onClose = () => {} } = $props<{
     deckIds?: string[];
     tags?: string[];
+    customCards?: any[];
     deckName?: string;
     onClose?: () => void;
   }>();
@@ -23,9 +24,14 @@
     loading = true;
     untrack(() => {
       settingsStore.load().then(() => {
-        const startPromise = tags.length > 0 
-          ? s.startSessionByTags(tags, settingsStore.current.session_limit)
-          : s.startSession(deckIds, settingsStore.current.session_limit);
+        let startPromise: Promise<boolean>;
+        if (customCards && customCards.length > 0) {
+          startPromise = s.startCustomSession(customCards);
+        } else if (tags.length > 0) {
+          startPromise = s.startSessionByTags(tags, settingsStore.current.session_limit);
+        } else {
+          startPromise = s.startSession(deckIds, settingsStore.current.session_limit);
+        }
         
         startPromise.then((hasCards) => {
           empty = !hasCards;

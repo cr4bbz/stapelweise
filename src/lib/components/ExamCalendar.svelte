@@ -4,8 +4,12 @@
   import { deckStore } from "$lib/stores/decks.svelte";
   import { fade, slide } from "svelte/transition";
 
-  let { onStudyExam = (_deckIds: string[], _examName: string) => {} } = $props<{
+  let {
+    onStudyExam = (_deckIds: string[], _examName: string) => {},
+    onSimulateExam = (_deckIds: string[], _examName: string) => {},
+  } = $props<{
     onStudyExam?: (deckIds: string[], examName: string) => void;
+    onSimulateExam?: (deckIds: string[], examName: string) => void;
   }>();
 
   let exams = $state<any[]>([]);
@@ -226,12 +230,21 @@
             </div>
           {/if}
 
-          <button
-            onclick={() => onStudyExam(exam.deck_ids, exam.name)}
-            class="mt-3 w-full py-1.5 rounded-lg bg-accent-correct text-white font-medium text-xs hover:scale-[1.01] transition-transform flex items-center justify-center gap-1.5 shadow-sm"
-          >
-            <span>▶️</span> Für diese Prüfung lernen
-          </button>
+          <div class="mt-3 flex gap-2">
+            <button
+              onclick={() => onStudyExam(exam.deck_ids, exam.name)}
+              class="flex-1 py-1.5 rounded-lg bg-accent-correct text-white font-medium text-xs hover:scale-[1.01] transition-transform flex items-center justify-center gap-1.5 shadow-sm"
+            >
+              <span>▶️</span> Lernen
+            </button>
+            <button
+              onclick={() => onSimulateExam(exam.deck_ids, exam.name)}
+              class="px-3 py-1.5 rounded-lg glass border border-white/20 text-primary dark:text-primary-dark font-medium text-xs hover:bg-white/10 transition-colors flex items-center justify-center gap-1 shadow-sm"
+              title="Test-Simulation starten"
+            >
+              <span>🧪</span> Simulation
+            </button>
+          </div>
         </div>
       {/each}
     </div>

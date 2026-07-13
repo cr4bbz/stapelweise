@@ -7,14 +7,16 @@
   import SettingsPanel from "$lib/components/SettingsPanel.svelte";
   import TagList from "$lib/components/TagList.svelte";
   import ExamCalendar from "$lib/components/ExamCalendar.svelte";
+  import TestView from "$lib/components/TestView.svelte";
   import * as api from "$lib/api";
   import { deckStore } from "$lib/stores/decks.svelte";
   import type { DashboardStats, Deck } from "$lib/types";
 
-  let view = $state<"decks" | "cards" | "study" | "search" | "settings">("decks");
+  let view = $state<"decks" | "cards" | "study" | "search" | "settings" | "test">("decks");
   let activeDeck = $state<Deck | null>(null);
   let activeDeckIds = $state<string[]>([]);
   let activeTags = $state<string[]>([]);
+  let activeCustomCards = $state<any[]>([]);
   let activeDeckName = $state("");
   let dashboard = $state<DashboardStats | null>(null);
 
@@ -75,6 +77,13 @@
     view = "study";
   }
 
+  function handleSimulateExam(deckIds: string[], examName: string) {
+    activeDeckIds = deckIds;
+    activeTags = [];
+    activeDeckName = `Simulation: ${examName}`;
+    view = "test";
+  }
+
   function goHome() {
     view = "decks";
     activeDeck = null;
@@ -102,6 +111,7 @@
       <StudyView
         deckIds={activeDeckIds}
         tags={activeTags}
+        customCards={activeCustomCards}
         deckName={activeDeckName}
         onClose={goHome}
       />
@@ -123,7 +133,7 @@
     <div in:fade={{ duration: 150 }} out:fade={{ duration: 100 }} class="col-start-1 row-start-1 h-full w-full overflow-hidden">
       <SettingsPanel onClose={goHome} />
     </div>
-  {:else}
+  {:else if view === "decks"}
     <div in:fade={{ duration: 150 }} out:fade={{ duration: 100 }} class="col-start-1 row-start-1 h-full w-full overflow-y-auto">
       {#if dashboard}
         <div class="grid grid-cols-3 gap-4 px-6 pt-6 pb-2">
@@ -142,11 +152,27 @@
         </div>
       {/if}
       <TagList onStudyTags={handleStudyTags} />
-      <ExamCalendar onStudyExam={handleStudyExam} />
+      <ExamCalendar onStudyExam={handleStudyExam} onSimulateExam={handleSimulateExam} />
       <DeckList
         onSelectDeck={handleSelectDeck}
         onStudyDeck={handleStudyDeck}
         onStudyDecks={handleStudyDecks}
+      />
+    </div>
+  {:else if view === "test"}
+    <div in:fade={{ duration: 150 }} out:fade={{ duration: 100 }} class="col-start-1 row-start-1 h-full w-full overflow-hidden">
+      <TestView
+        deckIds={activeDeckIds}
+        tags={activeTags}
+        testName={activeDeckName}
+        onClose={goHome}
+        onStudyFailed={(cards) => {
+          activeDeckIds = [];
+          activeTags = [];
+          activeCustomCards = cards;
+          activeDeckName = `${cards.length} Falsche Testkarten`;
+          view = "study";
+        }}
       />
     </div>
   {/if}
