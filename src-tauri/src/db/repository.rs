@@ -190,8 +190,7 @@ impl Repository {
         })
     }
 
-    /// Insert a card with a specific card_state (for seed data / testing).
-    /// Unlike create_card, this does NOT use default card_state values.
+    /// Insert a card with a specific card_state, card_type, content, reasoning (for seed data / testing).
     pub fn seed_insert_card_with_state(
         &self,
         deck_id: &str,
@@ -199,13 +198,16 @@ impl Repository {
         back: &str,
         tags: Vec<String>,
         state: &CardState,
+        card_type: &str,
+        content: Option<&str>,
+        reasoning: Option<&str>,
     ) -> Result<Card> {
         let id = Uuid::new_v4().to_string();
         let now = Utc::now().format("%Y-%m-%dT%H:%M:%S").to_string();
 
         self.conn.execute(
             "INSERT INTO cards (id, deck_id, card_type, content, reasoning, front, back, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
-            params![id, deck_id, "basic", rusqlite::types::Null, rusqlite::types::Null, front, back, now, now],
+            params![id, deck_id, card_type, content, reasoning, front, back, now, now],
         )?;
 
         self.conn.execute(
@@ -228,12 +230,12 @@ impl Repository {
         Ok(Card {
             id,
             deck_id: deck_id.to_string(),
-            card_type: "basic".to_string(),
-            content: None,
-            reasoning: None,
+            card_type: card_type.to_string(),
+            content: content.map(|s| s.to_string()),
+            reasoning: reasoning.map(|s| s.to_string()),
             front: front.to_string(),
             back: back.to_string(),
-            tags: vec![],
+            tags,
             created_at: now.clone(),
             updated_at: now,
         })
