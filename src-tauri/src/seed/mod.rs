@@ -109,20 +109,19 @@ pub struct SeedGenerator;
 impl SeedGenerator {
     /// Generate 3 sample decks with cards in varied SM-2 states.
     /// Returns all decks so the frontend can display them immediately.
-    fn build_deck(repo: &Repository, name: &str, cards: Vec<(&str, &str, Scenario)>, today: NaiveDate, skip: &[String]) -> Result<Option<Deck>, String> {
+    fn build_deck(repo: &Repository, name: &str, cards: Vec<(&str, &str, Scenario, Vec<&str>)>, today: NaiveDate, skip: &[String]) -> Result<Option<Deck>, String> {
         if skip.contains(&name.to_string()) {
             return Ok(None);
         }
         let deck = repo.create_deck(name).map_err(|e| e.to_string())?;
-        for (front, back, scenario) in cards {
-            repo.seed_insert_card_with_state(&deck.id, front, back, &scenario.build_state("", today))
+        for (front, back, scenario, tags) in cards {
+            let tag_strings = tags.into_iter().map(|s| s.to_string()).collect();
+            repo.seed_insert_card_with_state(&deck.id, front, back, tag_strings, &scenario.build_state("", today))
                 .map_err(|e| e.to_string())?;
         }
         Ok(Some(deck))
     }
 
-    /// Generate 3 sample decks with cards in varied SM-2 states.
-    /// Skips decks whose names already exist — safe to call repeatedly.
     pub fn generate(repo: &Repository) -> Result<Vec<Deck>, String> {
         let today = Utc::now().date_naive();
         let existing_names: Vec<String> = repo
@@ -133,42 +132,50 @@ impl SeedGenerator {
             .collect();
         let mut decks = Vec::new();
 
-        // ── Deck 1: Deutsche Grammatik (8 Karten) ────────
+        // ── Deck 1: Deutsche Grammatik (15 Karten) ────────
         let cards1 = vec![
-            ("der, die, das", "Bestimmte Artikel im Nominativ: der (m), die (f), das (n)", Scenario::New),
-            ("Konjunktiv II", "würde + Infinitiv: Ich würde gehen. Bei Hilfsverben: ich hätte, ich wäre", Scenario::New),
-            ("Weil-Sätze", "Das finite Verb steht am Ende: ..., weil ich müde bin.", Scenario::DueTodayFirst),
-            ("Adjektivdeklination", "Nach bestimmtem Artikel: der gute Mann, die schöne Frau, das kleine Kind", Scenario::DueTodayFirst),
-            ("Präpositionen mit Dativ", "aus, bei, mit, nach, seit, von, zu — immer Dativ!", Scenario::DueTodayStruggling),
-            ("Plusquamperfekt", "hatte/war + Partizip II: Ich hatte gegessen, ich war gegangen", Scenario::DueTomorrow),
-            ("Relativpronomen", "der, die, das (bezogen auf das Nomen): Der Mann, der dort steht...", Scenario::DueTomorrow),
-            ("Trennbare Verben", "aufstehen → ich stehe auf, anrufen → ich rufe an", Scenario::DueIn7Days),
+            ("der, die, das", "Bestimmte Artikel im Nominativ", Scenario::New, vec!["Artikel", "Grundlagen"]),
+            ("Konjunktiv II", "würde + Infinitiv", Scenario::New, vec!["Verben", "Möglichkeit"]),
+            ("Weil-Sätze", "Das finite Verb steht am Ende", Scenario::DueTodayFirst, vec!["Syntax", "Nebensätze"]),
+            ("Adjektivdeklination", "Nach bestimmtem Artikel: der gute Mann", Scenario::DueTodayFirst, vec!["Adjektive", "Deklination"]),
+            ("Präpositionen mit Dativ", "aus, bei, mit, nach, seit, von, zu", Scenario::DueTodayStruggling, vec!["Präpositionen", "Fälle"]),
+            ("Plusquamperfekt", "hatte/war + Partizip II", Scenario::DueTomorrow, vec!["Verben", "Vergangenheit"]),
+            ("Relativpronomen", "der, die, das (bezogen auf das Nomen)", Scenario::DueTomorrow, vec!["Pronomen", "Nebensätze"]),
+            ("Trennbare Verben", "aufstehen → ich stehe auf", Scenario::DueIn7Days, vec!["Verben", "Syntax"]),
+            ("Dass-Sätze", "Verb am Ende: Ich weiß, dass er kommt.", Scenario::DueIn7Days, vec!["Syntax", "Nebensätze"]),
+            ("Präteritum (sein)", "ich war, du warst, er war", Scenario::Overdue, vec!["Verben", "Vergangenheit"]),
+            ("Präteritum (haben)", "ich hatte, du hattest, er hatte", Scenario::Graduated, vec!["Verben", "Vergangenheit"]),
+            ("Zukunft (Futur I)", "werden + Infinitiv: Ich werde gehen", Scenario::Graduated, vec!["Verben", "Zukunft"]),
+            ("Komparativ", "Adjektiv + er: schnell -> schneller", Scenario::New, vec!["Adjektive", "Steigerung"]),
+            ("Superlativ", "am + Adjektiv + sten: am schnellsten", Scenario::New, vec!["Adjektive", "Steigerung"]),
+            ("Genitiv-Präpositionen", "wegen, während, trotz, anstatt", Scenario::DueTodayFirst, vec!["Präpositionen", "Fälle"]),
         ];
-        if let Some(d) = Self::build_deck(repo, "Deutsche Grammatik", cards1, today, &existing_names)? {
+        if let Some(d) = Self::build_deck(repo, "Grammatik Basis", cards1, today, &existing_names)? {
             decks.push(d);
         }
 
-        // ── Deck 2: Weltgeschichte (6 Karten) ────────────
+        // ── Deck 2: Weltgeschichte (8 Karten) ────────────
         let cards2 = vec![
-            ("Wann endete der Zweite Weltkrieg?", "1945 — mit der bedingungslosen Kapitulation Deutschlands am 8. Mai", Scenario::New),
-            ("Was war die Französische Revolution?", "1789: Sturz der Monarchie, Erklärung der Menschenrechte, Ende des Ancien Régime", Scenario::DueTodayFirst),
-            ("Wer war Kleopatra?", "Letzte Pharaonin Ägyptens (69–30 v.Chr.), verband sich mit Caesar und Marcus Antonius", Scenario::DueTodayFirst),
-            ("Was ist die Magna Carta?", "1215: Englische Verfassungsurkunde, schränkte königliche Macht ein, Grundlage des Rechtsstaats", Scenario::Overdue),
-            ("Wann fiel die Berliner Mauer?", "9. November 1989 — Ende der deutschen Teilung, Symbol des Endes des Kalten Krieges", Scenario::Graduated),
-            ("Was war die industrielle Revolution?", "Übergang von Handarbeit zur Maschinenproduktion, ~1760–1840, begann in England", Scenario::DueIn7Days),
+            ("Zweiter Weltkrieg Ende", "1945", Scenario::New, vec!["20. Jahrhundert", "Krieg"]),
+            ("Französische Revolution", "1789", Scenario::DueTodayFirst, vec!["Europa", "18. Jahrhundert"]),
+            ("Kleopatra", "Letzte Pharaonin Ägyptens", Scenario::DueTodayFirst, vec!["Antike", "Ägypten"]),
+            ("Magna Carta", "1215: Englische Verfassungsurkunde", Scenario::Overdue, vec!["Mittelalter", "England"]),
+            ("Berliner Mauer Fall", "9. November 1989", Scenario::Graduated, vec!["20. Jahrhundert", "Deutschland"]),
+            ("Industrielle Revolution", "Übergang zur Maschinenproduktion (~1760)", Scenario::DueIn7Days, vec!["Wirtschaft", "Europa"]),
+            ("Entdeckung Amerikas", "1492 durch Christoph Kolumbus", Scenario::DueIn30Days, vec!["Entdecker", "15. Jahrhundert"]),
+            ("Mondlandung", "1969 (Apollo 11)", Scenario::Graduated, vec!["20. Jahrhundert", "Raumfahrt"]),
         ];
-        if let Some(d) = Self::build_deck(repo, "Weltgeschichte", cards2, today, &existing_names)? {
+        if let Some(d) = Self::build_deck(repo, "Weltgeschichte Extra", cards2, today, &existing_names)? {
             decks.push(d);
         }
 
-        // ── Deck 3: Biologie Grundlagen (4 Karten, alle neu) ───────
+        // ── Deck 3: Biologie Grundlagen (3 Karten) ───────
         let cards3 = vec![
-            ("Zellatmung", "C₆H₁₂O₆ + 6O₂ → 6CO₂ + 6H₂O + Energie (ATP)", Scenario::New),
-            ("Photosynthese", "6CO₂ + 6H₂O + Licht → C₆H₁₂O₆ + 6O₂", Scenario::New),
-            ("DNA-Basenpaarung", "Adenin-Thymin (A-T), Guanin-Cytosin (G-C)", Scenario::New),
-            ("Mitose vs. Meiose", "Mitose: 2 identische Tochterzellen (2n). Meiose: 4 Keimzellen mit halbem Satz (n).", Scenario::New),
+            ("Zellatmung", "C₆H₁₂O₆ + 6O₂ → 6CO₂ + 6H₂O + Energie", Scenario::New, vec!["Zelle", "Stoffwechsel"]),
+            ("Photosynthese", "6CO₂ + 6H₂O + Licht → C₆H₁₂O₆ + 6O₂", Scenario::New, vec!["Pflanzen", "Stoffwechsel"]),
+            ("DNA-Basen", "Adenin, Thymin, Guanin, Cytosin", Scenario::New, vec!["Genetik", "Zelle"]),
         ];
-        if let Some(d) = Self::build_deck(repo, "Biologie Grundlagen", cards3, today, &existing_names)? {
+        if let Some(d) = Self::build_deck(repo, "Biologie Intro", cards3, today, &existing_names)? {
             decks.push(d);
         }
 

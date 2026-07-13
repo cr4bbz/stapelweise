@@ -1,10 +1,12 @@
 <script lang="ts">
-  import { slide, fade } from "svelte/transition";
+  import { fade } from "svelte/transition";
   import DeckList from "$lib/components/DeckList.svelte";
   import CardEditor from "$lib/components/CardEditor.svelte";
   import StudyView from "$lib/components/StudyView.svelte";
   import SearchView from "$lib/components/SearchView.svelte";
   import SettingsPanel from "$lib/components/SettingsPanel.svelte";
+  import TagList from "$lib/components/TagList.svelte";
+  import ExamCalendar from "$lib/components/ExamCalendar.svelte";
   import * as api from "$lib/api";
   import { deckStore } from "$lib/stores/decks.svelte";
   import type { DashboardStats, Deck } from "$lib/types";
@@ -12,6 +14,7 @@
   let view = $state<"decks" | "cards" | "study" | "search" | "settings">("decks");
   let activeDeck = $state<Deck | null>(null);
   let activeDeckIds = $state<string[]>([]);
+  let activeTags = $state<string[]>([]);
   let activeDeckName = $state("");
   let dashboard = $state<DashboardStats | null>(null);
 
@@ -46,13 +49,29 @@
   function handleStudyDeck(deck: Deck) {
     activeDeck = deck;
     activeDeckIds = [deck.id];
+    activeTags = [];
     activeDeckName = deck.name;
     view = "study";
   }
 
   function handleStudyDecks(decks: Deck[]) {
     activeDeckIds = decks.map((d) => d.id);
+    activeTags = [];
     activeDeckName = decks.length === 1 ? decks[0].name : `${decks.length} Stapel`;
+    view = "study";
+  }
+
+  function handleStudyTags(tags: string[]) {
+    activeDeckIds = [];
+    activeTags = tags;
+    activeDeckName = tags.length === 1 ? `#${tags[0]}` : `${tags.length} Tags`;
+    view = "study";
+  }
+
+  function handleStudyExam(deckIds: string[], examName: string) {
+    activeDeckIds = deckIds;
+    activeTags = [];
+    activeDeckName = `Prüfung: ${examName}`;
     view = "study";
   }
 
@@ -60,13 +79,14 @@
     view = "decks";
     activeDeck = null;
     activeDeckIds = [];
+    activeTags = [];
     activeDeckName = "";
   }
 </script>
 
-{#key view}
+<div class="grid h-full w-full">
   {#if view === "cards" && activeDeck}
-    <div in:slide={{ duration: 250, axis: "x" }} out:slide={{ duration: 200, axis: "x" }} class="h-full">
+    <div in:fade={{ duration: 150 }} out:fade={{ duration: 100 }} class="col-start-1 row-start-1 h-full w-full overflow-hidden">
       <CardEditor
         deck={activeDeck}
         onClose={goHome}
@@ -77,16 +97,17 @@
         }}
       />
     </div>
-  {:else if view === "study" && activeDeckIds.length > 0}
-    <div in:slide={{ duration: 250, axis: "x" }} out:slide={{ duration: 200, axis: "x" }} class="h-full">
+  {:else if view === "study" && (activeDeckIds.length > 0 || activeTags.length > 0)}
+    <div in:fade={{ duration: 150 }} out:fade={{ duration: 100 }} class="col-start-1 row-start-1 h-full w-full overflow-hidden">
       <StudyView
         deckIds={activeDeckIds}
+        tags={activeTags}
         deckName={activeDeckName}
         onClose={goHome}
       />
     </div>
   {:else if view === "search"}
-    <div in:slide={{ duration: 250, axis: "x" }} out:slide={{ duration: 200, axis: "x" }} class="h-full">
+    <div in:fade={{ duration: 150 }} out:fade={{ duration: 100 }} class="col-start-1 row-start-1 h-full w-full overflow-hidden">
       <SearchView
         onClose={goHome}
         onSelectCard={(deckId: string) => {
@@ -99,11 +120,11 @@
       />
     </div>
   {:else if view === "settings"}
-    <div in:slide={{ duration: 250, axis: "x" }} out:slide={{ duration: 200, axis: "x" }} class="h-full">
+    <div in:fade={{ duration: 150 }} out:fade={{ duration: 100 }} class="col-start-1 row-start-1 h-full w-full overflow-hidden">
       <SettingsPanel onClose={goHome} />
     </div>
   {:else}
-    <div in:fade={{ duration: 200 }} out:fade={{ duration: 150 }} class="h-full">
+    <div in:fade={{ duration: 150 }} out:fade={{ duration: 100 }} class="col-start-1 row-start-1 h-full w-full overflow-y-auto">
       {#if dashboard}
         <div class="grid grid-cols-3 gap-4 px-6 pt-6 pb-2">
           <div class="glass rounded-card p-4 text-center">
@@ -120,6 +141,8 @@
           </div>
         </div>
       {/if}
+      <TagList onStudyTags={handleStudyTags} />
+      <ExamCalendar onStudyExam={handleStudyExam} />
       <DeckList
         onSelectDeck={handleSelectDeck}
         onStudyDeck={handleStudyDeck}
@@ -127,4 +150,4 @@
       />
     </div>
   {/if}
-{/key}
+</div>

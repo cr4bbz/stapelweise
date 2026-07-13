@@ -1,0 +1,180 @@
+{
+  "name": "Formale Logik & Mengenlehre",
+  "cards": [
+    {
+      "front": "Wie lautet das **De Morgansche Gesetz** für die Negation einer Konjunktion?",
+      "back": "$$\\neg (A \\land B) \\iff \\neg A \\lor \\neg B$$",
+      "reasoning": "Die Negation eines UND wird zum ODER der negierten Aussagen.",
+      "tags": ["Logik", "DeMorgan", "Aussagenlogik"],
+      "card_type": "basic"
+    },
+    {
+      "front": "Wie lautet das **De Morgansche Gesetz** für die Negation einer Disjunktion?",
+      "back": "$$\\neg (A \\lor B) \\iff \\neg A \\land \\neg B$$",
+      "reasoning": "Die Negation eines ODER wird zum UND der negierten Aussagen.",
+      "tags": ["Logik", "DeMorgan", "Aussagenlogik"],
+      "card_type": "basic"
+    },
+    {
+      "front": "Wie lässt sich die **Implikation** $A \\implies B$ durch Disjunktion und Negation ausdrücken?",
+      "back": "$$A \\implies B \\iff \\neg A \\lor B$$",
+      "reasoning": "Eine Implikation ist wahr, wenn die Prämisse falsch ist oder die Konklusion wahr ist.",
+      "tags": ["Logik", "Implikation"],
+      "card_type": "basic"
+    },
+    {
+      "front": "Was besagt das Prinzip der **Kontraposition**?",
+      "back": "$$(A \\implies B) \\iff (\\neg B \\implies \\neg A)$$",
+      "reasoning": "Die Umkehrung der Implikation mit negierten Aussagen hat den gleichen Wahrheitswert.",
+      "tags": ["Logik", "Beweistechnik"],
+      "card_type": "basic"
+    },
+    {
+      "front": "Wie lautet die formale Definition der logischen **Äquivalenz** (Bikonditional)?",
+      "back": "$$(A \\iff B) \\iff ((A \\implies B) \\land (B \\implies A))$$",
+      "reasoning": "Äquivalenz bedeutet, dass die Implikation in beide Richtungen gilt.",
+      "tags": ["Logik", "Äquivalenz"],
+      "card_type": "basic"
+    },
+    {
+      "front": "Wie lautet die Schlussregel des **Modus Ponens**?",
+      "back": "$$\\frac{A \\implies B, \\quad A}{B}$$",
+      "reasoning": "Wenn A wahr ist und aus A folgt B, dann muss B wahr sein.",
+      "tags": ["Logik", "Schlussregeln"],
+      "card_type": "basic"
+    },
+    {
+      "front": "Wie lautet die Schlussregel des **Modus Tollens**?",
+      "back": "$$\\frac{A \\implies B, \\quad \\neg B}{\\neg A}$$",
+      "reasoning": "Wenn B falsch ist, aber aus A folgen würde, kann A nicht wahr sein.",
+      "tags": ["Logik", "Schlussregeln"],
+      "card_type": "basic"
+    },
+    {
+      "front": "Was besagt der **Syllogismus** (Kettenschluss)?",
+      "back": "$$\\frac{A \\implies B, \\quad B \\implies C}{A \\implies C}$$",
+      "reasoning": "Transititvität der logischen Implikation.",
+      "tags": ["Logik", "Schlussregeln"],
+      "card_type": "basic"
+    },
+    {
+      "front": "Wie lautet das erste **Distributivgesetz** der Aussagenlogik (für Konjunktion über Disjunktion)?",
+      "back": "$$A \\land (B \\lor C) \\iff (A \\land B) \\lor (A \\land C)$$",
+      "reasoning": "Das logische UND lässt sich über das logische ODER verteilen.",
+      "tags": ["Logik", "Aussagenlogik"],
+      "card_type": "basic"
+    },
+    {
+      "front": "Wie lautet das zweite **Distributivgesetz** der Aussagenlogik (für Disjunktion über Konjunktion)?",
+      "back": "$$A \\lor (B \\land C) \\iff (A \\lor B) \\land (A \\lor C)$$",
+      "reasoning": "Das logische ODER lässt sich über das logische UND verteilen.",
+      "tags": ["Logik", "Aussagenlogik"],
+      "card_type": "basic"
+    },
+    {
+      "front": "Was besagt das **Absorptionsgesetz** der Aussagenlogik?",
+      "back": "$$A \\land (A \\lor B) \\iff A \\quad \\text{und} \\quad A \\lor (A \\land B) \\iff A$$",
+      "reasoning": "Die zusätzliche Klausel beeinflusst den Wahrheitswert von A nicht.",
+      "tags": ["Logik", "Absorption"],
+      "card_type": "basic"
+    },
+    {
+      "front": "Formuliere den **Satz vom Widerspruch** (Principium contradictionis).",
+      "back": "$$\\neg (A \\land \\neg A)$$",
+      "reasoning": "Eine Aussage und ihre Negation können nicht gleichzeitig wahr sein. Dies ist immer eine Tautologie.",
+      "tags": ["Logik", "Tautologie"],
+      "card_type": "basic"
+    },
+    {
+      "front": "Formuliere den Satz vom **ausgeschlossenen Dritten** (Tertium non datur).",
+      "back": "$$A \\lor \\neg A$$",
+      "reasoning": "Eine Aussage ist entweder wahr oder falsch, es gibt kein Drittes.",
+      "tags": ["Logik", "Tautologie"],
+      "card_type": "basic"
+    },
+    {
+      "front": "Was besagt **Ex falso quodlibet** formal?",
+      "back": "$$\\bot \\implies A \\quad \\text{oder} \\quad (A \\land \\neg A) \\implies B$$",
+      "reasoning": "Aus einer falschen Prämisse lässt sich jede beliebige Aussage folgern.",
+      "tags": ["Logik", "Tautologie"],
+      "card_type": "basic"
+    },
+    {
+      "front": "Wie wird das exklusive Oder (**XOR**) durch Konjunktion, Disjunktion und Negation ausgedrückt?",
+      "back": "$$A \\oplus B \\iff (A \\lor B) \\land \\neg (A \\land B)$$",
+      "reasoning": "A oder B ist wahr, aber nicht beide gleichzeitig.",
+      "tags": ["Logik", "Aussagenlogik", "XOR"],
+      "card_type": "basic"
+    },
+    {
+      "front": "Wie negiert man eine Aussage mit einem **Allquantor**?",
+      "back": "$$\\neg (\\forall x : P(x)) \\iff \\exists x : \\neg P(x)$$",
+      "reasoning": "Wenn nicht für alle $x$ die Eigenschaft $P$ gilt, dann muss es mindestens ein $x$ geben, für das $P$ nicht gilt.",
+      "tags": ["Prädikatenlogik", "Quantoren"],
+      "card_type": "basic"
+    },
+    {
+      "front": "Wie negiert man eine Aussage mit einem **Existenzquantor**?",
+      "back": "$$\\neg (\\exists x : P(x)) \\iff \\forall x : \\neg P(x)$$",
+      "reasoning": "Wenn es kein $x$ mit Eigenschaft $P$ gibt, dann gilt für alle $x$ nicht-$P$.",
+      "tags": ["Prädikatenlogik", "Quantoren"],
+      "card_type": "basic"
+    },
+    {
+      "front": "Dürfen gleichartige Quantoren (z.B. zwei Allquantoren) vertauscht werden?",
+      "back": "Ja: $$\\forall x \\forall y P(x, y) \\iff \\forall y \\forall x P(x, y)$$",
+      "reasoning": "Die Reihenfolge ist bei gleichartigen Quantoren unerheblich.",
+      "tags": ["Prädikatenlogik", "Quantoren"],
+      "card_type": "basic"
+    },
+    {
+      "front": "Dürfen **verschiedenartige Quantoren** (All- und Existenzquantor) beliebig vertauscht werden?",
+      "back": "Nein. $$\\exists x \\forall y P(x, y) \\implies \\forall y \\exists x P(x, y)$$ gilt, aber **nicht** umgekehrt.",
+      "reasoning": "Beispiel: Jeder hat einen Vater (wahr). Es gibt jemanden, der der Vater von allen ist (falsch).",
+      "tags": ["Prädikatenlogik", "Quantoren"],
+      "card_type": "basic"
+    },
+    {
+      "front": "Wie lautet die logische Definition der **Teilmenge** $A \\subseteq B$?",
+      "back": "$$A \\subseteq B \\iff \\forall x \\; (x \\in A \\implies x \\in B)$$",
+      "reasoning": "Jedes Element, das in A ist, muss auch in B sein.",
+      "tags": ["Mengenlehre", "Definitionen"],
+      "card_type": "basic"
+    },
+    {
+      "front": "Wie ist der **Schnitt** zweier Mengen $A \\cap B$ prädikatenlogisch definiert?",
+      "back": "$$x \\in (A \\cap B) \\iff x \\in A \\land x \\in B$$",
+      "reasoning": "Ein Element gehört zur Schnittmenge, wenn es in beiden Mengen enthalten ist.",
+      "tags": ["Mengenlehre", "Definitionen"],
+      "card_type": "basic"
+    },
+    {
+      "front": "Wie ist die **Vereinigung** zweier Mengen $A \\cup B$ prädikatenlogisch definiert?",
+      "back": "$$x \\in (A \\cup B) \\iff x \\in A \\lor x \\in B$$",
+      "reasoning": "Ein Element gehört zur Vereinigungsmenge, wenn es in mindestens einer der Mengen enthalten ist.",
+      "tags": ["Mengenlehre", "Definitionen"],
+      "card_type": "basic"
+    },
+    {
+      "front": "Wie ist das **kartesische Produkt** $A \\times B$ definiert?",
+      "back": "$$A \\times B = \\{ (a, b) \\mid a \\in A \\land b \\in B \\}$$",
+      "reasoning": "Menge aller geordneten Paare aus A und B.",
+      "tags": ["Mengenlehre", "Definitionen"],
+      "card_type": "basic"
+    },
+    {
+      "front": "Wie lautet das **Induktionsaxiom** der Peano-Axiome in prädikatenlogischer Form?",
+      "back": "$$(P(0) \\land \\forall x \\; (P(x) \\implies P(x+1))) \\implies \\forall x \\; P(x)$$",
+      "reasoning": "Das Fundament der vollständigen Induktion in der Mathematik.",
+      "tags": ["Prädikatenlogik", "Axiome"],
+      "card_type": "basic"
+    },
+    {
+      "front": "Was ist der logische Unterschied zwischen einer **Tautologie** und einer **Kontradiktion**?",
+      "back": "Eine **Tautologie** ist unter allen Belegungen wahr (z.B. $A \\lor \\neg A$). Eine **Kontradiktion** ist unter allen Belegungen falsch (z.B. $A \\land \\neg A$).",
+      "reasoning": "Tautologien sind universell gültige Aussagen.",
+      "tags": ["Logik", "Definitionen"],
+      "card_type": "basic"
+    }
+  ]
+}

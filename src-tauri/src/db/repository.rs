@@ -86,15 +86,86 @@ impl Repository {
         Ok(())
     }
 
+    pub fn get_or_create_deck(&self, name: &str) -> Result<Deck> {
+        let mut stmt = self.conn.prepare("SELECT id, name, created_at, updated_at FROM decks WHERE name = ?1")?;
+        let mut rows = stmt.query_map(params![name], |row| {
+            Ok(Deck {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                created_at: row.get(2)?,
+                updated_at: row.get(3)?,
+            })
+        })?;
+        if let Some(deck) = rows.next() {
+            return deck;
+        }
+        self.create_deck(name)
+    }
+
+    // ── Obsidian ───────────────────────────────────────
+
+    pub fn get_obsidian_card_hash(&self, file_path: &str) -> Result<Option<(String, String)>> {
+        let mut stmt = self.conn.prepare("SELECT card_id, hash FROM obsidian_cards WHERE file_path = ?1")?;
+        let mut rows = stmt.query_map(params![file_path], |row| {
+            Ok((row.get(0)?, row.get(1)?))
+        })?;
+        match rows.next() {
+            Some(res) => Ok(Some(res?)),
+            None => Ok(None),
+        }
+    }
+
+    pub fn upsert_obsidian_card(&self, card_id: &str, file_path: &str, line_number: u32, hash: &str) -> Result<()> {
+        self.conn.execute(
+            "INSERT INTO obsidian_cards (card_id, file_path, line_number, hash) VALUES (?1, ?2, ?3, ?4)
+             ON CONFLICT(card_id) DO UPDATE SET file_path = excluded.file_path, line_number = excluded.line_number, hash = excluded.hash",
+            params![card_id, file_path, line_number, hash],
+        )?;
+        Ok(())
+    }
+
+    pub fn get_all_obsidian_file_paths(&self) -> Result<Vec<String>> {
+        let mut stmt = self.conn.prepare("SELECT file_path FROM obsidian_cards")?;
+        let paths = stmt.query_map([], |row| row.get(0))?.collect::<Result<Vec<_>>>()?;
+        Ok(paths)
+    }
+
     // ── Cards ──────────────────────────────────────────
 
-    pub fn create_card(&self, deck_id: &str, front: &str, back: &str) -> Result<Card> {
+    pub fn set_card_tags(&self, card_id: &str, tags: &[String]) -> Result<()> {
+        self.conn.execute("DELETE FROM card_tags WHERE card_id = ?1", params![card_id])?;
+        for tag in tags {
+            let tag_id = Uuid::new_v4().to_string();
+            self.conn.execute(
+                "INSERT OR IGNORE INTO tags (id, name) VALUES (?1, ?2)",
+                params![tag_id, tag],
+            )?;
+            let existing_tag_id: String = self.conn.query_row(
+                "SELECT id FROM tags WHERE name = ?1",
+                params![tag],
+                |row| row.get(0),
+            )?;
+            self.conn.execute(
+                "INSERT INTO card_tags (card_id, tag_id) VALUES (?1, ?2)",
+                params![card_id, existing_tag_id],
+            )?;
+        }
+        Ok(())
+    }
+
+    pub fn get_all_tags(&self) -> Result<Vec<String>> {
+        let mut stmt = self.conn.prepare("SELECT name FROM tags ORDER BY name")?;
+        let tags = stmt.query_map([], |row| row.get(0))?.collect::<Result<Vec<_>>>()?;
+        Ok(tags)
+    }
+
+    pub fn create_card(&self, deck_id: &str, card_type: &str, content: Option<&str>, reasoning: Option<&str>, front: &str, back: &str, tags: Vec<String>) -> Result<Card> {
         let id = Uuid::new_v4().to_string();
         let now = Utc::now().format("%Y-%m-%dT%H:%M:%S").to_string();
 
         self.conn.execute(
-            "INSERT INTO cards (id, deck_id, front, back, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-            params![id, deck_id, front, back, now, now],
+            "INSERT INTO cards (id, deck_id, card_type, content, reasoning, front, back, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+            params![id, deck_id, card_type, content, reasoning, front, back, now, now],
         )?;
 
         // Create initial card_state for this card
@@ -103,11 +174,17 @@ impl Repository {
             params![id],
         )?;
 
+        self.set_card_tags(&id, &tags)?;
+
         Ok(Card {
             id,
             deck_id: deck_id.to_string(),
+            card_type: card_type.to_string(),
+            content: content.map(|s| s.to_string()),
+            reasoning: reasoning.map(|s| s.to_string()),
             front: front.to_string(),
             back: back.to_string(),
+            tags,
             created_at: now.clone(),
             updated_at: now,
         })
@@ -120,14 +197,15 @@ impl Repository {
         deck_id: &str,
         front: &str,
         back: &str,
+        tags: Vec<String>,
         state: &CardState,
     ) -> Result<Card> {
         let id = Uuid::new_v4().to_string();
         let now = Utc::now().format("%Y-%m-%dT%H:%M:%S").to_string();
 
         self.conn.execute(
-            "INSERT INTO cards (id, deck_id, front, back, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-            params![id, deck_id, front, back, now, now],
+            "INSERT INTO cards (id, deck_id, card_type, content, reasoning, front, back, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+            params![id, deck_id, "basic", rusqlite::types::Null, rusqlite::types::Null, front, back, now, now],
         )?;
 
         self.conn.execute(
@@ -145,11 +223,17 @@ impl Repository {
             ],
         )?;
 
+        self.set_card_tags(&id, &tags)?;
+
         Ok(Card {
             id,
             deck_id: deck_id.to_string(),
+            card_type: "basic".to_string(),
+            content: None,
+            reasoning: None,
             front: front.to_string(),
             back: back.to_string(),
+            tags: vec![],
             created_at: now.clone(),
             updated_at: now,
         })
@@ -157,18 +241,33 @@ impl Repository {
 
     pub fn list_cards(&self, deck_id: &str) -> Result<Vec<Card>> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, deck_id, front, back, created_at, updated_at FROM cards WHERE deck_id = ?1 ORDER BY created_at DESC",
+            "SELECT c.id, c.deck_id, c.card_type, c.content, c.reasoning, c.front, c.back, c.created_at, c.updated_at, GROUP_CONCAT(t.name) 
+             FROM cards c
+             LEFT JOIN card_tags ct ON ct.card_id = c.id
+             LEFT JOIN tags t ON t.id = ct.tag_id
+             WHERE c.deck_id = ?1
+             GROUP BY c.id
+             ORDER BY c.created_at DESC",
         )?;
 
         let cards = stmt
             .query_map(params![deck_id], |row| {
+                let tags_str: Option<String> = row.get(9)?;
+                let tags = tags_str
+                    .map(|s| s.split(',').map(|t| t.to_string()).collect())
+                    .unwrap_or_default();
+
                 Ok(Card {
                     id: row.get(0)?,
                     deck_id: row.get(1)?,
-                    front: row.get(2)?,
-                    back: row.get(3)?,
-                    created_at: row.get(4)?,
-                    updated_at: row.get(5)?,
+                    card_type: row.get(2)?,
+                    content: row.get(3)?,
+                    reasoning: row.get(4)?,
+                    front: row.get(5)?,
+                    back: row.get(6)?,
+                    tags,
+                    created_at: row.get(7)?,
+                    updated_at: row.get(8)?,
                 })
             })?
             .collect::<Result<Vec<_>>>()?;
@@ -178,17 +277,31 @@ impl Repository {
 
     pub fn get_card(&self, card_id: &str) -> Result<Option<Card>> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, deck_id, front, back, created_at, updated_at FROM cards WHERE id = ?1",
+            "SELECT c.id, c.deck_id, c.card_type, c.content, c.reasoning, c.front, c.back, c.created_at, c.updated_at, GROUP_CONCAT(t.name)
+             FROM cards c
+             LEFT JOIN card_tags ct ON ct.card_id = c.id
+             LEFT JOIN tags t ON t.id = ct.tag_id
+             WHERE c.id = ?1
+             GROUP BY c.id",
         )?;
 
         let mut rows = stmt.query_map(params![card_id], |row| {
+            let tags_str: Option<String> = row.get(9)?;
+            let tags = tags_str
+                .map(|s| s.split(',').map(|t| t.to_string()).collect())
+                .unwrap_or_default();
+
             Ok(Card {
                 id: row.get(0)?,
                 deck_id: row.get(1)?,
-                front: row.get(2)?,
-                back: row.get(3)?,
-                created_at: row.get(4)?,
-                updated_at: row.get(5)?,
+                card_type: row.get(2)?,
+                content: row.get(3)?,
+                reasoning: row.get(4)?,
+                front: row.get(5)?,
+                back: row.get(6)?,
+                tags,
+                created_at: row.get(7)?,
+                updated_at: row.get(8)?,
             })
         })?;
 
@@ -198,12 +311,15 @@ impl Repository {
         }
     }
 
-    pub fn update_card(&self, card_id: &str, front: &str, back: &str) -> Result<()> {
+    pub fn update_card(&self, card_id: &str, card_type: &str, content: Option<&str>, reasoning: Option<&str>, front: &str, back: &str, tags: Vec<String>) -> Result<()> {
         let now = Utc::now().format("%Y-%m-%dT%H:%M:%S").to_string();
         self.conn.execute(
-            "UPDATE cards SET front = ?1, back = ?2, updated_at = ?3 WHERE id = ?4",
-            params![front, back, now, card_id],
+            "UPDATE cards SET card_type = ?1, content = ?2, reasoning = ?3, front = ?4, back = ?5, updated_at = ?6 WHERE id = ?7",
+            params![card_type, content, reasoning, front, back, now, card_id],
         )?;
+        
+        self.set_card_tags(card_id, &tags)?;
+        
         Ok(())
     }
 
@@ -409,12 +525,16 @@ impl Repository {
         let limit_param = format!("?{}", n + 2);
 
         let sql = format!(
-            "SELECT c.id, c.deck_id, c.front, c.back, c.created_at, c.updated_at,
+            "SELECT c.id, c.deck_id, c.card_type, c.content, c.reasoning, c.front, c.back, c.created_at, c.updated_at,
                     cs.interval, cs.ease_factor, cs.repetitions, cs.next_review,
-                    cs.total_reviews, cs.correct_streak, cs.last_review
+                    cs.total_reviews, cs.correct_streak, cs.last_review,
+                    GROUP_CONCAT(t.name)
              FROM cards c
              JOIN card_state cs ON cs.card_id = c.id
+             LEFT JOIN card_tags ct ON ct.card_id = c.id
+             LEFT JOIN tags t ON t.id = ct.tag_id
              WHERE c.deck_id IN ({}) AND cs.next_review <= {}
+             GROUP BY c.id
              ORDER BY cs.next_review ASC
              LIMIT {}",
             placeholders.join(", "),
@@ -435,23 +555,32 @@ impl Repository {
 
         let results = stmt
             .query_map(params_ref.as_slice(), |row| {
+                let tags_str: Option<String> = row.get(16)?;
+                let tags = tags_str
+                    .map(|s| s.split(',').map(|t| t.to_string()).collect())
+                    .unwrap_or_default();
+
                 let card = Card {
                     id: row.get(0)?,
                     deck_id: row.get(1)?,
-                    front: row.get(2)?,
-                    back: row.get(3)?,
-                    created_at: row.get(4)?,
-                    updated_at: row.get(5)?,
+                    card_type: row.get(2)?,
+                    content: row.get(3)?,
+                    reasoning: row.get(4)?,
+                    front: row.get(5)?,
+                    back: row.get(6)?,
+                    tags,
+                    created_at: row.get(7)?,
+                    updated_at: row.get(8)?,
                 };
                 let state = CardState {
                     card_id: row.get(0)?,
-                    interval: row.get(6)?,
-                    ease_factor: row.get(7)?,
-                    repetitions: row.get(8)?,
-                    next_review: row.get(9)?,
-                    total_reviews: row.get(10)?,
-                    correct_streak: row.get(11)?,
-                    last_review: row.get(12)?,
+                    interval: row.get(9)?,
+                    ease_factor: row.get(10)?,
+                    repetitions: row.get(11)?,
+                    next_review: row.get(12)?,
+                    total_reviews: row.get(13)?,
+                    correct_streak: row.get(14)?,
+                    last_review: row.get(15)?,
                 };
                 Ok((card, state))
             })?
@@ -460,7 +589,85 @@ impl Repository {
         Ok(results)
     }
 
-    /// Count due cards in a deck
+    /// Returns cards that are due for review matching specific tags.
+    pub fn get_due_cards_by_tags(&self, tags: &[String], limit: u32) -> Result<Vec<(Card, CardState)>> {
+        let today = Local::now().format("%Y-%m-%d").to_string();
+
+        if tags.is_empty() {
+            return Ok(vec![]);
+        }
+
+        let n = tags.len();
+        let placeholders: Vec<String> = (1..=n).map(|i| format!("?{}", i)).collect();
+        let today_param = format!("?{}", n + 1);
+        let limit_param = format!("?{}", n + 2);
+
+        let sql = format!(
+            "SELECT c.id, c.deck_id, c.card_type, c.content, c.reasoning, c.front, c.back, c.created_at, c.updated_at,
+                    cs.interval, cs.ease_factor, cs.repetitions, cs.next_review,
+                    cs.total_reviews, cs.correct_streak, cs.last_review,
+                    GROUP_CONCAT(t.name)
+             FROM cards c
+             JOIN card_state cs ON cs.card_id = c.id
+             JOIN card_tags ct ON ct.card_id = c.id
+             JOIN tags t ON t.id = ct.tag_id
+             WHERE t.name IN ({}) AND cs.next_review <= {}
+             GROUP BY c.id
+             ORDER BY cs.next_review ASC
+             LIMIT {}",
+            placeholders.join(", "),
+            today_param,
+            limit_param,
+        );
+
+        let mut stmt = self.conn.prepare(&sql)?;
+
+        let mut param_values: Vec<Box<dyn rusqlite::types::ToSql>> = vec![];
+        for tag in tags {
+            param_values.push(Box::new(tag.clone()));
+        }
+        param_values.push(Box::new(today));
+        param_values.push(Box::new(limit));
+
+        let params_ref: Vec<&dyn rusqlite::types::ToSql> = param_values.iter().map(|p| p.as_ref()).collect();
+
+        let results = stmt
+            .query_map(params_ref.as_slice(), |row| {
+                let tags_str: Option<String> = row.get(16)?;
+                let fetched_tags = tags_str
+                    .map(|s| s.split(',').map(|t| t.to_string()).collect())
+                    .unwrap_or_default();
+
+                let card = Card {
+                    id: row.get(0)?,
+                    deck_id: row.get(1)?,
+                    card_type: row.get(2)?,
+                    content: row.get(3)?,
+                    reasoning: row.get(4)?,
+                    front: row.get(5)?,
+                    back: row.get(6)?,
+                    tags: fetched_tags,
+                    created_at: row.get(7)?,
+                    updated_at: row.get(8)?,
+                };
+                let state = CardState {
+                    card_id: card.id.clone(),
+                    interval: row.get(9)?,
+                    ease_factor: row.get(10)?,
+                    repetitions: row.get(11)?,
+                    next_review: row.get(12)?,
+                    total_reviews: row.get(13)?,
+                    correct_streak: row.get(14)?,
+                    last_review: row.get(15)?,
+                };
+                Ok((card, state))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(results)
+    }
+
+    /// Count due cards for a deck
     pub fn count_due_cards(&self, deck_id: &str) -> Result<u32> {
         let today = Local::now().format("%Y-%m-%d").to_string();
         let count: i64 = self.conn.query_row(
@@ -599,26 +806,39 @@ impl Repository {
     pub fn search_cards(&self, query: &str) -> Result<Vec<SearchResult>> {
         let pattern = format!("%{}%", query);
         let mut stmt = self.conn.prepare(
-            "SELECT c.id, c.deck_id, c.front, c.back, c.created_at, c.updated_at,
-                    d.name as deck_name
+            "SELECT c.id, c.deck_id, c.card_type, c.content, c.reasoning, c.front, c.back, c.created_at, c.updated_at,
+                    d.name as deck_name,
+                    GROUP_CONCAT(t.name)
              FROM cards c
              JOIN decks d ON d.id = c.deck_id
-             WHERE c.front LIKE ?1 OR c.back LIKE ?1
+             LEFT JOIN card_tags ct ON ct.card_id = c.id
+             LEFT JOIN tags t ON t.id = ct.tag_id
+             WHERE c.front LIKE ?1 OR c.back LIKE ?1 OR c.reasoning LIKE ?1
+             GROUP BY c.id
              ORDER BY c.updated_at DESC
              LIMIT 50",
         )?;
         let results = stmt
             .query_map(params![pattern], |row| {
+                let tags_str: Option<String> = row.get(10)?;
+                let tags = tags_str
+                    .map(|s| s.split(',').map(|t| t.to_string()).collect())
+                    .unwrap_or_default();
+
                 Ok(SearchResult {
                     card: Card {
                         id: row.get(0)?,
                         deck_id: row.get(1)?,
-                        front: row.get(2)?,
-                        back: row.get(3)?,
-                        created_at: row.get(4)?,
-                        updated_at: row.get(5)?,
+                        card_type: row.get(2)?,
+                        content: row.get(3)?,
+                        reasoning: row.get(4)?,
+                        front: row.get(5)?,
+                        back: row.get(6)?,
+                        tags,
+                        created_at: row.get(7)?,
+                        updated_at: row.get(8)?,
                     },
-                    deck_name: row.get(6)?,
+                    deck_name: row.get(9)?,
                 })
             })?
             .collect::<Result<Vec<_>>>()?;
@@ -687,6 +907,142 @@ impl Repository {
             reviews_today: reviews_today as u32,
             avg_ease_factor,
             streak_days: streak,
+        })
+    }
+    // ── Exams ──────────────────────────────────────────
+
+    pub fn create_exam(&self, name: &str, exam_type: &str, exam_date: &str, deck_ids: Vec<String>) -> Result<crate::db::models::Exam> {
+        let id = Uuid::new_v4().to_string();
+        let now = Utc::now().format("%Y-%m-%dT%H:%M:%S").to_string();
+
+        self.conn.execute(
+            "INSERT INTO exams (id, name, exam_type, exam_date, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![id, name, exam_type, exam_date, now],
+        )?;
+
+        for deck_id in &deck_ids {
+            self.conn.execute(
+                "INSERT INTO exam_decks (exam_id, deck_id) VALUES (?1, ?2)",
+                params![id, deck_id],
+            )?;
+        }
+
+        Ok(crate::db::models::Exam {
+            id,
+            name: name.to_string(),
+            exam_type: exam_type.to_string(),
+            exam_date: exam_date.to_string(),
+            created_at: now,
+            deck_ids,
+        })
+    }
+
+    pub fn list_exams(&self) -> Result<Vec<crate::db::models::Exam>> {
+        let mut stmt = self.conn.prepare("SELECT id, name, exam_type, exam_date, created_at FROM exams ORDER BY exam_date ASC")?;
+        let mut exams = Vec::new();
+        
+        let exam_rows = stmt.query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, String>(3)?,
+                row.get::<_, String>(4)?,
+            ))
+        })?;
+
+        for row in exam_rows {
+            let (id, name, exam_type, exam_date, created_at) = row?;
+            let mut deck_stmt = self.conn.prepare("SELECT deck_id FROM exam_decks WHERE exam_id = ?1")?;
+            let deck_ids: Result<Vec<String>> = deck_stmt.query_map(params![id], |r| r.get(0))?.collect();
+            
+            exams.push(crate::db::models::Exam {
+                id,
+                name,
+                exam_type,
+                exam_date,
+                created_at,
+                deck_ids: deck_ids?,
+            });
+        }
+
+        Ok(exams)
+    }
+
+    pub fn delete_exam(&self, id: &str) -> Result<()> {
+        self.conn.execute("DELETE FROM exams WHERE id = ?1", params![id])?;
+        Ok(())
+    }
+
+    pub fn update_exam(&self, id: &str, name: &str, exam_type: &str, exam_date: &str, deck_ids: Vec<String>) -> Result<crate::db::models::Exam> {
+        self.conn.execute(
+            "UPDATE exams SET name = ?1, exam_type = ?2, exam_date = ?3 WHERE id = ?4",
+            params![name, exam_type, exam_date, id],
+        )?;
+
+        self.conn.execute("DELETE FROM exam_decks WHERE exam_id = ?1", params![id])?;
+
+        for deck_id in &deck_ids {
+            self.conn.execute(
+                "INSERT INTO exam_decks (exam_id, deck_id) VALUES (?1, ?2)",
+                params![id, deck_id],
+            )?;
+        }
+
+        Ok(crate::db::models::Exam {
+            id: id.to_string(),
+            name: name.to_string(),
+            exam_type: exam_type.to_string(),
+            exam_date: exam_date.to_string(),
+            created_at: String::new(),
+            deck_ids,
+        })
+    }
+
+    pub fn get_exam_stats(&self, id: &str) -> Result<crate::db::models::ExamStats> {
+        // Find the exam date
+        let exam_date_str: String = self.conn.query_row(
+            "SELECT exam_date FROM exams WHERE id = ?1",
+            params![id],
+            |row| row.get(0)
+        )?;
+
+        let today = Local::now().naive_local().date();
+        let target_date = NaiveDate::parse_from_str(&exam_date_str, "%Y-%m-%d")
+            .unwrap_or(today);
+        
+        let days_left = (target_date - today).num_days() as i32;
+
+        // Find the cards linked to this exam's decks
+        // A card is mastered if interval > 21 days
+        let total_cards: u32 = self.conn.query_row(
+            "SELECT COUNT(*) FROM cards c
+             JOIN exam_decks ed ON c.deck_id = ed.deck_id
+             WHERE ed.exam_id = ?1",
+            params![id],
+            |row| row.get(0)
+        )?;
+
+        let mastered_cards: u32 = self.conn.query_row(
+            "SELECT COUNT(*) FROM cards c
+             JOIN exam_decks ed ON c.deck_id = ed.deck_id
+             JOIN card_state cs ON c.id = cs.card_id
+             WHERE ed.exam_id = ?1 AND cs.interval >= 21",
+            params![id],
+            |row| row.get(0)
+        )?;
+
+        let cards_left = total_cards.saturating_sub(mastered_cards);
+        
+        let effective_days = if days_left > 0 { days_left as u32 } else { 1 };
+        let cards_per_day = (cards_left as f32 / effective_days as f32).ceil() as u32;
+
+        Ok(crate::db::models::ExamStats {
+            total_cards,
+            mastered_cards,
+            cards_left,
+            days_left,
+            cards_per_day,
         })
     }
 }

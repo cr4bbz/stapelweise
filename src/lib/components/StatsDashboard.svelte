@@ -2,6 +2,7 @@
   import * as api from "$lib/api";
   import type { DeckStats } from "$lib/types";
   import ErrorBanner from "./ErrorBanner.svelte";
+  import { fade } from "svelte/transition";
 
   let { deckId, deckName = "", onClose = () => {} } = $props<{
     deckId: string;
@@ -53,15 +54,18 @@
   </div>
 
   <!-- Content -->
-  <div class="flex-1 overflow-y-auto px-6 pb-6">
+  <div class="flex-1 px-6 pb-6 grid">
     {#if loading}
-      <div class="flex items-center justify-center h-64">
+      <div in:fade={{ duration: 150 }} out:fade={{ duration: 100 }} class="col-start-1 row-start-1 flex items-center justify-center h-64">
         <p class="text-secondary text-lg">Lade Statistiken...</p>
       </div>
     {:else if error}
-      <ErrorBanner message={error} onDismiss={() => (error = null)} />
+      <div in:fade={{ duration: 150 }} out:fade={{ duration: 100 }} class="col-start-1 row-start-1">
+        <ErrorBanner message={error} onDismiss={() => (error = null)} />
+      </div>
     {:else if stats}
-      <!-- 2x2 Stat Cards -->
+      <div in:fade={{ duration: 150 }} out:fade={{ duration: 100 }} class="col-start-1 row-start-1 overflow-y-auto w-full">
+        <!-- 2x2 Stat Cards -->
       <div class="grid grid-cols-2 gap-4 mb-8">
         <div class="glass rounded-card p-5">
           <p class="text-xs font-medium text-secondary uppercase tracking-wide mb-1">Gesamt</p>
@@ -147,6 +151,7 @@
             </p>
           </div>
         </div>
+      </div>
       </div>
     {/if}
   </div>

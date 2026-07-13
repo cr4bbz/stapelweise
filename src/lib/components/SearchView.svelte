@@ -3,6 +3,7 @@
   import type { SearchResult } from "$lib/types";
   import EmptyState from "./EmptyState.svelte";
   import { renderMath } from "$lib/math";
+  import { fade } from "svelte/transition";
 
   let { onClose = () => {}, onSelectCard = (_deckId: string) => {} } = $props<{
     onClose?: () => void;
@@ -87,20 +88,21 @@
   </div>
 
   <!-- Results -->
-  {#if loading}
-    <div class="flex-1 flex items-center justify-center">
+  <div class="flex-1 grid overflow-hidden">
+    {#if loading}
+      <div in:fade={{ duration: 150 }} out:fade={{ duration: 100 }} class="col-start-1 row-start-1 flex-1 flex items-center justify-center">
       <p class="text-secondary">Suche...</p>
     </div>
-  {:else if searched && results.length === 0}
-    <div class="flex-1 flex items-center justify-center">
+    {:else if searched && results.length === 0}
+      <div in:fade={{ duration: 150 }} out:fade={{ duration: 100 }} class="col-start-1 row-start-1 flex-1 flex items-center justify-center">
       <EmptyState
         title="Keine Ergebnisse"
         description="Keine Karten gefunden, die deiner Suche entsprechen."
         icon={() => "🔍"}
       />
     </div>
-  {:else if results.length > 0}
-    <div class="flex-1 overflow-y-auto px-6 pb-6">
+    {:else if results.length > 0}
+      <div in:fade={{ duration: 150 }} out:fade={{ duration: 100 }} class="col-start-1 row-start-1 flex-1 overflow-y-auto px-6 pb-6">
       <p class="text-secondary text-sm mb-3">{results.length} Treffer</p>
       <div class="space-y-2">
         {#each results as result (result.card.id)}
@@ -108,15 +110,24 @@
             onclick={() => handleCardClick(result)}
             class="w-full glass rounded-card p-4 flex items-start gap-4 text-left hover:bg-white/5 transition-colors"
           >
-            <div class="flex-1 min-w-0 grid grid-cols-2 gap-4">
-              <div>
-                <span class="text-xs font-medium text-secondary uppercase tracking-wide">Frage</span>
-                <p class="font-card text-primary dark:text-primary-dark mt-0.5 line-clamp-2">{@html renderMath(result.card.front)}</p>
+            <div class="flex-1 min-w-0 flex flex-col gap-2">
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <span class="text-xs font-medium text-secondary uppercase tracking-wide">Frage</span>
+                  <p class="font-card text-primary dark:text-primary-dark mt-0.5 line-clamp-2">{@html renderMath(result.card.front)}</p>
+                </div>
+                <div>
+                  <span class="text-xs font-medium text-secondary uppercase tracking-wide">Antwort</span>
+                  <p class="font-card text-primary dark:text-primary-dark mt-0.5 line-clamp-2">{@html renderMath(result.card.back)}</p>
+                </div>
               </div>
-              <div>
-                <span class="text-xs font-medium text-secondary uppercase tracking-wide">Antwort</span>
-                <p class="font-card text-primary dark:text-primary-dark mt-0.5 line-clamp-2">{@html renderMath(result.card.back)}</p>
-              </div>
+              {#if result.card.tags && result.card.tags.length > 0}
+                <div class="flex flex-wrap gap-1 mt-1">
+                  {#each result.card.tags as tag}
+                    <span class="inline-flex items-center bg-white/10 text-secondary px-1.5 py-0.5 rounded text-[10px] font-medium">#{tag}</span>
+                  {/each}
+                </div>
+              {/if}
             </div>
             <span class="text-xs text-secondary shrink-0 mt-1 bg-white/10 rounded-full px-2 py-0.5">
               {result.deck_name}
@@ -124,6 +135,7 @@
           </button>
         {/each}
       </div>
-    </div>
-  {/if}
+      </div>
+    {/if}
+  </div>
 </div>

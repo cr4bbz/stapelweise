@@ -25,7 +25,7 @@
   <!-- Top bar -->
   <header class="flex items-center justify-between px-6 py-3 border-b border-white/10 glass shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
     <a href="/" class="text-lg font-bold text-primary dark:text-primary-dark tracking-tight">
-      Stapelweise
+      stapelweise
     </a>
     <div class="flex items-center gap-1">
       <button
@@ -51,7 +51,7 @@
   </header>
 
   <!-- Main content -->
-  <main class="flex-1 overflow-hidden">
+  <main class="flex-1 overflow-hidden min-h-0">
     {@render children()}
   </main>
 
@@ -59,6 +59,6 @@
 
   <!-- Footer -->
   <footer class="px-6 py-2 text-center text-xs text-secondary border-t border-white/10 glass shadow-[0_-1px_3px_rgba(0,0,0,0.04)]">
-    Stapelweise v0.1 &middot; Lerne stapelweise
+    stapelweise v0.1 &middot; Lerne stapelweise
   </footer>
 </div>

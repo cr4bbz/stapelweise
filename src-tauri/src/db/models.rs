@@ -9,13 +9,42 @@ pub struct Deck {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Exam {
+    pub id: String,
+    pub name: String,
+    pub exam_type: String,
+    pub exam_date: String,
+    pub created_at: String,
+    pub deck_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExamStats {
+    pub total_cards: u32,
+    pub mastered_cards: u32,
+    pub cards_left: u32,
+    pub days_left: i32,
+    pub cards_per_day: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Card {
     pub id: String,
     pub deck_id: String,
+    pub card_type: String,
+    pub content: Option<String>,
+    pub reasoning: Option<String>,
     pub front: String,
     pub back: String,
+    pub tags: Vec<String>,
     pub created_at: String,
     pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Tag {
+    pub id: String,
+    pub name: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

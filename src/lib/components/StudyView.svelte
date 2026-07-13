@@ -1,13 +1,15 @@
 <script lang="ts">
   import { untrack } from "svelte";
+  import { fade } from "svelte/transition";
   import { studyStore } from "$lib/stores/study.svelte";
   import { settingsStore } from "$lib/stores/settings.svelte";
   import FlashCard from "./FlashCard.svelte";
   import ScoreButtons from "./ScoreButtons.svelte";
   import ProgressBar from "./ProgressBar.svelte";
 
-  let { deckIds, deckName = "", onClose = () => {} } = $props<{
-    deckIds: string[];
+  let { deckIds = [], tags = [], deckName = "", onClose = () => {} } = $props<{
+    deckIds?: string[];
+    tags?: string[];
     deckName?: string;
     onClose?: () => void;
   }>();
@@ -21,7 +23,11 @@
     loading = true;
     untrack(() => {
       settingsStore.load().then(() => {
-        s.startSession(deckIds, settingsStore.current.session_limit).then((hasCards) => {
+        const startPromise = tags.length > 0 
+          ? s.startSessionByTags(tags, settingsStore.current.session_limit)
+          : s.startSession(deckIds, settingsStore.current.session_limit);
+        
+        startPromise.then((hasCards) => {
           empty = !hasCards;
           loading = false;
         });
@@ -77,7 +83,9 @@
 
   async function continueSession() {
     loading = true;
-    const hasCards = await s.startSession(deckIds, settingsStore.current.session_limit);
+    const hasCards = tags.length > 0
+      ? await s.startSessionByTags(tags, settingsStore.current.session_limit)
+      : await s.startSession(deckIds, settingsStore.current.session_limit);
     empty = !hasCards;
     loading = false;
   }
@@ -112,11 +120,13 @@
   </div>
 
   <!-- Card Area -->
-  <div class="flex-1 flex flex-col items-center justify-center px-6 pb-6">
+  <div class="flex-1 px-6 pb-6 grid">
     {#if loading}
-      <p class="text-secondary text-lg">Lädt...</p>
+      <div in:fade={{ duration: 150 }} out:fade={{ duration: 100 }} class="col-start-1 row-start-1 flex flex-col items-center justify-center">
+        <p class="text-secondary text-lg">Lädt...</p>
+      </div>
     {:else if empty}
-      <div class="text-center">
+      <div in:fade={{ duration: 150 }} out:fade={{ duration: 100 }} class="col-start-1 row-start-1 text-center flex flex-col items-center justify-center">
         <div class="text-6xl mb-4 opacity-20">🎉</div>
         <h2 class="text-2xl font-bold text-primary dark:text-primary-dark mb-2">
           Alles geschafft!
@@ -130,7 +140,7 @@
         </button>
       </div>
     {:else if !s.sessionActive && !empty}
-      <div class="text-center">
+      <div in:fade={{ duration: 150 }} out:fade={{ duration: 100 }} class="col-start-1 row-start-1 text-center flex flex-col items-center justify-center">
         <div class="text-6xl mb-4 opacity-20">✅</div>
         <h2 class="text-2xl font-bold text-primary dark:text-primary-dark mb-2">
           Session beendet
@@ -153,10 +163,11 @@
       </div>
     {:else if s.currentCard}
       <!-- Active card -->
-      <div class="flex flex-col items-center gap-6 w-full" role="button" tabindex="0" onclick={() => !s.isFlipped && s.flip()} onkeydown={(e) => e.key === " " && !s.isFlipped && s.flip()}>
+      <div in:fade={{ duration: 150 }} out:fade={{ duration: 100 }} class="col-start-1 row-start-1 flex flex-col items-center justify-center gap-6 w-full" role="button" tabindex="0" onclick={() => !s.isFlipped && s.flip()} onkeydown={(e) => e.key === " " && !s.isFlipped && s.flip()}>
         <FlashCard
           front={s.currentCard.card.front}
           back={s.currentCard.card.back}
+          reasoning={s.currentCard.card.reasoning}
           flipped={s.isFlipped}
         />
         <ScoreButtons visible={s.isFlipped} onRate={handleRate} />

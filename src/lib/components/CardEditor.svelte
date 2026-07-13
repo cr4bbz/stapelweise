@@ -22,6 +22,7 @@
   let showNewCard = $state(false);
   let front = $state("");
   let back = $state("");
+  let reasoning = $state("");
   let editingCard = $state<Card | null>(null);
   let error = $state<string | null>(null);
   let dueCount = $state<number | null>(null);
@@ -30,6 +31,18 @@
   let deleteConfirmCardId = $state<string | null>(null);
   let viewingCard = $state<Card | null>(null);
   let cardFlipped = $state(false);
+
+  let tags = $state<string[]>([]);
+  let tagInput = $state("");
+  let availableTags = $state<string[]>([]);
+
+  async function loadTags() {
+    try {
+      availableTags = await api.getAllTags();
+    } catch {
+      // ignore
+    }
+  }
 
   async function loadCards() {
     loading = true;
@@ -54,18 +67,43 @@
   $effect(() => {
     loadCards();
     loadDueCount();
+    loadTags();
   });
+
+  function addTag(e: KeyboardEvent) {
+    if (e.key === "Enter" || e.key === ",") {
+      e.preventDefault();
+      const newTag = tagInput.trim().toLowerCase();
+      if (newTag && !tags.includes(newTag)) {
+        tags = [...tags, newTag];
+      }
+      tagInput = "";
+    }
+  }
+
+  function removeTag(tag: string) {
+    tags = tags.filter(t => t !== tag);
+  }
 
   async function handleCreate() {
     if (!front.trim() || !back.trim()) return;
     error = null;
     try {
-      const card = await api.createCard(deck.id, front.trim(), back.trim());
+      let cType = "basic";
+      if (front.includes("==") || front.includes("{{c1::")) {
+        cType = "cloze";
+      }
+
+      const card = await api.createCard(deck.id, front.trim(), back.trim(), reasoning.trim() || null, cType, null, tags);
       cards = [card, ...cards];
       front = "";
       back = "";
+      reasoning = "";
+      tags = [];
+      tagInput = "";
       showNewCard = false;
       loadDueCount();
+      loadTags();
     } catch (e: any) {
       error = e?.toString() || "Fehler beim Erstellen der Karte";
     }
@@ -76,13 +114,22 @@
     if (!card || !front.trim() || !back.trim()) return;
     error = null;
     try {
-      await api.updateCard(card.id, front.trim(), back.trim());
+      let cType = "basic";
+      if (front.includes("==") || front.includes("{{c1::")) {
+        cType = "cloze";
+      }
+
+      await api.updateCard(card.id, front.trim(), back.trim(), reasoning.trim() || null, cType, null, tags);
       cards = cards.map((c) =>
-        c.id === card.id ? { ...c, front: front.trim(), back: back.trim() } : c
+        c.id === card.id ? { ...c, card_type: cType, front: front.trim(), back: back.trim(), reasoning: reasoning.trim() || null, tags } : c
       );
       editingCard = null;
       front = "";
       back = "";
+      reasoning = "";
+      tags = [];
+      tagInput = "";
+      loadTags();
     } catch (e: any) {
       error = e?.toString() || "Fehler beim Speichern der Karte";
     }
@@ -120,6 +167,9 @@
     editingCard = card;
     front = card.front;
     back = card.back;
+    reasoning = card.reasoning || "";
+    tags = card.tags || [];
+    tagInput = "";
     showNewCard = false;
     error = null;
   }
@@ -129,6 +179,9 @@
     showNewCard = false;
     front = "";
     back = "";
+    reasoning = "";
+    tags = [];
+    tagInput = "";
   }
 
   function handleKeydown(e: KeyboardEvent) {
@@ -160,16 +213,17 @@
 
 <svelte:window onkeydown={handleKeydown} />
 
-{#if showStats}
-  <div transition:fade={{ duration: 200 }} class="h-full">
+<div class="flex-1 grid overflow-hidden w-full h-full">
+  {#if showStats}
+    <div in:fade={{ duration: 150 }} out:fade={{ duration: 100 }} class="col-start-1 row-start-1 h-full w-full">
     <StatsDashboard deckId={deck.id} deckName={deck.name} onClose={() => (showStats = false)} />
-  </div>
-{:else if showBrowse}
-  <div transition:fade={{ duration: 200 }} class="h-full">
+    </div>
+  {:else if showBrowse}
+    <div in:fade={{ duration: 150 }} out:fade={{ duration: 100 }} class="col-start-1 row-start-1 h-full w-full">
     <BrowseCards cards={cards} deckName={deck.name} onClose={() => (showBrowse = false)} />
-  </div>
-{:else if viewingCard}
-  <div transition:fade={{ duration: 200 }} class="flex flex-col h-full">
+    </div>
+  {:else if viewingCard}
+    <div in:fade={{ duration: 150 }} out:fade={{ duration: 100 }} class="col-start-1 row-start-1 flex flex-col h-full w-full">
     <div class="flex items-center gap-3 p-6 pb-2">
       <button
         onclick={() => { viewingCard = null; cardFlipped = false; }}
@@ -195,6 +249,8 @@
         <FlashCard
           front={viewingCard.front}
           back={viewingCard.back}
+          reasoning={viewingCard.reasoning}
+          tags={viewingCard.tags}
           flipped={cardFlipped}
         />
       </div>
@@ -204,10 +260,10 @@
       >
         {cardFlipped ? "Vorderseite zeigen" : "Rückseite zeigen"}
       </button>
+      </div>
     </div>
-  </div>
-{:else}
-<div transition:fade={{ duration: 200 }} class="flex flex-col h-full">
+  {:else}
+    <div in:fade={{ duration: 150 }} out:fade={{ duration: 100 }} class="col-start-1 row-start-1 flex flex-col h-full w-full">
   <!-- Header -->
   <div class="flex items-center gap-3 p-6 pb-4">
     <button
@@ -262,6 +318,7 @@
           editingCard = null;
           front = "";
           back = "";
+          reasoning = "";
           error = null;
         }}
         class="rounded-button bg-primary dark:bg-[#E0E0E0] dark:text-[#1A1A2E] text-white px-4 py-2 text-sm font-medium hover:scale-[1.02] transition-transform"
@@ -322,7 +379,48 @@
             </div>
           {/if}
         </div>
-        <div class="flex gap-2 justify-end">
+        <div class="mt-4 pt-4 border-t border-white/10">
+          <label class="text-xs font-medium text-secondary uppercase tracking-wide flex items-center gap-2">
+            Warum? <span class="text-[10px] lowercase opacity-70">(Optional, fördert Verstehen)</span>
+          </label>
+          <textarea
+            bind:value={reasoning}
+            placeholder="Warum ist diese Antwort richtig? Wie hängt sie mit anderem Wissen zusammen?"
+            class="w-full mt-1 bg-white/5 dark:bg-black/20 border border-white/10 rounded-lg p-3 text-primary dark:text-primary-dark placeholder:text-secondary/50 resize-none outline-none focus:border-accent-correct/50 transition-colors text-sm font-card"
+            rows="2"
+          ></textarea>
+        </div>
+        <div class="mt-2 pt-4 border-t border-white/10">
+          <label class="text-xs font-medium text-secondary uppercase tracking-wide flex items-center gap-2 mb-2">
+            Tags <span class="text-[10px] lowercase opacity-70">(Mit Komma oder Enter trennen)</span>
+          </label>
+          <div class="flex flex-wrap gap-2 mb-2">
+            {#each tags as tag}
+              <span class="inline-flex items-center gap-1 bg-accent-correct/20 text-accent-correct px-2 py-1 rounded text-xs font-medium">
+                #{tag}
+                <button onclick={() => removeTag(tag)} class="hover:text-white transition-colors" type="button">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+                  </svg>
+                </button>
+              </span>
+            {/each}
+          </div>
+          <input
+            type="text"
+            bind:value={tagInput}
+            onkeydown={addTag}
+            placeholder="Tags eingeben..."
+            list="availableTags"
+            class="w-full bg-white/5 dark:bg-black/20 border border-white/10 rounded-lg p-2 text-primary dark:text-primary-dark placeholder:text-secondary/50 outline-none focus:border-accent-correct/50 transition-colors text-sm font-card"
+          />
+          <datalist id="availableTags">
+            {#each availableTags as t}
+              <option value={t}></option>
+            {/each}
+          </datalist>
+        </div>
+        <div class="flex gap-2 justify-end mt-2">
           <button
             onclick={cancelEdit}
             class="text-secondary text-sm hover:text-primary dark:hover:text-primary-dark"
@@ -367,24 +465,34 @@
           editingCard = null;
           front = "";
           back = "";
+          reasoning = "";
         }}
         icon={() => "🃏"}
       />
     </div>
   {:else}
-    <div class="flex-1 overflow-y-auto px-6 pb-6">
+    <div class="flex-1 overflow-y-auto min-h-0 px-6 pb-6">
       <div class="space-y-2">
         {#each cards as card (card.id)}
           <div class="glass rounded-card p-4 flex items-start gap-4 group cursor-pointer hover:bg-white/5 dark:hover:bg-white/5 transition-colors" onclick={() => { viewingCard = card; cardFlipped = false; }} role="button" tabindex="0" onkeydown={(e) => (e.key === "Enter" || e.key === " ") && (viewingCard = card, cardFlipped = false)}>
-            <div class="flex-1 min-w-0 grid grid-cols-2 gap-4">
-              <div>
-                <span class="text-xs font-medium text-secondary uppercase tracking-wide">Frage</span>
-                <p class="font-card text-primary dark:text-primary-dark mt-0.5 max-h-20 overflow-hidden">{@html renderMarkdown(card.front)}</p>
+            <div class="flex-1 min-w-0 flex flex-col gap-2">
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <span class="text-xs font-medium text-secondary uppercase tracking-wide">Frage</span>
+                  <p class="font-card text-primary dark:text-primary-dark mt-0.5 max-h-20 overflow-hidden">{@html renderMarkdown(card.front)}</p>
+                </div>
+                <div>
+                  <span class="text-xs font-medium text-secondary uppercase tracking-wide">Antwort</span>
+                  <p class="font-card text-primary dark:text-primary-dark mt-0.5 max-h-20 overflow-hidden">{@html renderMarkdown(card.back)}</p>
+                </div>
               </div>
-              <div>
-                <span class="text-xs font-medium text-secondary uppercase tracking-wide">Antwort</span>
-                <p class="font-card text-primary dark:text-primary-dark mt-0.5 max-h-20 overflow-hidden">{@html renderMarkdown(card.back)}</p>
-              </div>
+              {#if card.tags && card.tags.length > 0}
+                <div class="flex flex-wrap gap-1 mt-1">
+                  {#each card.tags as tag}
+                    <span class="inline-flex items-center bg-white/10 text-secondary px-1.5 py-0.5 rounded text-[10px] font-medium">#{tag}</span>
+                  {/each}
+                </div>
+              {/if}
             </div>
             <div class="flex items-center gap-1 shrink-0" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
               <button
@@ -449,7 +557,8 @@
     </div>
   {/if}
 </div>
-{/if}
+  {/if}
+</div>
 
 {#if deleteConfirmCardId}
   <ConfirmDialog

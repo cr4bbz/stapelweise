@@ -14,11 +14,11 @@
   }
 
   .dark {
-    --color-bg: #1a1a2e;
-    --color-surface: #16213e;
-    --color-text: #e0e0e0;
+    --color-bg: #0b0b13;
+    --color-surface: #12121f;
+    --color-text: #e2e8f0;
     --color-text-secondary: #94a3b8;
-    --color-glass: rgba(30, 30, 60, 0.6);
+    --color-glass: rgba(20, 20, 35, 0.6);
   }
 
   html,
@@ -29,7 +29,7 @@
   body {
     background-color: var(--color-bg);
     color: var(--color-text);
-    font-family: "Inter", sans-serif;
+    font-family: "Source Sans 3", sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
@@ -87,9 +87,9 @@
   }
 
   .dark .glass-card {
-    background: rgba(22, 33, 62, 0.92);
-    border-color: rgba(255, 255, 255, 0.1);
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4), 0 2px 6px rgba(0, 0, 0, 0.2);
+    background: rgba(18, 18, 31, 0.92);
+    border-color: rgba(255, 255, 255, 0.08);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.4);
   }
 
   /* Button base — pill shape, depth, active press */
@@ -146,7 +146,7 @@
   }
 
   .font-card-sans {
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-family: 'Source Sans 3', system-ui, -apple-system, sans-serif;
   }
 }
 

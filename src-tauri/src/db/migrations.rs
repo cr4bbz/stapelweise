@@ -1,6 +1,6 @@
 use rusqlite::Connection;
 
-const LATEST_VERSION: i32 = 3;
+const LATEST_VERSION: i32 = 6;
 
 /// Run all pending migrations to bring the database up to `LATEST_VERSION`.
 ///
@@ -27,6 +27,15 @@ pub fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
     }
     if version < 3 {
         apply_v3(conn)?;
+    }
+    if version < 4 {
+        apply_v4(conn)?;
+    }
+    if version < 5 {
+        apply_v5(conn)?;
+    }
+    if version < 6 {
+        apply_v6(conn)?;
     }
 
     Ok(())
@@ -151,6 +160,73 @@ fn apply_v3(conn: &Connection) -> Result<(), rusqlite::Error> {
     Ok(())
 }
 
+fn apply_v4(conn: &Connection) -> Result<(), rusqlite::Error> {
+    // Extend cards table
+    let has_card_type: bool = conn
+        .prepare("SELECT card_type FROM cards LIMIT 0")
+        .is_ok();
+    if !has_card_type {
+        conn.execute("ALTER TABLE cards ADD COLUMN card_type TEXT NOT NULL DEFAULT 'basic';", [])?;
+        conn.execute("ALTER TABLE cards ADD COLUMN content TEXT;", [])?;
+        conn.execute("ALTER TABLE cards ADD COLUMN reasoning TEXT;", [])?;
+    }
+
+    // Create tags tables
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS tags (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL UNIQUE
+        );
+
+        CREATE TABLE IF NOT EXISTS card_tags (
+            card_id TEXT NOT NULL REFERENCES cards(id) ON DELETE CASCADE,
+            tag_id TEXT NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+            PRIMARY KEY (card_id, tag_id)
+        );",
+    )?;
+
+    conn.pragma_update(None, "user_version", 4)?;
+    Ok(())
+}
+
+fn apply_v5(conn: &Connection) -> Result<(), rusqlite::Error> {
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS obsidian_vaults (
+            id TEXT PRIMARY KEY,
+            path TEXT NOT NULL UNIQUE
+        );
+        CREATE TABLE IF NOT EXISTS obsidian_cards (
+            card_id TEXT PRIMARY KEY REFERENCES cards(id) ON DELETE CASCADE,
+            file_path TEXT NOT NULL,
+            line_number INTEGER NOT NULL,
+            hash TEXT NOT NULL
+        );"
+    )?;
+
+    conn.pragma_update(None, "user_version", 5)?;
+    Ok(())
+}
+
+fn apply_v6(conn: &Connection) -> Result<(), rusqlite::Error> {
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS exams (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            exam_type TEXT NOT NULL,
+            exam_date TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS exam_decks (
+            exam_id TEXT NOT NULL REFERENCES exams(id) ON DELETE CASCADE,
+            deck_id TEXT NOT NULL REFERENCES decks(id) ON DELETE CASCADE,
+            PRIMARY KEY (exam_id, deck_id)
+        );"
+    )?;
+
+    conn.pragma_update(None, "user_version", 6)?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -169,12 +245,12 @@ mod tests {
         // Verify all tables exist
         let table_count: i32 = conn
             .query_row(
-                "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name IN ('decks', 'cards', 'reviews', 'card_state', 'settings')",
+                "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name IN ('decks', 'cards', 'reviews', 'card_state', 'settings', 'tags', 'card_tags', 'obsidian_vaults', 'obsidian_cards', 'exams', 'exam_decks')",
                 [],
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(table_count, 5);
+        assert_eq!(table_count, 11);
 
         // Verify prev_state column exists
         conn.execute("INSERT INTO decks (id, name, created_at, updated_at) VALUES ('d1', 'test', '', '')", [])

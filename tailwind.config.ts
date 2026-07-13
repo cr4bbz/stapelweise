@@ -8,11 +8,11 @@ export default {
       colors: {
         background: {
           DEFAULT: "#FAF9F6",
-          dark: "#1A1A2E",
+          dark: "#0B0B13",
         },
         surface: {
           DEFAULT: "#FFFFFF",
-          dark: "#16213E",
+          dark: "#12121F",
         },
         primary: {
           DEFAULT: "#1E3A5F",
@@ -38,7 +38,7 @@ export default {
         },
       },
       fontFamily: {
-        sans: ["Inter", "Avenir", "Helvetica", "Arial", "sans-serif"],
+        sans: ["Source Sans 3", "Avenir", "Helvetica", "Arial", "sans-serif"],
         serif: ["Source Serif 4", "Georgia", "serif"],
       },
       borderRadius: {

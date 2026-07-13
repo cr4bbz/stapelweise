@@ -33,8 +33,16 @@ export async function deleteDeck(deckId: string): Promise<void> {
   return cmd("delete_deck", { deckId });
 }
 
+export async function importDeckFromJson(name: string, cards: any[]): Promise<void> {
+  return cmd("import_deck", { name, cards });
+}
+
 export async function seedSampleData(): Promise<Deck[]> {
   return cmd("seed_sample_data");
+}
+
+export async function syncObsidianVault(vaultPath: string, deckName: string): Promise<Deck> {
+  return cmd("sync_obsidian_vault", { vaultPath, deckName });
 }
 
 // ── Cards ────────────────────────────────────────────
@@ -42,9 +50,13 @@ export async function seedSampleData(): Promise<Deck[]> {
 export async function createCard(
   deckId: string,
   front: string,
-  back: string
+  back: string,
+  reasoning: string | null = null,
+  cardType: string = "basic",
+  content: string | null = null,
+  tags: string[] = []
 ): Promise<Card> {
-  return cmd("create_card", { deckId, front, back });
+  return cmd("create_card", { deckId, front, back, reasoning, cardType, content, tags });
 }
 
 export async function listCards(deckId: string): Promise<Card[]> {
@@ -54,9 +66,13 @@ export async function listCards(deckId: string): Promise<Card[]> {
 export async function updateCard(
   cardId: string,
   front: string,
-  back: string
+  back: string,
+  reasoning: string | null = null,
+  cardType: string = "basic",
+  content: string | null = null,
+  tags: string[] = []
 ): Promise<void> {
-  return cmd("update_card", { cardId, front, back });
+  return cmd("update_card", { cardId, front, back, reasoning, cardType, content, tags });
 }
 
 export async function deleteCard(cardId: string): Promise<void> {
@@ -67,6 +83,10 @@ export async function getCardState(cardId: string): Promise<CardState | null> {
   return cmd("get_card_state", { cardId });
 }
 
+export async function getAllTags(): Promise<string[]> {
+  return cmd("get_all_tags");
+}
+
 // ── Study ────────────────────────────────────────────
 
 export async function getDueCards(
@@ -74,6 +94,13 @@ export async function getDueCards(
   limit: number
 ): Promise<DueCard[]> {
   return cmd("get_due_cards", { deckIds, limit });
+}
+
+export async function getDueCardsByTags(
+  tags: string[],
+  limit: number
+): Promise<DueCard[]> {
+  return cmd("get_due_cards_by_tags", { tags, limit });
 }
 
 export async function countDueCards(deckId: string): Promise<number> {
@@ -119,4 +146,37 @@ export async function getDeckStats(deckId: string): Promise<DeckStats> {
 
 export async function getDashboardStats(): Promise<DashboardStats> {
   return cmd("get_dashboard_stats");
+}
+
+// ── EXAMS ──────────────────────────────────────────────
+
+export async function createExam(
+  name: string,
+  examType: string,
+  examDate: string,
+  deckIds: string[]
+): Promise<any> {
+  return cmd("create_exam", { name, examType, examDate, deckIds });
+}
+
+export async function listExams(): Promise<any[]> {
+  return cmd("list_exams");
+}
+
+export async function deleteExam(id: string): Promise<void> {
+  return cmd("delete_exam", { id });
+}
+
+export async function updateExam(
+  id: string,
+  name: string,
+  examType: string,
+  examDate: string,
+  deckIds: string[]
+): Promise<any> {
+  return cmd("update_exam", { id, name, examType, examDate, deckIds });
+}
+
+export async function getExamStats(id: string): Promise<any> {
+  return cmd("get_exam_stats", { id });
 }

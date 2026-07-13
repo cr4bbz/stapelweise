@@ -12,11 +12,17 @@ use uuid::Uuid;
 pub fn create_card(
     state: State<DbState>,
     deck_id: String,
+    card_type: Option<String>,
+    content: Option<String>,
+    reasoning: Option<String>,
     front: String,
     back: String,
+    tags: Option<Vec<String>>,
 ) -> Result<Card, CommandError> {
     let db = state.lock().map_err(|e| CommandError(format!("Lock error: {}", e)))?;
-    let card = db.repo.create_card(&deck_id, &front, &back)?;
+    let c_type = card_type.unwrap_or_else(|| "basic".to_string());
+    let tags_vec = tags.unwrap_or_default();
+    let card = db.repo.create_card(&deck_id, &c_type, content.as_deref(), reasoning.as_deref(), &front, &back, tags_vec)?;
     Ok(card)
 }
 
@@ -31,11 +37,17 @@ pub fn list_cards(state: State<DbState>, deck_id: String) -> Result<Vec<Card>, C
 pub fn update_card(
     state: State<DbState>,
     card_id: String,
+    card_type: Option<String>,
+    content: Option<String>,
+    reasoning: Option<String>,
     front: String,
     back: String,
+    tags: Option<Vec<String>>,
 ) -> Result<(), CommandError> {
     let db = state.lock().map_err(|e| CommandError(format!("Lock error: {}", e)))?;
-    db.repo.update_card(&card_id, &front, &back)?;
+    let c_type = card_type.unwrap_or_else(|| "basic".to_string());
+    let tags_vec = tags.unwrap_or_default();
+    db.repo.update_card(&card_id, &c_type, content.as_deref(), reasoning.as_deref(), &front, &back, tags_vec)?;
     Ok(())
 }
 
@@ -51,6 +63,13 @@ pub fn get_card_state(state: State<DbState>, card_id: String) -> Result<Option<C
     let db = state.lock().map_err(|e| CommandError(format!("Lock error: {}", e)))?;
     let state = db.repo.get_card_state(&card_id)?;
     Ok(state)
+}
+
+#[tauri::command(rename_all = "camelCase")]
+pub fn get_all_tags(state: State<DbState>) -> Result<Vec<String>, CommandError> {
+    let db = state.lock().map_err(|e| CommandError(format!("Lock error: {}", e)))?;
+    let tags = db.repo.get_all_tags()?;
+    Ok(tags)
 }
 
 // ── Study ────────────────────────────────────────────
@@ -72,6 +91,22 @@ pub fn get_due_cards(
     let settings = db.settings();
     let effective_limit = limit.min(settings.session_limit);
     let cards = db.repo.get_due_cards(&deck_ids, effective_limit)?;
+    Ok(cards
+        .into_iter()
+        .map(|(card, state)| DueCard { card, state })
+        .collect())
+}
+
+#[tauri::command(rename_all = "camelCase")]
+pub fn get_due_cards_by_tags(
+    state: State<DbState>,
+    tags: Vec<String>,
+    limit: u32,
+) -> Result<Vec<DueCard>, CommandError> {
+    let db = state.lock().map_err(|e| CommandError(format!("Lock error: {}", e)))?;
+    let settings = db.settings();
+    let effective_limit = limit.min(settings.session_limit);
+    let cards = db.repo.get_due_cards_by_tags(&tags, effective_limit)?;
     Ok(cards
         .into_iter()
         .map(|(card, state)| DueCard { card, state })

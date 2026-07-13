@@ -8,6 +8,8 @@ const defaults: AppSettings = {
   session_limit: 50,
   sm2_initial_ef: 2.5,
   sm2_pass_threshold: 3,
+  obsidian_vault_path: "",
+  obsidian_flashcard_tag: "#flashcard",
 };
 
 let current = $state<AppSettings>({ ...defaults });

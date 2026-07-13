@@ -4,7 +4,9 @@
   import EmptyState from "./EmptyState.svelte";
   import ErrorBanner from "./ErrorBanner.svelte";
   import ConfirmDialog from "./ConfirmDialog.svelte";
+  import * as api from "$lib/api";
   import type { Deck } from "$lib/types";
+  import { fade } from "svelte/transition";
 
   let {
     onSelectDeck = (_deck: Deck) => {},
@@ -104,11 +106,61 @@
       editingDeckId = null;
     }
   }
+
+  async function handleImport(e: Event) {
+    const input = e.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+      if (!data.name || !Array.isArray(data.cards)) {
+        throw new Error("Ungültiges JSON Format für Deck");
+      }
+      
+      await api.importDeckFromJson(data.name, data.cards);
+      
+      await store.load();
+      await loadCounts();
+    } catch (err: any) {
+      error = "Fehler beim Importieren: " + (err?.toString() || "");
+    }
+    input.value = ""; // reset input
+  }
+
+  async function handleExport(deck: Deck) {
+    try {
+      const cards = await api.listCards(deck.id);
+      const exportData = {
+        name: deck.name,
+        cards: cards.map(c => ({
+          front: c.front,
+          back: c.back,
+          reasoning: c.reasoning,
+          tags: c.tags,
+          card_type: c.card_type
+        }))
+      };
+      const json = JSON.stringify(exportData, null, 2);
+      const blob = new Blob([json], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${deck.name.replace(/[^a-z0-9\u00c0-\u024f]/gi, '_').toLowerCase()}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e: any) {
+      error = "Fehler beim Exportieren: " + (e?.toString() || "");
+    }
+  }
 </script>
 
 <svelte:window onkeydown={handleKeydown} />
 
-<div class="flex flex-col h-full">
+<div class="flex flex-col">
   <!-- Header -->
   <div class="flex items-center justify-between p-6 pb-4">
     <h1 class="text-2xl font-bold text-primary dark:text-primary-dark">
@@ -127,20 +179,11 @@
           {selectedDeckIds.size} lernen
         </button>
       {/if}
-      <button
-        onclick={async () => {
-          try {
-            await store.seed();
-            await loadCounts();
-          } catch (e: any) {
-            error = e?.toString() || "Fehler beim Laden der Beispieldaten";
-          }
-        }}
-        class="rounded-button bg-accent-correct text-white px-4 py-2 text-sm font-medium hover:scale-[1.02] transition-transform"
-        title="3 thematische Decks mit 18 Karten in verschiedenen Lernzuständen"
-      >
-        Beispieldaten
-      </button>
+
+      <label class="rounded-button bg-white/10 dark:bg-black/20 text-primary dark:text-primary-dark px-4 py-2 text-sm font-medium hover:scale-[1.02] transition-transform cursor-pointer border border-white/20">
+        Import JSON
+        <input type="file" accept=".json" class="hidden" onchange={handleImport} />
+      </label>
       <button
         onclick={() => (showNewDeck = true)}
         class="rounded-button bg-primary dark:bg-[#E0E0E0] dark:text-[#1A1A2E] text-white px-4 py-2 text-sm font-medium hover:scale-[1.02] transition-transform"
@@ -157,7 +200,7 @@
 
   <!-- New Deck Input -->
   {#if showNewDeck}
-    <div class="px-6 pb-4">
+    <div in:fade={{ duration: 150 }} out:fade={{ duration: 100 }} class="px-6 pb-4">
       <div class="glass rounded-card p-4 flex gap-3 items-center">
         <input
           type="text"
@@ -188,8 +231,9 @@
   {/if}
 
   <!-- Deck Grid -->
-  {#if store.decks.length === 0 && !showNewDeck}
-    <div class="flex-1 flex items-center justify-center">
+  <div>
+    {#if store.decks.length === 0 && !showNewDeck}
+      <div in:fade={{ duration: 150 }} out:fade={{ duration: 100 }} class="col-start-1 row-start-1 flex items-center justify-center">
       <EmptyState
         title="Noch kein Stapel"
         description="Erstelle deinen ersten Karteikarten-Stapel und leg los."
@@ -197,108 +241,145 @@
         onAction={() => (showNewDeck = true)}
         icon={() => "🗂️"}
       />
-    </div>
-  {:else}
-    <div class="flex-1 overflow-y-auto px-6 pb-6">
-      <div class="grid gap-3">
+      </div>
+    {:else}
+      <div in:fade={{ duration: 150 }} out:fade={{ duration: 100 }} class="col-start-1 row-start-1 px-6 pb-12 pt-2">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         {#each store.decks as deck (deck.id)}
-          <div class="glass rounded-card p-4 transition-shadow flex items-center gap-3 shadow-elevation-low hover:shadow-elevation-mid">
-            {#if (totalCounts[deck.id] ?? 0) > 0}
-              <input
-                type="checkbox"
-                checked={selectedDeckIds.has(deck.id)}
-                onchange={() => {
-                  const next = new Set(selectedDeckIds);
-                  if (next.has(deck.id)) next.delete(deck.id);
-                  else next.add(deck.id);
-                  selectedDeckIds = next;
-                }}
-                class="w-5 h-5 accent-accent-correct shrink-0 cursor-pointer"
-                title="Zum Lernen auswählen"
-              />
-            {/if}
-            <!-- Deck info (clickable → opens cards) -->
-            <button
-              class="flex-1 min-w-0 text-left"
-              onclick={() => onSelectDeck(deck)}
-              title="Karten anzeigen & bearbeiten"
-            >
-              {#if editingDeckId === deck.id}
-                <input
-                  type="text"
-                  bind:value={editingName}
-                  class="w-full bg-transparent border-b-2 border-accent-correct outline-none text-lg font-semibold text-primary dark:text-primary-dark pb-0.5"
-                  onkeydown={(e) => {
-                    if (e.key === "Enter") handleRename();
-                    if (e.key === "Escape") editingDeckId = null;
-                  }}
-                  autofocus
-                />
-              {:else}
-                <h3 class="text-lg font-semibold text-primary dark:text-primary-dark truncate">
-                  {deck.name}
-                </h3>
-              {/if}
-              <p class="text-sm text-secondary mt-1">
-                {totalCounts[deck.id] ?? "..."} Karten
-                {#if (dueCounts[deck.id] ?? 0) > 0}
-                  &middot; <span class="text-accent-correct font-medium">{dueCounts[deck.id]} fällig</span>
-                {:else if (totalCounts[deck.id] ?? 0) > 0}
-                  &middot; <span class="text-green-600 dark:text-green-400 font-medium">alles klar!</span>
-                {/if}
-              </p>
-            </button>
-
-            <!-- Action buttons (always visible) -->
-            <div class="flex items-center gap-0.5 shrink-0">
-              {#if editingDeckId === deck.id}
-                <button
-                  class="px-3 py-1.5 text-sm rounded-button bg-accent-correct text-white font-medium hover:scale-[1.02] transition-transform"
-                  onclick={handleRename}
-                >Speichern</button>
-                <button
-                  class="px-3 py-1.5 text-sm text-secondary hover:text-primary dark:hover:text-primary-dark"
-                  onclick={() => (editingDeckId = null)}
-                >Abbrechen</button>
-              {:else}
-                <!-- Study button (only if cards exist) -->
-                {#if (totalCounts[deck.id] ?? 0) > 0}
-                  <button
-                    class="px-3 py-2 rounded-lg hover:bg-accent-correct/10 text-accent-correct font-medium text-sm transition-colors"
-                    title="Stapel lernen"
-                    onclick={(e) => {
-                      e.stopPropagation();
-                      onStudyDeck(deck);
+          {@const count = totalCounts[deck.id] ?? 0}
+          {@const layers = count === 0 ? 0 : Math.min(Math.ceil(count / 5), 12)}
+          
+          <div class="relative group isolate aspect-[5/3]">
+            <!-- Dynamic stack layers -->
+            {#each Array(layers) as _, i}
+              <div 
+                class="absolute inset-0 glass rounded-card transition-all duration-200"
+                style="
+                  z-index: {-10 - i};
+                  transform: translateY({(i + 1) * 3}px) scale({1 - (i + 1) * 0.015});
+                  opacity: {Math.max(0.2, 1 - (i * 0.08))};
+                "
+              ></div>
+            {/each}
+            
+            <div class="absolute inset-0 z-10 glass rounded-card p-5 transition-all duration-200 flex flex-col shadow-elevation-low hover:shadow-elevation-mid group-hover:-translate-y-1">
+              {#if (totalCounts[deck.id] ?? 0) > 0}
+                <div class="absolute top-4 right-4 z-20">
+                  <input
+                    type="checkbox"
+                    checked={selectedDeckIds.has(deck.id)}
+                    onchange={() => {
+                      const next = new Set(selectedDeckIds);
+                      if (next.has(deck.id)) next.delete(deck.id);
+                      else next.add(deck.id);
+                      selectedDeckIds = next;
                     }}
-                  >
-                    Lernen
-                  </button>
-                {/if}
-                <button
-                  class="p-2 rounded-lg hover:bg-white/30 dark:hover:bg-white/10 text-secondary transition-colors"
-                  title="Stapel umbenennen"
-                  onclick={() => startEdit(deck)}
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                    <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
-                  </svg>
-                </button>
-                <button
-                  class="p-2 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 text-accent-incorrect transition-colors"
-                  title="Stapel löschen"
-                  onclick={() => (deleteConfirmDeck = deck)}
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                    <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
-                  </svg>
-                </button>
+                    class="w-5 h-5 accent-accent-correct cursor-pointer shadow-sm"
+                    title="Zum Lernen auswählen"
+                  />
+                </div>
               {/if}
+              
+              <!-- Deck info (clickable → opens cards) -->
+              <button
+                class="flex-1 flex flex-col items-start w-full text-left outline-none mt-1"
+                onclick={() => onSelectDeck(deck)}
+                title="Karten anzeigen & bearbeiten"
+              >
+                {#if editingDeckId === deck.id}
+                  <input
+                    type="text"
+                    bind:value={editingName}
+                    class="w-[85%] bg-transparent border-b-2 border-accent-correct outline-none text-xl font-bold text-primary dark:text-primary-dark pb-0.5"
+                    onkeydown={(e) => {
+                      if (e.key === "Enter") handleRename();
+                      if (e.key === "Escape") editingDeckId = null;
+                    }}
+                    onclick={(e) => e.stopPropagation()}
+                    autofocus
+                  />
+                {:else}
+                  <h3 class="text-xl font-bold text-primary dark:text-primary-dark line-clamp-2 w-[85%] leading-tight">
+                    {deck.name}
+                  </h3>
+                {/if}
+                
+                <div class="mt-auto">
+                  <p class="text-sm font-medium text-secondary">
+                    {totalCounts[deck.id] ?? "..."} Karten
+                  </p>
+                  {#if (dueCounts[deck.id] ?? 0) > 0}
+                    <p class="text-accent-correct font-semibold text-sm">{dueCounts[deck.id]} fällig</p>
+                  {:else if (totalCounts[deck.id] ?? 0) > 0}
+                    <p class="text-green-600 dark:text-green-400 font-semibold text-sm">alles klar!</p>
+                  {/if}
+                </div>
+              </button>
+
+              <!-- Action buttons -->
+              <div class="flex items-center justify-between gap-1 shrink-0 pt-3 mt-3 border-t border-white/10 dark:border-white/5 w-full">
+                {#if editingDeckId === deck.id}
+                  <div class="flex gap-2">
+                    <button
+                      class="px-3 py-1.5 text-xs rounded-button bg-accent-correct text-white font-medium hover:scale-[1.02] transition-transform"
+                      onclick={handleRename}
+                    >Speichern</button>
+                    <button
+                      class="px-3 py-1.5 text-xs text-secondary hover:text-primary dark:hover:text-primary-dark"
+                      onclick={() => (editingDeckId = null)}
+                    >Abbrechen</button>
+                  </div>
+                {:else}
+                  <div class="flex gap-0.5">
+                    <button
+                      class="p-1.5 rounded-lg hover:bg-white/30 dark:hover:bg-white/10 text-secondary transition-colors"
+                      title="Stapel umbenennen"
+                      onclick={() => startEdit(deck)}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                      </svg>
+                    </button>
+                    <button
+                      class="p-1.5 rounded-lg hover:bg-white/30 dark:hover:bg-white/10 text-secondary transition-colors"
+                      title="Stapel exportieren (JSON)"
+                      onclick={() => handleExport(deck)}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" />
+                      </svg>
+                    </button>
+                    <button
+                      class="p-1.5 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 text-accent-incorrect transition-colors"
+                      title="Stapel löschen"
+                      onclick={() => (deleteConfirmDeck = deck)}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
+                      </svg>
+                    </button>
+                  </div>
+                  {#if (totalCounts[deck.id] ?? 0) > 0}
+                    <button
+                      class="px-4 py-1.5 rounded-lg bg-accent-correct text-white font-medium text-xs hover:scale-[1.02] transition-transform ml-auto"
+                      title="Stapel lernen"
+                      onclick={(e) => {
+                        e.stopPropagation();
+                        onStudyDeck(deck);
+                      }}
+                    >
+                      Lernen
+                    </button>
+                  {/if}
+                {/if}
+              </div>
             </div>
           </div>
         {/each}
       </div>
-    </div>
-  {/if}
+      </div>
+    {/if}
+  </div>
 </div>
 
 {#if deleteConfirmDeck}

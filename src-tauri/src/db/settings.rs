@@ -9,6 +9,8 @@ pub struct AppSettings {
     pub session_limit: u32,
     pub sm2_initial_ef: f64,
     pub sm2_pass_threshold: u8,
+    pub obsidian_vault_path: String,
+    pub obsidian_flashcard_tag: String,
 }
 
 impl AppSettings {
@@ -20,6 +22,8 @@ impl AppSettings {
             session_limit: 50,
             sm2_initial_ef: 2.5,
             sm2_pass_threshold: 3,
+            obsidian_vault_path: "".into(),
+            obsidian_flashcard_tag: "#flashcard".into(),
         }
     }
 
@@ -35,6 +39,8 @@ impl AppSettings {
                 "session_limit" => s.session_limit = value.parse().unwrap_or(s.session_limit),
                 "sm2_initial_ef" => s.sm2_initial_ef = value.parse().unwrap_or(s.sm2_initial_ef),
                 "sm2_pass_threshold" => s.sm2_pass_threshold = value.parse().unwrap_or(s.sm2_pass_threshold),
+                "obsidian_vault_path" => s.obsidian_vault_path = value,
+                "obsidian_flashcard_tag" => s.obsidian_flashcard_tag = value,
                 _ => {}
             }
         }
@@ -48,6 +54,8 @@ impl AppSettings {
         repo.set_setting("session_limit", &self.session_limit.to_string())?;
         repo.set_setting("sm2_initial_ef", &self.sm2_initial_ef.to_string())?;
         repo.set_setting("sm2_pass_threshold", &self.sm2_pass_threshold.to_string())?;
+        repo.set_setting("obsidian_vault_path", &self.obsidian_vault_path)?;
+        repo.set_setting("obsidian_flashcard_tag", &self.obsidian_flashcard_tag)?;
         Ok(())
     }
 

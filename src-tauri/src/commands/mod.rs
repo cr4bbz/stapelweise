@@ -1,8 +1,10 @@
 pub mod decks;
 pub mod cards;
+pub mod exams;
 pub mod seed;
 pub mod settings;
 pub mod stats;
+pub mod obsidian;
 
 use std::fmt;
 

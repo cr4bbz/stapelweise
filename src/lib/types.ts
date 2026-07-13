@@ -10,8 +10,12 @@ export interface Deck {
 export interface Card {
   id: string;
   deck_id: string;
+  card_type: string;
+  content: string | null;
+  reasoning: string | null;
   front: string;
   back: string;
+  tags: string[];
   created_at: string;
   updated_at: string;
 }
@@ -65,4 +69,6 @@ export interface AppSettings {
   session_limit: number;
   sm2_initial_ef: number;
   sm2_pass_threshold: number;
+  obsidian_vault_path: string;
+  obsidian_flashcard_tag: string;
 }

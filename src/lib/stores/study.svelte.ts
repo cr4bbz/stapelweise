@@ -58,6 +58,17 @@ export function getStudyStore() {
       return true;
     },
 
+    async startSessionByTags(tags: string[], limit: number = 50) {
+      currentDeckId = null;
+      const cards = await api.getDueCardsByTags(tags, limit);
+      if (cards.length === 0) return false;
+      dueCards = cards;
+      currentIndex = 0;
+      isFlipped = false;
+      sessionActive = true;
+      return true;
+    },
+
     flip() {
       isFlipped = true;
     },
