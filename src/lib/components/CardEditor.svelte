@@ -85,23 +85,114 @@
     tags = tags.filter(t => t !== tag);
   }
 
+  let cardType = $state<string>("basic");
+  let mcOptions = $state<{ text: string; correct: boolean }[]>([
+    { text: "", correct: true },
+    { text: "", correct: false },
+  ]);
+  let orderingItems = $state<string[]>(["", ""]);
+
+  function addMcOption() {
+    mcOptions = [...mcOptions, { text: "", correct: false }];
+  }
+
+  function removeMcOption(idx: number) {
+    if (mcOptions.length > 2) {
+      mcOptions = mcOptions.filter((_, i) => i !== idx);
+    }
+  }
+
+  function addOrderingItem() {
+    orderingItems = [...orderingItems, ""];
+  }
+
+  function removeOrderingItem(idx: number) {
+    if (orderingItems.length > 2) {
+      orderingItems = orderingItems.filter((_, i) => i !== idx);
+    }
+  }
+
+  function startEdit(card: Card) {
+    editingCard = card;
+    front = card.front;
+    back = card.back;
+    reasoning = card.reasoning || "";
+    tags = [...card.tags];
+    cardType = card.card_type || "basic";
+
+    if (cardType === "multiple_choice") {
+      try {
+        if (card.content) {
+          const parsed = JSON.parse(card.content);
+          if (Array.isArray(parsed?.options)) mcOptions = parsed.options;
+        }
+      } catch {
+        // fallback
+      }
+    } else if (cardType === "ordering") {
+      try {
+        if (card.content) {
+          const parsed = JSON.parse(card.content);
+          if (Array.isArray(parsed?.items)) orderingItems = parsed.items;
+        }
+      } catch {
+        // fallback
+      }
+    }
+    showNewCard = false;
+  }
+
+  function cancelEdit() {
+    editingCard = null;
+    showNewCard = false;
+    front = "";
+    back = "";
+    reasoning = "";
+    tags = [];
+    tagInput = "";
+    cardType = "basic";
+    mcOptions = [
+      { text: "", correct: true },
+      { text: "", correct: false },
+    ];
+    orderingItems = ["", ""];
+  }
+
   async function handleCreate() {
-    if (!front.trim() || !back.trim()) return;
-    error = null;
-    try {
-      let cType = "basic";
+    if (!front.trim()) return;
+    
+    let cType = cardType;
+    let finalBack = back.trim();
+    let contentJson: string | null = null;
+
+    if (cType === "multiple_choice") {
+      const validMc = mcOptions.filter(o => o.text.trim());
+      if (validMc.length < 2 || !validMc.some(o => o.correct)) {
+        error = "Eine Multiple-Choice-Karte benötigt mindestens 2 Optionen und mindestens eine richtige Antwort.";
+        return;
+      }
+      contentJson = JSON.stringify({ options: validMc });
+      finalBack = validMc.map(o => `[${o.correct ? "x" : " "}] ${o.text}`).join("\n");
+    } else if (cType === "ordering") {
+      const validOrd = orderingItems.filter(i => i.trim());
+      if (validOrd.length < 2) {
+        error = "Eine Reihenfolge-Karte benötigt mindestens 2 Schritte.";
+        return;
+      }
+      contentJson = JSON.stringify({ items: validOrd });
+      finalBack = validOrd.map((item, idx) => `${idx + 1}. ${item}`).join("\n");
+    } else {
+      if (!finalBack) return;
       if (front.includes("==") || front.includes("{{c1::")) {
         cType = "cloze";
       }
+    }
 
-      const card = await api.createCard(deck.id, front.trim(), back.trim(), reasoning.trim() || null, cType, null, tags);
+    error = null;
+    try {
+      const card = await api.createCard(deck.id, front.trim(), finalBack, reasoning.trim() || null, cType, contentJson, tags);
       cards = [card, ...cards];
-      front = "";
-      back = "";
-      reasoning = "";
-      tags = [];
-      tagInput = "";
-      showNewCard = false;
+      cancelEdit();
       loadDueCount();
       loadTags();
     } catch (e: any) {
@@ -111,24 +202,42 @@
 
   async function handleUpdate() {
     const card = editingCard;
-    if (!card || !front.trim() || !back.trim()) return;
-    error = null;
-    try {
-      let cType = "basic";
+    if (!card || !front.trim()) return;
+    
+    let cType = cardType;
+    let finalBack = back.trim();
+    let contentJson: string | null = null;
+
+    if (cType === "multiple_choice") {
+      const validMc = mcOptions.filter(o => o.text.trim());
+      if (validMc.length < 2 || !validMc.some(o => o.correct)) {
+        error = "Eine Multiple-Choice-Karte benötigt mindestens 2 Optionen und mindestens eine richtige Antwort.";
+        return;
+      }
+      contentJson = JSON.stringify({ options: validMc });
+      finalBack = validMc.map(o => `[${o.correct ? "x" : " "}] ${o.text}`).join("\n");
+    } else if (cType === "ordering") {
+      const validOrd = orderingItems.filter(i => i.trim());
+      if (validOrd.length < 2) {
+        error = "Eine Reihenfolge-Karte benötigt mindestens 2 Schritte.";
+        return;
+      }
+      contentJson = JSON.stringify({ items: validOrd });
+      finalBack = validOrd.map((item, idx) => `${idx + 1}. ${item}`).join("\n");
+    } else {
+      if (!finalBack) return;
       if (front.includes("==") || front.includes("{{c1::")) {
         cType = "cloze";
       }
+    }
 
-      await api.updateCard(card.id, front.trim(), back.trim(), reasoning.trim() || null, cType, null, tags);
+    error = null;
+    try {
+      await api.updateCard(card.id, front.trim(), finalBack, reasoning.trim() || null, cType, contentJson, tags);
       cards = cards.map((c) =>
-        c.id === card.id ? { ...c, card_type: cType, front: front.trim(), back: back.trim(), reasoning: reasoning.trim() || null, tags } : c
+        c.id === card.id ? { ...c, card_type: cType, content: contentJson, front: front.trim(), back: finalBack, reasoning: reasoning.trim() || null, tags } : c
       );
-      editingCard = null;
-      front = "";
-      back = "";
-      reasoning = "";
-      tags = [];
-      tagInput = "";
+      cancelEdit();
       loadTags();
     } catch (e: any) {
       error = e?.toString() || "Fehler beim Speichern der Karte";
@@ -163,26 +272,7 @@
     }
   }
 
-  function startEdit(card: Card) {
-    editingCard = card;
-    front = card.front;
-    back = card.back;
-    reasoning = card.reasoning || "";
-    tags = card.tags || [];
-    tagInput = "";
-    showNewCard = false;
-    error = null;
-  }
 
-  function cancelEdit() {
-    editingCard = null;
-    showNewCard = false;
-    front = "";
-    back = "";
-    reasoning = "";
-    tags = [];
-    tagInput = "";
-  }
 
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === "Escape") {
@@ -252,6 +342,8 @@
           reasoning={viewingCard.reasoning}
           tags={viewingCard.tags}
           flipped={cardFlipped}
+          cardType={viewingCard.card_type}
+          content={viewingCard.content}
         />
       </div>
       <button
@@ -337,18 +429,43 @@
   {#if showNewCard || editingCard}
     <div transition:slide={{ duration: 200, axis: "y" }} class="px-6 pb-4">
       <div class="glass rounded-card p-4 space-y-3">
-        <h3 class="text-sm font-medium text-secondary flex items-center gap-2">
-          {editingCard ? "Karte bearbeiten" : "Neue Karteikarte"}
-          <span
-            class="inline-flex items-center justify-center w-4 h-4 rounded-full text-[10px] font-bold bg-secondary/20 text-secondary cursor-help"
-            title="LaTeX wird unterstützt: $Formel$ für inline, $$Formel$$ für zentrierte Anzeige"
-          >?</span>
-        </h3>
+        <div class="flex items-center justify-between border-b border-white/10 pb-3">
+          <h3 class="text-sm font-medium text-secondary flex items-center gap-2">
+            {editingCard ? "Karte bearbeiten" : "Neue Karteikarte"}
+          </h3>
+          <!-- Card Type Selector -->
+          <div class="flex items-center gap-1.5 glass p-1 rounded-xl border border-white/10">
+            <button
+              type="button"
+              onclick={() => cardType = "basic"}
+              class="px-2.5 py-1 text-xs font-semibold rounded-lg transition-all {cardType === 'basic' ? 'bg-accent-correct text-white shadow-sm' : 'text-secondary hover:text-primary dark:hover:text-primary-dark'}"
+            >
+              📝 Standard
+            </button>
+            <button
+              type="button"
+              onclick={() => cardType = "multiple_choice"}
+              class="px-2.5 py-1 text-xs font-semibold rounded-lg transition-all {cardType === 'multiple_choice' ? 'bg-accent-correct text-white shadow-sm' : 'text-secondary hover:text-primary dark:hover:text-primary-dark'}"
+            >
+              🔘 Multiple Choice
+            </button>
+            <button
+              type="button"
+              onclick={() => cardType = "ordering"}
+              class="px-2.5 py-1 text-xs font-semibold rounded-lg transition-all {cardType === 'ordering' ? 'bg-accent-correct text-white shadow-sm' : 'text-secondary hover:text-primary dark:hover:text-primary-dark'}"
+            >
+              🔢 Reihenfolge
+            </button>
+          </div>
+        </div>
+
         <div>
-          <label class="text-xs font-medium text-secondary uppercase tracking-wide">Vorderseite</label>
+          <label class="text-xs font-medium text-secondary uppercase tracking-wide">
+            {cardType === 'ordering' ? 'Titel / Fragestellung' : cardType === 'multiple_choice' ? 'Frage / Aufgabenstellung' : 'Vorderseite'}
+          </label>
           <textarea
             bind:value={front}
-            placeholder="Frage eingeben..."
+            placeholder={cardType === 'ordering' ? 'z. B. Bringe die Schritte in die richtige Reihenfolge:' : cardType === 'multiple_choice' ? 'z. B. Welche der folgenden Aussagen treffen zu?' : 'Frage eingeben...'}
             class="w-full mt-1 bg-transparent border border-white/20 rounded-lg p-3 text-primary dark:text-primary-dark placeholder:text-secondary resize-none outline-none focus:border-accent-correct transition-colors text-lg font-card"
             rows="2"
             autofocus
@@ -362,23 +479,109 @@
             </div>
           {/if}
         </div>
-        <div>
-          <label class="text-xs font-medium text-secondary uppercase tracking-wide">Rückseite</label>
-          <textarea
-            bind:value={back}
-            placeholder="Antwort eingeben..."
-            class="w-full mt-1 bg-transparent border border-white/20 rounded-lg p-3 text-primary dark:text-primary-dark placeholder:text-secondary resize-none outline-none focus:border-accent-correct transition-colors text-lg font-card"
-            rows="2"
-          ></textarea>
-          {#if hasMath(back)}
-            <div class="mt-2 p-3 rounded-lg border border-dashed border-accent-correct/40 bg-white/50 dark:bg-black/20">
-              <span class="text-xs text-secondary mb-1 block">Vorschau</span>
-              <div class="font-card text-primary dark:text-primary-dark text-sm">
-                {@html renderMarkdown(back)}
-              </div>
+
+        {#if cardType === 'multiple_choice'}
+          <!-- Multiple Choice Options Editor -->
+          <div class="space-y-2 pt-2 border-t border-white/10">
+            <label class="text-xs font-medium text-secondary uppercase tracking-wide flex items-center justify-between">
+              <span>Antwortoptionen</span>
+              <span class="text-[10px] lowercase text-secondary/70">Checkmark [x] = Richtig</span>
+            </label>
+            <div class="space-y-2">
+              {#each mcOptions as opt, idx}
+                <div class="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    bind:checked={opt.correct}
+                    title="Als richtige Antwort markieren"
+                    class="w-5 h-5 accent-accent-correct cursor-pointer"
+                  />
+                  <input
+                    type="text"
+                    bind:value={opt.text}
+                    placeholder={`Option ${idx + 1}`}
+                    class="flex-1 bg-white/5 dark:bg-black/20 border border-white/10 rounded-lg p-2 text-primary dark:text-primary-dark placeholder:text-secondary/50 outline-none focus:border-accent-correct text-sm font-card"
+                  />
+                  {#if mcOptions.length > 2}
+                    <button
+                      type="button"
+                      onclick={() => removeMcOption(idx)}
+                      class="p-1.5 rounded-lg text-secondary hover:text-red-400 transition-colors"
+                      title="Option entfernen"
+                    >
+                      ✕
+                    </button>
+                  {/if}
+                </div>
+              {/each}
             </div>
-          {/if}
-        </div>
+            <button
+              type="button"
+              onclick={addMcOption}
+              class="mt-2 text-xs font-semibold text-accent-correct hover:underline flex items-center gap-1"
+            >
+              + Weitere Option hinzufügen
+            </button>
+          </div>
+
+        {:else if cardType === 'ordering'}
+          <!-- Ordering Steps Editor -->
+          <div class="space-y-2 pt-2 border-t border-white/10">
+            <label class="text-xs font-medium text-secondary uppercase tracking-wide">
+              Prozessschritte (in der KORREKTEN Reihenfolge eingeben)
+            </label>
+            <div class="space-y-2">
+              {#each orderingItems as item, idx}
+                <div class="flex items-center gap-2">
+                  <span class="text-xs font-bold text-secondary w-5">{idx + 1}.</span>
+                  <input
+                    type="text"
+                    bind:value={orderingItems[idx]}
+                    placeholder={`Schritt ${idx + 1}`}
+                    class="flex-1 bg-white/5 dark:bg-black/20 border border-white/10 rounded-lg p-2 text-primary dark:text-primary-dark placeholder:text-secondary/50 outline-none focus:border-accent-correct text-sm font-card"
+                  />
+                  {#if orderingItems.length > 2}
+                    <button
+                      type="button"
+                      onclick={() => removeOrderingItem(idx)}
+                      class="p-1.5 rounded-lg text-secondary hover:text-red-400 transition-colors"
+                      title="Schritt entfernen"
+                    >
+                      ✕
+                    </button>
+                  {/if}
+                </div>
+              {/each}
+            </div>
+            <button
+              type="button"
+              onclick={addOrderingItem}
+              class="mt-2 text-xs font-semibold text-accent-correct hover:underline flex items-center gap-1"
+            >
+              + Weiteren Schritt hinzufügen
+            </button>
+          </div>
+
+        {:else}
+          <!-- Standard Backside Input -->
+          <div>
+            <label class="text-xs font-medium text-secondary uppercase tracking-wide">Rückseite</label>
+            <textarea
+              bind:value={back}
+              placeholder="Antwort eingeben..."
+              class="w-full mt-1 bg-transparent border border-white/20 rounded-lg p-3 text-primary dark:text-primary-dark placeholder:text-secondary resize-none outline-none focus:border-accent-correct transition-colors text-lg font-card"
+              rows="2"
+            ></textarea>
+            {#if hasMath(back)}
+              <div class="mt-2 p-3 rounded-lg border border-dashed border-accent-correct/40 bg-white/50 dark:bg-black/20">
+                <span class="text-xs text-secondary mb-1 block">Vorschau</span>
+                <div class="font-card text-primary dark:text-primary-dark text-sm">
+                  {@html renderMarkdown(back)}
+                </div>
+              </div>
+            {/if}
+          </div>
+        {/if}
         <div class="mt-4 pt-4 border-t border-white/10">
           <label class="text-xs font-medium text-secondary uppercase tracking-wide flex items-center gap-2">
             Warum? <span class="text-[10px] lowercase opacity-70">(Optional, fördert Verstehen)</span>
@@ -430,7 +633,7 @@
           {#if editingCard}
             <button
               onclick={handleUpdate}
-              disabled={!front.trim() || !back.trim()}
+              disabled={!front.trim() || (cardType === 'basic' && !back.trim())}
               class="rounded-button bg-accent-correct text-white px-4 py-1.5 text-sm font-medium hover:scale-[1.02] transition-transform disabled:opacity-50"
             >
               Speichern
@@ -438,7 +641,7 @@
           {:else}
             <button
               onclick={handleCreate}
-              disabled={!front.trim() || !back.trim()}
+              disabled={!front.trim() || (cardType === 'basic' && !back.trim())}
               class="rounded-button bg-accent-correct text-white px-4 py-1.5 text-sm font-medium hover:scale-[1.02] transition-transform disabled:opacity-50"
             >
               Erstellen
@@ -478,7 +681,16 @@
             <div class="flex-1 min-w-0 flex flex-col gap-2">
               <div class="grid grid-cols-2 gap-4">
                 <div>
-                  <span class="text-xs font-medium text-secondary uppercase tracking-wide">Frage</span>
+                  <div class="flex items-center gap-2 mb-0.5">
+                    <span class="text-xs font-medium text-secondary uppercase tracking-wide">Frage</span>
+                    {#if card.card_type === 'multiple_choice'}
+                      <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30">🔘 MC</span>
+                    {:else if card.card_type === 'ordering'}
+                      <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400 border border-purple-500/30">🔢 Sequenz</span>
+                    {:else if card.card_type === 'cloze'}
+                      <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30">🧩 Cloze</span>
+                    {/if}
+                  </div>
                   <p class="font-card text-primary dark:text-primary-dark mt-0.5 max-h-20 overflow-hidden">{@html renderMarkdown(card.front)}</p>
                 </div>
                 <div>

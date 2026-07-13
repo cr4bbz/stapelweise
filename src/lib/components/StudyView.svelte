@@ -174,7 +174,10 @@
           front={s.currentCard.card.front}
           back={s.currentCard.card.back}
           reasoning={s.currentCard.card.reasoning}
+          tags={s.currentCard.card.tags}
           flipped={s.isFlipped}
+          cardType={s.currentCard.card.card_type}
+          content={s.currentCard.card.content}
         />
         <ScoreButtons visible={s.isFlipped} onRate={handleRate} />
       </div>

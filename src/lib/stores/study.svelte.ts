@@ -51,14 +51,17 @@ export function getStudyStore() {
         cards.map(async (card) => {
           try {
             const state = await api.getCardState(card.id);
-            return [card, state] as [any, any];
+            return { card, state } as DueCard;
           } catch {
-            return [card, { interval: 0, ease_factor: 2.5, repetitions: 0, next_review: "", total_reviews: 0, correct_streak: 0, last_review: null }] as [any, any];
+            return {
+              card,
+              state: { interval: 0, ease_factor: 2.5, repetitions: 0, next_review: "", total_reviews: 0, correct_streak: 0, last_review: null }
+            } as DueCard;
           }
         })
       );
 
-      dueCards = dueCardsList as unknown as DueCard[];
+      dueCards = dueCardsList;
       sessionActive = true;
       return true;
     },

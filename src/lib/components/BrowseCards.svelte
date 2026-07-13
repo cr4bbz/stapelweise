@@ -74,7 +74,11 @@
         <FlashCard
           front={currentCard.front}
           back={currentCard.back}
+          reasoning={currentCard.reasoning}
+          tags={currentCard.tags}
           flipped={isFlipped}
+          cardType={currentCard.card_type}
+          content={currentCard.content}
         />
       </div>
     {/if}

@@ -288,6 +288,8 @@
               reasoning={testCards[currentIndex].reasoning}
               tags={testCards[currentIndex].tags}
               flipped={isFlipped}
+              cardType={testCards[currentIndex].card_type}
+              content={testCards[currentIndex].content}
             />
           </div>
         {/if}
