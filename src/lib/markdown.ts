@@ -1,5 +1,6 @@
 import { marked } from "marked";
 import katex from "katex";
+import { mediaStore } from "$lib/stores/media";
 
 const MATH_REGEX = /(\$\$[\s\S]*?\$\$|\$[\s\S]*?\$)/g;
 
@@ -24,9 +25,10 @@ marked.use({
       const titleAttr = title ? ` title="${title.replace(/"/g, "&quot;")}"` : "";
       return `<a href="${href}"${titleAttr} rel="noopener noreferrer">${text}</a>`;
     },
-    // Block dangerous javascript: URLs in images, block SVG data-urls for security, allow raster images
+    // Block dangerous javascript: URLs in images, block SVG data-urls for security, allow raster images and mediaStore refs
     image({ href, title, text }: { href: string; title?: string | null; text: string }) {
-      const lower = href.trim().toLowerCase();
+      const resolvedSrc = mediaStore.resolveSrc(href);
+      const lower = resolvedSrc.trim().toLowerCase();
       if (lower.startsWith("javascript:") || lower.startsWith("data:image/svg+xml")) {
         return text;
       }
@@ -35,7 +37,7 @@ marked.use({
       }
       const titleAttr = title ? ` title="${title.replace(/"/g, "&quot;")}"` : "";
       const altAttr = text ? ` alt="${text.replace(/"/g, "&quot;")}"` : "";
-      return `<img src="${href}"${altAttr}${titleAttr} class="max-h-48 max-w-full rounded-xl shadow-md border border-white/10 hover:scale-[1.01] transition-transform cursor-pointer my-2 inline-block object-contain" onclick="event.stopPropagation(); window.dispatchEvent(new CustomEvent('stapelweise:zoom-image', { detail: this.src }))" />`;
+      return `<img src="${resolvedSrc}"${altAttr}${titleAttr} class="max-h-48 max-w-full rounded-xl shadow-md border border-white/10 hover:scale-[1.01] transition-transform cursor-pointer my-2 inline-block object-contain" onclick="event.stopPropagation(); window.dispatchEvent(new CustomEvent('stapelweise:zoom-image', { detail: this.src }))" />`;
     },
   },
 });

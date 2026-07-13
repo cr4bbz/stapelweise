@@ -9,6 +9,7 @@
   import FlashCard from "./FlashCard.svelte";
   import { renderMarkdown } from "$lib/markdown";
   import { hasMath } from "$lib/math";
+  import { mediaStore } from "$lib/stores/media";
   import { fade, slide } from "svelte/transition";
 
   let { deck, onClose = () => {}, onStudy = () => {} } = $props<{
@@ -109,7 +110,8 @@
     reader.onload = (re) => {
       const result = re.target?.result as string;
       if (!result) return;
-      const imgTag = `\n![${file.name || 'Bild'}](${result})\n`;
+      const mediaRef = mediaStore.saveMedia(result);
+      const imgTag = `\n![${file.name || 'Bild'}](${mediaRef})\n`;
 
       if (targetField === "front") {
         if (textareaEl) {
@@ -210,9 +212,9 @@
 
   function startEdit(card: Card) {
     editingCard = card;
-    front = card.front;
-    back = card.back;
-    reasoning = card.reasoning || "";
+    front = mediaStore.compactMarkdown(card.front);
+    back = mediaStore.compactMarkdown(card.back);
+    reasoning = mediaStore.compactMarkdown(card.reasoning || "");
     tags = [...card.tags];
     cardType = card.card_type || "basic";
 
