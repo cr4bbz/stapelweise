@@ -53,6 +53,17 @@
     outline: 2px solid rgba(37, 99, 235, 0.55);
     outline-offset: 2px;
   }
+
+  h1,
+  h2,
+  h3 {
+    font-family: "Press Start 2P", "Silkscreen", ui-monospace, monospace;
+    font-synthesis: none;
+    letter-spacing: 0;
+    line-height: 1.35;
+    text-rendering: geometricPrecision;
+    text-shadow: 0.035em 0 0 currentColor;
+  }
 }
 
 @layer components {
