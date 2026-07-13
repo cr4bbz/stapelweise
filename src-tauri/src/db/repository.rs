@@ -1011,12 +1011,18 @@ impl Repository {
             )?;
         }
 
+        let created_at: String = self.conn.query_row(
+            "SELECT created_at FROM exams WHERE id = ?1",
+            params![id],
+            |row| row.get(0),
+        ).unwrap_or_default();
+
         Ok(crate::db::models::Exam {
             id: id.to_string(),
             name: name.to_string(),
             exam_type: exam_type.to_string(),
             exam_date: exam_date.to_string(),
-            created_at: String::new(),
+            created_at,
             deck_ids,
         })
     }

@@ -101,8 +101,9 @@
     <div transition:slide class="glass border border-white/10 dark:border-white/5 rounded-xl p-4 mb-4 shadow-elevation-low">
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label class="block text-xs font-bold text-secondary uppercase tracking-wider mb-1">Name</label>
+          <label for="exam_new_name" class="block text-xs font-bold text-secondary uppercase tracking-wider mb-1">Name</label>
           <input
+            id="exam_new_name"
             type="text"
             bind:value={newName}
             placeholder="z.B. Analysis I"
@@ -111,8 +112,9 @@
         </div>
         <div class="grid grid-cols-2 gap-4">
           <div>
-            <label class="block text-xs font-bold text-secondary uppercase tracking-wider mb-1">Typ</label>
+            <label for="exam_new_type" class="block text-xs font-bold text-secondary uppercase tracking-wider mb-1">Typ</label>
             <input
+              id="exam_new_type"
               type="text"
               list="exam-types-list"
               bind:value={newType}
@@ -126,8 +128,9 @@
             </datalist>
           </div>
           <div>
-            <label class="block text-xs font-bold text-secondary uppercase tracking-wider mb-1">Datum</label>
+            <label for="exam_new_date" class="block text-xs font-bold text-secondary uppercase tracking-wider mb-1">Datum</label>
             <input
+              id="exam_new_date"
               type="date"
               bind:value={newDate}
               class="w-full glass bg-white/40 dark:bg-black/20 border border-white/10 dark:border-white/5 rounded-lg px-3 py-2 text-sm text-primary dark:text-primary-dark outline-none focus:border-accent-correct cursor-pointer"
@@ -137,7 +140,7 @@
       </div>
 
       <div class="mt-4">
-        <label class="block text-xs font-bold text-secondary uppercase tracking-wider mb-2">Relevante Stapel</label>
+        <span class="block text-xs font-bold text-secondary uppercase tracking-wider mb-2">Relevante Stapel</span>
         <div class="flex flex-wrap gap-2">
           {#each deckStore.decks as deck}
             <button

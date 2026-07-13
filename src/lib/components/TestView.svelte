@@ -210,7 +210,7 @@
         <div class="space-y-6">
           <!-- Question Count -->
           <div>
-            <label class="block text-xs font-bold text-secondary uppercase tracking-wider mb-2">Anzahl der Fragen</label>
+            <span class="block text-xs font-bold text-secondary uppercase tracking-wider mb-2">Anzahl der Fragen</span>
             <div class="grid grid-cols-4 gap-2">
               {#each [5, 10, 20, -1] as cnt}
                 <button
@@ -225,7 +225,7 @@
 
           <!-- Time Limit -->
           <div>
-            <label class="block text-xs font-bold text-secondary uppercase tracking-wider mb-2">Zeitlimit</label>
+            <span class="block text-xs font-bold text-secondary uppercase tracking-wider mb-2">Zeitlimit</span>
             <div class="grid grid-cols-4 gap-2">
               {#each [[0, "Ohne"], [5, "5 Min"], [15, "15 Min"], [30, "30 Min"]] as [min, label]}
                 <button

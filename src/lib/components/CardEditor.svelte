@@ -506,9 +506,9 @@
 
         <div>
           <div class="flex items-center justify-between">
-            <label class="text-xs font-medium text-secondary uppercase tracking-wide">
+            <span class="text-xs font-medium text-secondary uppercase tracking-wide">
               {cardType === 'ordering' ? 'Titel / Fragestellung' : cardType === 'multiple_choice' ? 'Frage / Aufgabenstellung' : 'Vorderseite'}
-            </label>
+            </span>
             <button
               type="button"
               onclick={() => handleImageUpload('front')}
@@ -537,10 +537,10 @@
         {#if cardType === 'multiple_choice'}
           <!-- Multiple Choice Options Editor -->
           <div class="space-y-2 pt-2 border-t border-white/10">
-            <label class="text-xs font-medium text-secondary uppercase tracking-wide flex items-center justify-between">
+            <div class="text-xs font-medium text-secondary uppercase tracking-wide flex items-center justify-between">
               <span>Antwortoptionen</span>
               <span class="text-[10px] lowercase text-secondary/70">Checkmark [x] = Richtig</span>
-            </label>
+            </div>
             <div class="space-y-2">
               {#each mcOptions as opt, idx}
                 <div class="flex items-center gap-2">
@@ -581,9 +581,9 @@
         {:else if cardType === 'ordering'}
           <!-- Ordering Steps Editor -->
           <div class="space-y-2 pt-2 border-t border-white/10">
-            <label class="text-xs font-medium text-secondary uppercase tracking-wide">
+            <span class="text-xs font-medium text-secondary uppercase tracking-wide block">
               Prozessschritte (in der KORREKTEN Reihenfolge eingeben)
-            </label>
+            </span>
             <div class="space-y-2">
               {#each orderingItems as item, idx}
                 <div class="flex items-center gap-2">
@@ -620,7 +620,7 @@
           <!-- Standard Backside Input -->
           <div>
             <div class="flex items-center justify-between">
-              <label class="text-xs font-medium text-secondary uppercase tracking-wide">Rückseite</label>
+              <span class="text-xs font-medium text-secondary uppercase tracking-wide">Rückseite</span>
               <button
                 type="button"
                 onclick={() => handleImageUpload('back')}
@@ -647,9 +647,9 @@
         {/if}
         <div class="mt-4 pt-4 border-t border-white/10">
           <div class="flex items-center justify-between mb-1">
-            <label class="text-xs font-medium text-secondary uppercase tracking-wide flex items-center gap-2">
+            <span class="text-xs font-medium text-secondary uppercase tracking-wide flex items-center gap-2">
               Warum? <span class="text-[10px] lowercase opacity-70">(Optional, fördert Verstehen)</span>
-            </label>
+            </span>
             <button
               type="button"
               onclick={() => handleImageUpload('reasoning')}
@@ -666,14 +666,14 @@
           ></textarea>
         </div>
         <div class="mt-2 pt-4 border-t border-white/10">
-          <label class="text-xs font-medium text-secondary uppercase tracking-wide flex items-center gap-2 mb-2">
+          <span class="text-xs font-medium text-secondary uppercase tracking-wide flex items-center gap-2 mb-2">
             Tags <span class="text-[10px] lowercase opacity-70">(Mit Komma oder Enter trennen)</span>
-          </label>
+          </span>
           <div class="flex flex-wrap gap-2 mb-2">
             {#each tags as tag}
               <span class="inline-flex items-center gap-1 bg-accent-correct/20 text-accent-correct px-2 py-1 rounded text-xs font-medium">
                 #{tag}
-                <button onclick={() => removeTag(tag)} class="hover:text-white transition-colors" type="button">
+                <button onclick={() => removeTag(tag)} class="hover:text-white transition-colors" type="button" title="Tag entfernen" aria-label="Tag #{tag} entfernen">
                   <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
                     <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
                   </svg>
@@ -754,6 +754,8 @@
           front = "";
           back = "";
           reasoning = "";
+          tags = [];
+          tagInput = "";
         }}
         icon={() => "🃏"}
       />
@@ -813,7 +815,7 @@
                 </div>
               {/if}
             </div>
-            <div class="flex items-center gap-1 shrink-0" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
+            <div class="flex items-center gap-1 shrink-0" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()} role="presentation">
               <button
                 class="p-1.5 rounded-lg hover:bg-white/30 dark:hover:bg-white/10 text-secondary transition-colors"
                 title="SM-2 Kartenzustand"

@@ -51,8 +51,8 @@
 <svelte:window onkeydown={handleKeydown} />
 
 {#if visible}
-  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onclick={onClose} role="dialog">
-    <div class="glass rounded-card p-6 max-w-lg mx-4 shadow-elevation-high max-h-[80vh] overflow-y-auto" onclick={(e) => e.stopPropagation()}>
+  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onclick={onClose} onkeydown={(e) => e.key === "Escape" && onClose()} tabindex="-1" role="presentation">
+    <div class="glass rounded-card p-6 max-w-lg mx-4 shadow-elevation-high max-h-[80vh] overflow-y-auto" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex="-1">
       <div class="flex items-center justify-between mb-4">
         <h2 class="text-lg font-bold text-primary dark:text-primary-dark">Tastenkürzel</h2>
         <button

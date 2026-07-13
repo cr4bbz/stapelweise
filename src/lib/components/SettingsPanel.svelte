@@ -65,7 +65,7 @@
       <div class="space-y-4">
         <!-- Theme -->
         <div>
-          <label class="text-sm font-medium text-primary dark:text-primary-dark">Design</label>
+          <span class="text-sm font-medium text-primary dark:text-primary-dark">Design</span>
           <p class="text-xs text-secondary mb-2">Hell, Dunkel oder automatisch nach System.</p>
           <div class="flex gap-2">
             {#each ["auto", "light", "dark"] as t}
@@ -83,7 +83,7 @@
 
         <!-- Font Family -->
         <div>
-          <label class="text-sm font-medium text-primary dark:text-primary-dark">Karten-Schriftart</label>
+          <span class="text-sm font-medium text-primary dark:text-primary-dark">Karten-Schriftart</span>
           <p class="text-xs text-secondary mb-2">Schriftart für Vorder- und Rückseite der Karten.</p>
           <div class="flex gap-2">
             <button
@@ -107,7 +107,7 @@
 
         <!-- Font Size -->
         <div>
-          <label class="text-sm font-medium text-primary dark:text-primary-dark">Karten-Schriftgröße</label>
+          <span class="text-sm font-medium text-primary dark:text-primary-dark">Karten-Schriftgröße</span>
           <p class="text-xs text-secondary mb-2">Schriftgröße für Karteninhalte im Lernmodus.</p>
           <div class="flex gap-2">
             {#each (["small", "medium", "large"] as const) as size}
@@ -132,11 +132,12 @@
         <!-- Session Limit -->
         <div>
           <div class="flex items-center justify-between mb-1">
-            <label class="text-sm font-medium text-primary dark:text-primary-dark">Karten pro Session</label>
+            <label for="input_session_limit" class="text-sm font-medium text-primary dark:text-primary-dark">Karten pro Session</label>
             <span class="text-sm font-semibold text-accent-correct">{s.current.session_limit}</span>
           </div>
           <p class="text-xs text-secondary mb-2">Maximale Anzahl fälliger Karten, die pro Lern-Durchgang gezeigt werden.</p>
           <input
+            id="input_session_limit"
             type="range"
             min="5"
             max="200"
@@ -154,11 +155,12 @@
         <!-- Pass Threshold -->
         <div>
           <div class="flex items-center justify-between mb-1">
-            <label class="text-sm font-medium text-primary dark:text-primary-dark">SM-2 Strenge</label>
+            <label for="input_sm2_pass_threshold" class="text-sm font-medium text-primary dark:text-primary-dark">SM-2 Strenge</label>
             <span class="text-sm font-semibold text-accent-correct">{thresholdLabel(s.current.sm2_pass_threshold)}</span>
           </div>
           <p class="text-xs text-secondary mb-2">Welche Mindest-Bewertung gilt als "richtig" (bestanden)? Höher = strenger.</p>
           <input
+            id="input_sm2_pass_threshold"
             type="range"
             min="0"
             max="5"
@@ -177,11 +179,12 @@
         <!-- Initial Ease Factor -->
         <div>
           <div class="flex items-center justify-between mb-1">
-            <label class="text-sm font-medium text-primary dark:text-primary-dark">Start-Ease-Faktor</label>
+            <label for="input_sm2_initial_ef" class="text-sm font-medium text-primary dark:text-primary-dark">Start-Ease-Faktor</label>
             <span class="text-sm font-semibold text-accent-correct">{s.current.sm2_initial_ef.toFixed(1)}</span>
           </div>
           <p class="text-xs text-secondary mb-2">Startwert für die SM-2-Intervall-Berechnung. Höher = längere Intervalle.</p>
           <input
+            id="input_sm2_initial_ef"
             type="range"
             min="1.3"
             max="3.0"
@@ -205,12 +208,13 @@
       <div class="space-y-4">
         <!-- Obsidian Sync -->
         <div>
-          <label class="text-sm font-medium text-primary dark:text-primary-dark">Obsidian Vault Sync</label>
+          <span class="text-sm font-medium text-primary dark:text-primary-dark">Obsidian Vault Sync</span>
           <p class="text-xs text-secondary mb-2">Importiere Markdown-Karten aus einem lokalen Ordner/Vault.</p>
           <div class="space-y-3 mb-3">
             <div>
-              <span class="text-xs font-medium text-secondary block mb-1">Vault Pfad (Absolut)</span>
+              <label for="input_obsidian_vault_path" class="text-xs font-medium text-secondary block mb-1">Vault Pfad (Absolut)</label>
               <input
+                id="input_obsidian_vault_path"
                 type="text"
                 placeholder="C:/Users/name/Documents/Obsidian"
                 value={s.current.obsidian_vault_path}
@@ -219,8 +223,9 @@
               />
             </div>
             <div>
-              <span class="text-xs font-medium text-secondary block mb-1">Flashcard Tag</span>
+              <label for="input_obsidian_flashcard_tag" class="text-xs font-medium text-secondary block mb-1">Flashcard Tag</label>
               <input
+                id="input_obsidian_flashcard_tag"
                 type="text"
                 placeholder="#flashcard"
                 value={s.current.obsidian_flashcard_tag}
@@ -253,7 +258,7 @@
         <!-- MCP Server Status -->
         <div class="pt-4 border-t border-secondary/20">
           <div class="flex items-center justify-between mb-2">
-            <label class="text-sm font-medium text-primary dark:text-primary-dark">MCP Server Integration</label>
+            <span class="text-sm font-medium text-primary dark:text-primary-dark">MCP Server Integration</span>
             <span class="text-xs font-bold px-2 py-0.5 rounded bg-accent-correct/20 text-accent-correct">Bereit</span>
           </div>
           <p class="text-xs text-secondary mb-3">Erlaube KI-Assistenten (z.B. Claude Desktop) direkten Zugriff auf deine Karten. Die KI kann dich abfragen, Zusammenfassungen erstellen oder Karten für dich anlegen.</p>
@@ -280,7 +285,7 @@
       <div class="space-y-4">
         <!-- Beispieldaten -->
         <div>
-          <label class="text-sm font-medium text-primary dark:text-primary-dark">Beispieldaten</label>
+          <span class="text-sm font-medium text-primary dark:text-primary-dark">Beispieldaten</span>
           <p class="text-xs text-secondary mb-3">Lade 3 thematische Muster-Stapel (Grammatik, Geschichte, Biologie) mit verschiedenen Lernzuständen in deine Bibliothek, um die App zu testen.</p>
           <button
             onclick={async () => {
