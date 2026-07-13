@@ -1,6 +1,5 @@
 @import "katex/dist/katex.min.css";
-@import "@fontsource/pixelify-sans/600.css";
-@import "@fontsource/pixelify-sans/700.css";
+@import "@fontsource/press-start-2p/400.css";
 
 @tailwind base;
 @tailwind components;
@@ -171,7 +170,7 @@
   }
 
   .font-pixel {
-    font-family: "Pixelify Sans", "Press Start 2P", "Silkscreen", ui-monospace, monospace;
+    font-family: "Press Start 2P", "Silkscreen", ui-monospace, monospace;
     font-synthesis: none;
     letter-spacing: 0;
     text-rendering: geometricPrecision;

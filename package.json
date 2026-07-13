@@ -13,7 +13,7 @@
   },
   "license": "MIT",
   "dependencies": {
-    "@fontsource/pixelify-sans": "^5.2.7",
+    "@fontsource/press-start-2p": "^5.2.7",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-opener": "^2",
     "@tauri-apps/plugin-window-state": "^2",
