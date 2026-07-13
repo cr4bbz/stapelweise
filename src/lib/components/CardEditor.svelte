@@ -1,6 +1,6 @@
 <script lang="ts">
   import * as api from "$lib/api";
-  import type { Card, CardState, Deck } from "$lib/types";
+  import type { Card, CardState, CardType, Deck } from "$lib/types";
   import EmptyState from "./EmptyState.svelte";
   import ErrorBanner from "./ErrorBanner.svelte";
   import StatsDashboard from "./StatsDashboard.svelte";
@@ -183,7 +183,7 @@
     }
   }
 
-  let cardType = $state<string>("basic");
+  let cardType = $state<CardType>("basic");
   let mcOptions = $state<{ text: string; correct: boolean }[]>([
     { text: "", correct: true },
     { text: "", correct: false },
@@ -259,7 +259,7 @@
   async function handleCreate() {
     if (!front.trim()) return;
     
-    let cType = cardType;
+    let cType: CardType = cardType;
     let finalBack = back.trim();
     let contentJson: string | null = null;
 
@@ -302,7 +302,7 @@
     const card = editingCard;
     if (!card || !front.trim()) return;
     
-    let cType = cardType;
+    let cType: CardType = cardType;
     let finalBack = back.trim();
     let contentJson: string | null = null;
 
@@ -333,7 +333,7 @@
     try {
       await api.updateCard(card.id, front.trim(), finalBack, reasoning.trim() || null, cType, contentJson, tags);
       cards = cards.map((c) =>
-        c.id === card.id ? { ...c, card_type: cType, content: contentJson, front: front.trim(), back: finalBack, reasoning: reasoning.trim() || null, tags } : c
+        c.id === card.id ? ({ ...c, card_type: cType, content: contentJson, front: front.trim(), back: finalBack, reasoning: reasoning.trim() || null, tags } as Card) : c
       );
       cancelEdit();
       loadTags();

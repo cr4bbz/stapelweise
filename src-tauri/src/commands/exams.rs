@@ -11,21 +11,21 @@ pub fn create_exam(
     exam_date: String,
     deck_ids: Vec<String>,
 ) -> Result<Exam, CommandError> {
-    let db = state.lock().map_err(|e| CommandError(format!("Lock error: {}", e)))?;
+    let db = state.lock().map_err(|e| CommandError::from(format!("Lock error: {}", e)))?;
     let exam = db.repo.create_exam(&name, &exam_type, &exam_date, deck_ids)?;
     Ok(exam)
 }
 
 #[tauri::command(rename_all = "camelCase")]
 pub fn list_exams(state: State<DbState>) -> Result<Vec<Exam>, CommandError> {
-    let db = state.lock().map_err(|e| CommandError(format!("Lock error: {}", e)))?;
+    let db = state.lock().map_err(|e| CommandError::from(format!("Lock error: {}", e)))?;
     let exams = db.repo.list_exams()?;
     Ok(exams)
 }
 
 #[tauri::command(rename_all = "camelCase")]
 pub fn delete_exam(state: State<DbState>, id: String) -> Result<(), CommandError> {
-    let db = state.lock().map_err(|e| CommandError(format!("Lock error: {}", e)))?;
+    let db = state.lock().map_err(|e| CommandError::from(format!("Lock error: {}", e)))?;
     db.repo.delete_exam(&id)?;
     Ok(())
 }
@@ -39,14 +39,14 @@ pub fn update_exam(
     exam_date: String,
     deck_ids: Vec<String>,
 ) -> Result<Exam, CommandError> {
-    let db = state.lock().map_err(|e| CommandError(format!("Lock error: {}", e)))?;
+    let db = state.lock().map_err(|e| CommandError::from(format!("Lock error: {}", e)))?;
     let exam = db.repo.update_exam(&id, &name, &exam_type, &exam_date, deck_ids)?;
     Ok(exam)
 }
 
 #[tauri::command(rename_all = "camelCase")]
 pub fn get_exam_stats(state: State<DbState>, id: String) -> Result<ExamStats, CommandError> {
-    let db = state.lock().map_err(|e| CommandError(format!("Lock error: {}", e)))?;
+    let db = state.lock().map_err(|e| CommandError::from(format!("Lock error: {}", e)))?;
     let stats = db.repo.get_exam_stats(&id)?;
     Ok(stats)
 }

@@ -1,13 +1,56 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { AppSettings, Card, CardState, DashboardStats, Deck, DeckStats, DueCard, SearchResult } from "./types";
+import {
+  StapelweiseError,
+  type AppSettings,
+  type Card,
+  type CardState,
+  type CardType,
+  type DashboardStats,
+  type Deck,
+  type DeckStats,
+  type DueCard,
+  type Exam,
+  type ExamStats,
+  type JsonCardInput,
+  type SearchResult,
+  type SerializedAppError,
+} from "./types";
 
-// Helper to log and rethrow
+function isSerializedAppError(obj: unknown): obj is SerializedAppError {
+  return (
+    typeof obj === "object" &&
+    obj !== null &&
+    "code" in obj &&
+    "message" in obj &&
+    typeof (obj as SerializedAppError).code === "string" &&
+    typeof (obj as SerializedAppError).message === "string"
+  );
+}
+
+// Helper to log and rethrow structured StapelweiseError
 async function cmd<T>(name: string, args?: Record<string, unknown>): Promise<T> {
   try {
     return await invoke<T>(name, args);
-  } catch (e) {
-    console.error(`[stapelweise] command "${name}" failed:`, e);
-    throw e;
+  } catch (e: unknown) {
+    if (isSerializedAppError(e)) {
+      const err = new StapelweiseError(e);
+      console.error(`[stapelweise] command "${name}" failed [${err.code}]:`, err.message, err.details || "");
+      throw err;
+    }
+    let fallbackStr = "Command failed";
+    try {
+      fallbackStr = typeof e === "string" ? e : JSON.stringify(e);
+    } catch {
+      fallbackStr = String(e);
+    }
+    const fallbackErr = new StapelweiseError({
+      code: "INTERNAL_ERROR",
+      message: fallbackStr || `Command ${name} failed`,
+      details: null,
+      recoverable: false,
+    });
+    console.error(`[stapelweise] command "${name}" failed:`, fallbackStr);
+    throw fallbackErr;
   }
 }
 
@@ -33,7 +76,7 @@ export async function deleteDeck(deckId: string): Promise<void> {
   return cmd("delete_deck", { deckId });
 }
 
-export async function importDeckFromJson(name: string, cards: any[]): Promise<void> {
+export async function importDeckFromJson(name: string, cards: JsonCardInput[]): Promise<void> {
   return cmd("import_deck", { name, cards });
 }
 
@@ -52,7 +95,7 @@ export async function createCard(
   front: string,
   back: string,
   reasoning: string | null = null,
-  cardType: string = "basic",
+  cardType: CardType = "basic",
   content: string | null = null,
   tags: string[] = []
 ): Promise<Card> {
@@ -68,7 +111,7 @@ export async function updateCard(
   front: string,
   back: string,
   reasoning: string | null = null,
-  cardType: string = "basic",
+  cardType: CardType = "basic",
   content: string | null = null,
   tags: string[] = []
 ): Promise<void> {
@@ -155,11 +198,11 @@ export async function createExam(
   examType: string,
   examDate: string,
   deckIds: string[]
-): Promise<any> {
+): Promise<Exam> {
   return cmd("create_exam", { name, examType, examDate, deckIds });
 }
 
-export async function listExams(): Promise<any[]> {
+export async function listExams(): Promise<Exam[]> {
   return cmd("list_exams");
 }
 
@@ -173,10 +216,10 @@ export async function updateExam(
   examType: string,
   examDate: string,
   deckIds: string[]
-): Promise<any> {
+): Promise<Exam> {
   return cmd("update_exam", { id, name, examType, examDate, deckIds });
 }
 
-export async function getExamStats(id: string): Promise<any> {
+export async function getExamStats(id: string): Promise<ExamStats> {
   return cmd("get_exam_stats", { id });
 }

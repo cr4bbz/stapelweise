@@ -18,13 +18,13 @@ fn calculate_hash(s: &str) -> String {
 #[tauri::command(rename_all = "camelCase")]
 pub fn sync_obsidian_vault(state: State<DbState>, vault_path: String, deck_name: String) -> Result<Deck, CommandError> {
     let canonical_path = fs::canonicalize(&vault_path)
-        .map_err(|e| CommandError(format!("Ungültiger Vault-Pfad '{}': {}", vault_path, e)))?;
+        .map_err(|e| CommandError::from(format!("Ungültiger Vault-Pfad '{}': {}", vault_path, e)))?;
 
     if !canonical_path.is_dir() {
-        return Err(CommandError(format!("Pfad '{}' ist kein Ordner", vault_path)));
+        return Err(CommandError::from(format!("Pfad '{}' ist kein Ordner", vault_path)));
     }
 
-    let db = state.lock().map_err(|e| CommandError(format!("Lock error: {}", e)))?;
+    let db = state.lock().map_err(|e| CommandError::from(format!("Lock error: {}", e)))?;
     
     let settings = AppSettings::load(&db.repo).unwrap_or_else(|_| AppSettings::defaults());
     let tag = settings.obsidian_flashcard_tag.clone();
