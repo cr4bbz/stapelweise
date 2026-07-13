@@ -35,6 +35,21 @@
   let tags = $state<string[]>([]);
   let tagInput = $state("");
   let availableTags = $state<string[]>([]);
+  let selectedFilterTag = $state<string | null>(null);
+
+  let matchingTags = $derived(
+    tagInput.trim()
+      ? availableTags.filter((t) => t.toLowerCase().includes(tagInput.trim().toLowerCase()) && !tags.includes(t))
+      : []
+  );
+
+  let allDeckTags = $derived(
+    (Array.from(new Set(cards.flatMap((c) => c.tags || []))) as string[]).sort()
+  );
+
+  let filteredCards = $derived(
+    selectedFilterTag ? cards.filter((c) => c.tags?.includes(selectedFilterTag!)) : cards
+  );
 
   async function loadTags() {
     try {
@@ -296,6 +311,7 @@
       await api.deleteCard(cardId);
       cards = cards.filter((c) => c.id !== cardId);
       loadDueCount();
+      loadTags();
     } catch (e: any) {
       error = e?.toString() || "Fehler beim Löschen der Karte";
     }
@@ -665,19 +681,32 @@
               </span>
             {/each}
           </div>
-          <input
-            type="text"
-            bind:value={tagInput}
-            onkeydown={addTag}
-            placeholder="Tags eingeben..."
-            list="availableTags"
-            class="w-full bg-white/5 dark:bg-black/20 border border-white/10 rounded-lg p-2 text-primary dark:text-primary-dark placeholder:text-secondary/50 outline-none focus:border-accent-correct/50 transition-colors text-sm font-card"
-          />
-          <datalist id="availableTags">
-            {#each availableTags as t}
-              <option value={t}></option>
-            {/each}
-          </datalist>
+          <div class="relative">
+            <input
+              type="text"
+              bind:value={tagInput}
+              onkeydown={addTag}
+              placeholder="Tags eingeben..."
+              class="w-full bg-white/5 dark:bg-black/20 border border-white/10 rounded-lg p-2 text-primary dark:text-primary-dark placeholder:text-secondary/50 outline-none focus:border-accent-correct/50 transition-colors text-sm font-card"
+            />
+            {#if matchingTags.length > 0}
+              <div class="absolute z-30 left-0 right-0 top-full mt-1 glass rounded-lg border border-white/20 shadow-elevation-high p-1.5 flex flex-wrap gap-1 max-h-32 overflow-y-auto">
+                <span class="text-[10px] text-secondary w-full px-1">Vorschläge:</span>
+                {#each matchingTags as match}
+                  <button
+                    type="button"
+                    onclick={() => {
+                      if (!tags.includes(match)) tags = [...tags, match];
+                      tagInput = "";
+                    }}
+                    class="text-xs px-2 py-0.5 rounded bg-accent-correct/10 hover:bg-accent-correct/30 text-accent-correct font-medium transition-colors"
+                  >
+                    +#{match}
+                  </button>
+                {/each}
+              </div>
+            {/if}
+          </div>
         </div>
         <div class="flex gap-2 justify-end mt-2">
           <button
@@ -731,8 +760,30 @@
     </div>
   {:else}
     <div class="flex-1 overflow-y-auto min-h-0 px-6 pb-6">
+      {#if allDeckTags.length > 0}
+        <div class="flex flex-wrap items-center gap-1.5 mb-3">
+          <span class="text-xs text-secondary font-medium mr-1">Filter nach Tag:</span>
+          <button
+            onclick={() => (selectedFilterTag = null)}
+            class="text-xs px-2.5 py-1 rounded-lg font-medium transition-all {selectedFilterTag === null ? 'bg-accent-correct text-white shadow-sm' : 'glass text-secondary hover:text-primary dark:hover:text-primary-dark'}"
+          >
+            Alle ({cards.length})
+          </button>
+          {#each allDeckTags as tag}
+            {@const count = cards.filter(c => c.tags?.includes(tag)).length}
+            <button
+              onclick={() => (selectedFilterTag = selectedFilterTag === tag ? null : tag)}
+              class="text-xs px-2.5 py-1 rounded-lg font-medium transition-all flex items-center gap-1 {selectedFilterTag === tag ? 'bg-accent-correct text-white shadow-sm' : 'glass text-secondary hover:text-primary dark:hover:text-primary-dark'}"
+            >
+              <span>#{tag}</span>
+              <span class="text-[10px] opacity-70">({count})</span>
+            </button>
+          {/each}
+        </div>
+      {/if}
+
       <div class="space-y-2">
-        {#each cards as card (card.id)}
+        {#each filteredCards as card (card.id)}
           <div class="glass rounded-card p-4 flex items-start gap-4 group cursor-pointer hover:bg-white/5 dark:hover:bg-white/5 transition-colors" onclick={() => { viewingCard = card; cardFlipped = false; }} role="button" tabindex="0" onkeydown={(e) => (e.key === "Enter" || e.key === " ") && (viewingCard = card, cardFlipped = false)}>
             <div class="flex-1 min-w-0 flex flex-col gap-2">
               <div class="grid grid-cols-2 gap-4">
