@@ -342,7 +342,7 @@
                     onclick={(e) => e.stopPropagation()}
                   />
                 {:else}
-                  <h3 class="font-card text-lg font-bold text-primary dark:text-primary-dark line-clamp-2 w-[85%] leading-tight">
+                  <h3 class="font-card text-lg text-primary dark:text-primary-dark line-clamp-2 w-[85%] leading-tight">
                     {deck.name}
                   </h3>
                 {/if}
