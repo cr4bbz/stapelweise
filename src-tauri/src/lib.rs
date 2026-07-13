@@ -2,6 +2,7 @@ mod commands;
 mod db;
 mod seed;
 mod srs;
+pub mod test_engine;
 pub mod mcp;
 
 use db::Database;
@@ -36,6 +37,15 @@ pub fn run() {
             commands::exams::update_exam,
             commands::exams::delete_exam,
             commands::exams::get_exam_stats,
+            commands::test_engine::create_exam_template,
+            commands::test_engine::list_exam_templates,
+            commands::test_engine::get_exam_template,
+            commands::test_engine::delete_exam_template,
+            commands::test_engine::start_exam_session,
+            commands::test_engine::get_exam_session_with_questions,
+            commands::test_engine::submit_exam_question_answer,
+            commands::test_engine::finish_exam_session,
+            commands::test_engine::get_exam_result,
             commands::cards::create_card,
             commands::cards::list_cards,
             commands::cards::update_card,

@@ -1,6 +1,6 @@
 use rusqlite::{params, Connection, Result};
 use uuid::Uuid;
-use chrono::{Utc, Local, TimeZone, NaiveDate, Duration};
+use chrono::{DateTime, Duration, Local, NaiveDate, NaiveDateTime, TimeZone, Utc};
 
 use super::models::{Card, CardState, DashboardStats, Deck, DeckStats, Review, SearchResult};
 
@@ -254,6 +254,41 @@ impl Repository {
 
         let cards = stmt
             .query_map(params![deck_id], |row| {
+                let tags_str: Option<String> = row.get(9)?;
+                let tags = tags_str
+                    .map(|s| s.split(',').map(|t| t.to_string()).collect())
+                    .unwrap_or_default();
+
+                Ok(Card {
+                    id: row.get(0)?,
+                    deck_id: row.get(1)?,
+                    card_type: row.get(2)?,
+                    content: row.get(3)?,
+                    reasoning: row.get(4)?,
+                    front: row.get(5)?,
+                    back: row.get(6)?,
+                    tags,
+                    created_at: row.get(7)?,
+                    updated_at: row.get(8)?,
+                })
+            })?
+            .collect::<Result<Vec<_>>>()?;
+
+        Ok(cards)
+    }
+
+    pub fn list_all_cards(&self) -> Result<Vec<Card>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT c.id, c.deck_id, c.card_type, c.content, c.reasoning, c.front, c.back, c.created_at, c.updated_at, GROUP_CONCAT(t.name) 
+             FROM cards c
+             LEFT JOIN card_tags ct ON ct.card_id = c.id
+             LEFT JOIN tags t ON t.id = ct.tag_id
+             GROUP BY c.id
+             ORDER BY c.created_at DESC",
+        )?;
+
+        let cards = stmt
+            .query_map([], |row| {
                 let tags_str: Option<String> = row.get(9)?;
                 let tags = tags_str
                     .map(|s| s.split(',').map(|t| t.to_string()).collect())
@@ -1075,4 +1110,512 @@ impl Repository {
             cards_per_day,
         })
     }
+
+    // ── Test Engine Repository Methods ─────────────────────────
+
+    pub fn create_exam_template(
+        &self,
+        name: &str,
+        deck_ids: Vec<String>,
+        tags: Vec<String>,
+        allowed_types: Vec<String>,
+        question_count: u32,
+        time_limit_minutes: u32,
+        pass_percentage: f64,
+        seed: Option<u64>,
+    ) -> Result<crate::db::models::ExamTemplate> {
+        let id = Uuid::new_v4().to_string();
+        let now = Utc::now().format("%Y-%m-%dT%H:%M:%S").to_string();
+        let deck_ids_json = serde_json::to_string(&deck_ids).unwrap_or_else(|_| "[]".to_string());
+        let tags_json = serde_json::to_string(&tags).unwrap_or_else(|_| "[]".to_string());
+        let allowed_types_json = serde_json::to_string(&allowed_types).unwrap_or_else(|_| "[]".to_string());
+
+        self.conn.execute(
+            "INSERT INTO exam_templates (id, name, deck_ids_json, tags_json, allowed_types_json, question_count, time_limit_minutes, pass_percentage, seed, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+            params![
+                id,
+                name,
+                deck_ids_json,
+                tags_json,
+                allowed_types_json,
+                question_count,
+                time_limit_minutes,
+                pass_percentage,
+                seed,
+                now
+            ],
+        )?;
+
+        Ok(crate::db::models::ExamTemplate {
+            id,
+            name: name.to_string(),
+            deck_ids,
+            tags,
+            allowed_card_types: allowed_types,
+            question_count,
+            time_limit_minutes,
+            pass_percentage,
+            seed,
+            created_at: now,
+        })
+    }
+
+    pub fn list_exam_templates(&self) -> Result<Vec<crate::db::models::ExamTemplate>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, name, deck_ids_json, tags_json, allowed_types_json, question_count, time_limit_minutes, pass_percentage, seed, created_at
+             FROM exam_templates ORDER BY created_at DESC"
+        )?;
+
+        let rows = stmt.query_map([], |row| {
+            let deck_ids_json: String = row.get(2)?;
+            let tags_json: String = row.get(3)?;
+            let allowed_types_json: String = row.get(4)?;
+            Ok(crate::db::models::ExamTemplate {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                deck_ids: serde_json::from_str(&deck_ids_json).unwrap_or_default(),
+                tags: serde_json::from_str(&tags_json).unwrap_or_default(),
+                allowed_card_types: serde_json::from_str(&allowed_types_json).unwrap_or_default(),
+                question_count: row.get(5)?,
+                time_limit_minutes: row.get(6)?,
+                pass_percentage: row.get(7)?,
+                seed: row.get(8)?,
+                created_at: row.get(9)?,
+            })
+        })?;
+
+        let mut res = Vec::new();
+        for r in rows {
+            res.push(r?);
+        }
+        Ok(res)
+    }
+
+    pub fn get_exam_template(&self, id: &str) -> Result<Option<crate::db::models::ExamTemplate>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, name, deck_ids_json, tags_json, allowed_types_json, question_count, time_limit_minutes, pass_percentage, seed, created_at
+             FROM exam_templates WHERE id = ?1"
+        )?;
+
+        let mut rows = stmt.query(params![id])?;
+        if let Some(row) = rows.next()? {
+            let deck_ids_json: String = row.get(2)?;
+            let tags_json: String = row.get(3)?;
+            let allowed_types_json: String = row.get(4)?;
+            Ok(Some(crate::db::models::ExamTemplate {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                deck_ids: serde_json::from_str(&deck_ids_json).unwrap_or_default(),
+                tags: serde_json::from_str(&tags_json).unwrap_or_default(),
+                allowed_card_types: serde_json::from_str(&allowed_types_json).unwrap_or_default(),
+                question_count: row.get(5)?,
+                time_limit_minutes: row.get(6)?,
+                pass_percentage: row.get(7)?,
+                seed: row.get(8)?,
+                created_at: row.get(9)?,
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub fn delete_exam_template(&self, id: &str) -> Result<()> {
+        self.conn.execute("DELETE FROM exam_templates WHERE id = ?1", params![id])?;
+        Ok(())
+    }
+
+    pub fn start_exam_session(
+        &self,
+        template_id: Option<String>,
+        name: &str,
+        deck_ids: Vec<String>,
+        tags: Vec<String>,
+        allowed_types: Vec<String>,
+        question_count: u32,
+        custom_seed: Option<u64>,
+    ) -> Result<(crate::db::models::ExamSession, Vec<crate::db::models::ExamQuestion>)> {
+        use rand::seq::SliceRandom;
+        use rand::SeedableRng;
+
+        // If template_id provided and no custom seed, check template for seed
+        let mut resolved_seed = custom_seed;
+        if resolved_seed.is_none() {
+            if let Some(ref t_id) = template_id {
+                if let Ok(Some(tmpl)) = self.get_exam_template(t_id) {
+                    resolved_seed = tmpl.seed;
+                }
+            }
+        }
+
+        let seed = resolved_seed.unwrap_or_else(|| rand::random::<u64>());
+        let session_id = Uuid::new_v4().to_string();
+        let now = Utc::now().format("%Y-%m-%dT%H:%M:%S").to_string();
+
+        // 1. Query matching cards
+        let all_cards = self.list_all_cards()?;
+        let mut eligible_cards: Vec<Card> = all_cards
+            .into_iter()
+            .filter(|c| {
+                if !deck_ids.is_empty() && !deck_ids.contains(&c.deck_id) {
+                    return false;
+                }
+                if !allowed_types.is_empty() && !allowed_types.contains(&c.card_type) {
+                    return false;
+                }
+                if !tags.is_empty() && !tags.iter().any(|t| c.tags.contains(t)) {
+                    return false;
+                }
+                true
+            })
+            .collect();
+
+        // 2. Deterministic shuffle using seed
+        let mut rng = rand::rngs::StdRng::seed_from_u64(seed);
+        eligible_cards.shuffle(&mut rng);
+
+        if eligible_cards.len() > question_count as usize {
+            eligible_cards.truncate(question_count as usize);
+        }
+
+        // Transaction protection
+        self.conn.execute_batch("BEGIN TRANSACTION;")?;
+
+        // 3. Insert ExamSession
+        if let Err(e) = self.conn.execute(
+            "INSERT INTO exam_sessions (id, template_id, name, status, started_at, seed, current_index, created_at)
+             VALUES (?1, ?2, ?3, 'in_progress', ?4, ?5, 0, ?4)",
+            params![session_id, template_id, name, now, seed],
+        ) {
+            let _ = self.conn.execute_batch("ROLLBACK;");
+            return Err(e);
+        }
+
+        // 4. Create immutable snapshots in exam_questions
+        let mut questions = Vec::new();
+        for (idx, card) in eligible_cards.iter().enumerate() {
+            let q_id = Uuid::new_v4().to_string();
+            let prompt = card.front.clone();
+            let expected_answer = card.back.clone();
+
+            if let Err(e) = self.conn.execute(
+                "INSERT INTO exam_questions (id, session_id, card_id, question_index, card_type, prompt, options_json, expected_answer, points_earned, max_points)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 0.0, 1.0)",
+                params![q_id, session_id, card.id, idx as u32, card.card_type, prompt, card.content, expected_answer],
+            ) {
+                let _ = self.conn.execute_batch("ROLLBACK;");
+                return Err(e);
+            }
+
+            questions.push(crate::db::models::ExamQuestion {
+                id: q_id,
+                session_id: session_id.clone(),
+                card_id: card.id.clone(),
+                question_index: idx as u32,
+                card_type: card.card_type.clone(),
+                prompt,
+                options_json: card.content.clone(),
+                expected_answer,
+                user_answer: None,
+                is_correct: None,
+                points_earned: 0.0,
+                max_points: 1.0,
+            });
+        }
+
+        self.conn.execute_batch("COMMIT;")?;
+
+        let session = crate::db::models::ExamSession {
+            id: session_id,
+            template_id,
+            name: name.to_string(),
+            status: "in_progress".to_string(),
+            started_at: now.clone(),
+            finished_at: None,
+            seed,
+            current_index: 0,
+            created_at: now,
+        };
+
+        Ok((session, questions))
+    }
+
+    pub fn get_exam_session_with_questions(&self, session_id: &str) -> Result<Option<(crate::db::models::ExamSession, Vec<crate::db::models::ExamQuestion>)>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, template_id, name, status, started_at, finished_at, seed, current_index, created_at
+             FROM exam_sessions WHERE id = ?1"
+        )?;
+
+        let mut rows = stmt.query(params![session_id])?;
+        if let Some(row) = rows.next()? {
+            let session = crate::db::models::ExamSession {
+                id: row.get(0)?,
+                template_id: row.get(1)?,
+                name: row.get(2)?,
+                status: row.get(3)?,
+                started_at: row.get(4)?,
+                finished_at: row.get(5)?,
+                seed: row.get(6)?,
+                current_index: row.get(7)?,
+                created_at: row.get(8)?,
+            };
+
+            let mut q_stmt = self.conn.prepare(
+                "SELECT id, session_id, card_id, question_index, card_type, prompt, options_json, expected_answer, user_answer, is_correct, points_earned, max_points
+                 FROM exam_questions WHERE session_id = ?1 ORDER BY question_index ASC"
+            )?;
+
+            let questions: Vec<crate::db::models::ExamQuestion> = q_stmt
+                .query_map(params![session_id], |qrow| {
+                    let is_corr_int: Option<i32> = qrow.get(9)?;
+                    Ok(crate::db::models::ExamQuestion {
+                        id: qrow.get(0)?,
+                        session_id: qrow.get(1)?,
+                        card_id: qrow.get(2)?,
+                        question_index: qrow.get(3)?,
+                        card_type: qrow.get(4)?,
+                        prompt: qrow.get(5)?,
+                        options_json: qrow.get(6)?,
+                        expected_answer: qrow.get(7)?,
+                        user_answer: qrow.get(8)?,
+                        is_correct: is_corr_int.map(|v| v == 1),
+                        points_earned: qrow.get(10)?,
+                        max_points: qrow.get(11)?,
+                    })
+                })?
+                .collect::<Result<Vec<_>, _>>()?;
+
+            Ok(Some((session, questions)))
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub fn submit_exam_question_answer(
+        &self,
+        question_id: &str,
+        user_answer: &str,
+    ) -> Result<crate::db::models::ExamQuestion> {
+        let (card_type, expected_back, options_json): (String, String, Option<String>) = self.conn.query_row(
+            "SELECT card_type, expected_answer, options_json FROM exam_questions WHERE id = ?1",
+            params![question_id],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )?;
+
+        let (is_correct, points_earned) = crate::test_engine::evaluate_answer(
+            &card_type,
+            &expected_back,
+            options_json.as_deref(),
+            user_answer,
+        );
+
+        self.conn.execute(
+            "UPDATE exam_questions SET user_answer = ?1, is_correct = ?2, points_earned = ?3 WHERE id = ?4",
+            params![user_answer, if is_correct { 1 } else { 0 }, points_earned, question_id],
+        )?;
+
+        let q = self.conn.query_row(
+            "SELECT id, session_id, card_id, question_index, card_type, prompt, options_json, expected_answer, user_answer, is_correct, points_earned, max_points
+             FROM exam_questions WHERE id = ?1",
+            params![question_id],
+            |row| {
+                let is_corr_int: Option<i32> = row.get(9)?;
+                Ok(crate::db::models::ExamQuestion {
+                    id: row.get(0)?,
+                    session_id: row.get(1)?,
+                    card_id: row.get(2)?,
+                    question_index: row.get(3)?,
+                    card_type: row.get(4)?,
+                    prompt: row.get(5)?,
+                    options_json: row.get(6)?,
+                    expected_answer: row.get(7)?,
+                    user_answer: row.get(8)?,
+                    is_correct: is_corr_int.map(|v| v == 1),
+                    points_earned: row.get(10)?,
+                    max_points: row.get(11)?,
+                })
+            },
+        )?;
+
+        Ok(q)
+    }
+
+    pub fn finish_exam_session(
+        &self,
+        session_id: &str,
+        fallback_pass_percentage: f64,
+    ) -> Result<crate::db::models::ExamResult> {
+        let (started_at_str, template_id): (String, Option<String>) = self.conn.query_row(
+            "SELECT started_at, template_id FROM exam_sessions WHERE id = ?1",
+            params![session_id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )?;
+
+        let pass_percentage = if let Some(t_id) = template_id {
+            if let Ok(Some(tmpl)) = self.get_exam_template(&t_id) {
+                tmpl.pass_percentage
+            } else {
+                fallback_pass_percentage
+            }
+        } else {
+            fallback_pass_percentage
+        };
+
+        let now_dt = Utc::now();
+        let now = now_dt.format("%Y-%m-%dT%H:%M:%S").to_string();
+
+        let started_dt = NaiveDateTime::parse_from_str(&started_at_str, "%Y-%m-%dT%H:%M:%S")
+            .map(|dt| DateTime::<Utc>::from_naive_utc_and_offset(dt, Utc))
+            .unwrap_or(now_dt);
+
+        let duration_seconds = (now_dt - started_dt).num_seconds().max(0) as u64;
+
+        self.conn.execute(
+            "UPDATE exam_sessions SET status = 'completed', finished_at = ?1 WHERE id = ?2",
+            params![now, session_id],
+        )?;
+
+        // Fetch questions for analysis
+        let mut stmt = self.conn.prepare(
+            "SELECT id, session_id, card_id, question_index, card_type, prompt, options_json, expected_answer, user_answer, is_correct, points_earned, max_points
+             FROM exam_questions WHERE session_id = ?1 ORDER BY question_index ASC"
+        )?;
+
+        let questions: Vec<crate::db::models::ExamQuestion> = stmt
+            .query_map(params![session_id], |row| {
+                let is_corr_int: Option<i32> = row.get(9)?;
+                Ok(crate::db::models::ExamQuestion {
+                    id: row.get(0)?,
+                    session_id: row.get(1)?,
+                    card_id: row.get(2)?,
+                    question_index: row.get(3)?,
+                    card_type: row.get(4)?,
+                    prompt: row.get(5)?,
+                    options_json: row.get(6)?,
+                    expected_answer: row.get(7)?,
+                    user_answer: row.get(8)?,
+                    is_correct: is_corr_int.map(|v| v == 1),
+                    points_earned: row.get(10)?,
+                    max_points: row.get(11)?,
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let total_questions = questions.len() as u32;
+        let mut correct_count = 0;
+        let mut incorrect_count = 0;
+        let mut skipped_count = 0;
+        let mut total_points = 0.0;
+
+        use std::collections::HashMap;
+        let mut card_type_stats: HashMap<String, (u32, u32)> = HashMap::new();
+
+        for q in &questions {
+            let entry = card_type_stats.entry(q.card_type.clone()).or_insert((0, 0));
+            entry.0 += 1;
+
+            match q.is_correct {
+                Some(true) => {
+                    correct_count += 1;
+                    total_points += q.points_earned;
+                    entry.1 += 1;
+                }
+                Some(false) => {
+                    incorrect_count += 1;
+                    total_points += q.points_earned;
+                }
+                None => skipped_count += 1,
+            }
+        }
+
+        let score_percentage = if total_questions > 0 {
+            (total_points / total_questions as f64) * 100.0
+        } else {
+            0.0
+        };
+
+        let passed = score_percentage >= pass_percentage;
+
+        let by_card_type: Vec<crate::db::models::CategoryScore> = card_type_stats
+            .into_iter()
+            .map(|(key, (total, correct))| crate::db::models::CategoryScore {
+                key,
+                total,
+                correct,
+                percentage: if total > 0 { (correct as f64 / total as f64) * 100.0 } else { 0.0 },
+            })
+            .collect();
+
+        let breakdown = crate::db::models::ExamResultBreakdown {
+            by_deck: vec![],
+            by_tag: vec![],
+            by_card_type,
+        };
+        let breakdown_json = serde_json::to_string(&breakdown).unwrap_or_else(|_| "{}".to_string());
+
+        self.conn.execute(
+            "INSERT INTO exam_results (session_id, score_percentage, passed, total_questions, correct_count, incorrect_count, skipped_count, duration_seconds, breakdown_json)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+             ON CONFLICT(session_id) DO UPDATE SET
+               score_percentage = excluded.score_percentage,
+               passed = excluded.passed,
+               correct_count = excluded.correct_count,
+               duration_seconds = excluded.duration_seconds,
+               breakdown_json = excluded.breakdown_json",
+            params![
+                session_id,
+                score_percentage,
+                if passed { 1 } else { 0 },
+                total_questions,
+                correct_count,
+                incorrect_count,
+                skipped_count,
+                duration_seconds,
+                breakdown_json
+            ],
+        )?;
+
+        Ok(crate::db::models::ExamResult {
+            session_id: session_id.to_string(),
+            score_percentage,
+            passed,
+            total_questions,
+            correct_count,
+            incorrect_count,
+            skipped_count,
+            duration_seconds,
+            breakdown,
+        })
+    }
+
+    pub fn get_exam_result(&self, session_id: &str) -> Result<Option<crate::db::models::ExamResult>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT session_id, score_percentage, passed, total_questions, correct_count, incorrect_count, skipped_count, duration_seconds, breakdown_json
+             FROM exam_results WHERE session_id = ?1"
+        )?;
+
+        let mut rows = stmt.query(params![session_id])?;
+        if let Some(row) = rows.next()? {
+            let passed_int: i32 = row.get(2)?;
+            let breakdown_json: String = row.get(8)?;
+            Ok(Some(crate::db::models::ExamResult {
+                session_id: row.get(0)?,
+                score_percentage: row.get(1)?,
+                passed: passed_int == 1,
+                total_questions: row.get(3)?,
+                correct_count: row.get(4)?,
+                incorrect_count: row.get(5)?,
+                skipped_count: row.get(6)?,
+                duration_seconds: row.get(7)?,
+                breakdown: serde_json::from_str(&breakdown_json).unwrap_or(crate::db::models::ExamResultBreakdown {
+                    by_deck: vec![],
+                    by_tag: vec![],
+                    by_card_type: vec![],
+                }),
+            }))
+        } else {
+            Ok(None)
+        }
+    }
 }
+

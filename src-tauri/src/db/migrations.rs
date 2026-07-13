@@ -1,6 +1,6 @@
 use rusqlite::Connection;
 
-const LATEST_VERSION: i32 = 6;
+const LATEST_VERSION: i32 = 7;
 
 /// Run all pending migrations to bring the database up to `LATEST_VERSION`.
 ///
@@ -36,6 +36,9 @@ pub fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
     }
     if version < 6 {
         apply_v6(conn)?;
+    }
+    if version < 7 {
+        apply_v7(conn)?;
     }
 
     Ok(())
@@ -227,6 +230,62 @@ fn apply_v6(conn: &Connection) -> Result<(), rusqlite::Error> {
     Ok(())
 }
 
+fn apply_v7(conn: &Connection) -> Result<(), rusqlite::Error> {
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS exam_templates (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            deck_ids_json TEXT NOT NULL,
+            tags_json TEXT NOT NULL,
+            allowed_types_json TEXT NOT NULL,
+            question_count INTEGER NOT NULL,
+            time_limit_minutes INTEGER NOT NULL,
+            pass_percentage REAL NOT NULL,
+            seed INTEGER,
+            created_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS exam_sessions (
+            id TEXT PRIMARY KEY,
+            template_id TEXT,
+            name TEXT NOT NULL,
+            status TEXT NOT NULL,
+            started_at TEXT NOT NULL,
+            finished_at TEXT,
+            seed INTEGER NOT NULL,
+            current_index INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS exam_questions (
+            id TEXT PRIMARY KEY,
+            session_id TEXT NOT NULL REFERENCES exam_sessions(id) ON DELETE CASCADE,
+            card_id TEXT NOT NULL,
+            question_index INTEGER NOT NULL,
+            card_type TEXT NOT NULL,
+            prompt TEXT NOT NULL,
+            options_json TEXT,
+            expected_answer TEXT NOT NULL,
+            user_answer TEXT,
+            is_correct INTEGER,
+            points_earned REAL NOT NULL DEFAULT 0,
+            max_points REAL NOT NULL DEFAULT 1
+        );
+        CREATE TABLE IF NOT EXISTS exam_results (
+            session_id TEXT PRIMARY KEY REFERENCES exam_sessions(id) ON DELETE CASCADE,
+            score_percentage REAL NOT NULL,
+            passed INTEGER NOT NULL,
+            total_questions INTEGER NOT NULL,
+            correct_count INTEGER NOT NULL,
+            incorrect_count INTEGER NOT NULL,
+            skipped_count INTEGER NOT NULL,
+            duration_seconds INTEGER NOT NULL,
+            breakdown_json TEXT NOT NULL
+        );"
+    )?;
+
+    conn.pragma_update(None, "user_version", 7)?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -242,15 +301,15 @@ mod tests {
             .unwrap();
         assert_eq!(version, LATEST_VERSION);
 
-        // Verify all tables exist
+        // Verify all 15 tables exist
         let table_count: i32 = conn
             .query_row(
-                "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name IN ('decks', 'cards', 'reviews', 'card_state', 'settings', 'tags', 'card_tags', 'obsidian_vaults', 'obsidian_cards', 'exams', 'exam_decks')",
+                "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name IN ('decks', 'cards', 'reviews', 'card_state', 'settings', 'tags', 'card_tags', 'obsidian_vaults', 'obsidian_cards', 'exams', 'exam_decks', 'exam_templates', 'exam_sessions', 'exam_questions', 'exam_results')",
                 [],
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(table_count, 11);
+        assert_eq!(table_count, 15);
 
         // Verify prev_state column exists
         conn.execute("INSERT INTO decks (id, name, created_at, updated_at) VALUES ('d1', 'test', '', '')", [])

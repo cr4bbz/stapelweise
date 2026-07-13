@@ -1,6 +1,7 @@
 pub mod decks;
 pub mod cards;
 pub mod exams;
+pub mod test_engine;
 pub mod seed;
 pub mod settings;
 pub mod stats;

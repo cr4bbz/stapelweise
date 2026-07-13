@@ -28,4 +28,5 @@ uuid = { version = "1", features = ["v4"] }
 chrono = { version = "0.4", features = ["serde"] }
 walkdir = "2.5.0"
 directories = "6.0.0"
+rand = "0.8"
 

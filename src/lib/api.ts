@@ -10,7 +10,11 @@ import {
   type DeckStats,
   type DueCard,
   type Exam,
+  type ExamQuestion,
+  type ExamResult,
+  type ExamSession,
   type ExamStats,
+  type ExamTemplate,
   type JsonCardInput,
   type SearchResult,
   type SerializedAppError,
@@ -222,4 +226,84 @@ export async function updateExam(
 
 export async function getExamStats(id: string): Promise<ExamStats> {
   return cmd("get_exam_stats", { id });
+}
+
+// ── TEST ENGINE ──────────────────────────────────────
+
+export async function createExamTemplate(
+  name: string,
+  deckIds: string[],
+  tags: string[],
+  allowedTypes: CardType[],
+  questionCount: number,
+  timeLimitMinutes: number,
+  passPercentage: number,
+  seed: number | null = null
+): Promise<ExamTemplate> {
+  return cmd("create_exam_template", {
+    name,
+    deckIds,
+    tags,
+    allowedTypes,
+    questionCount,
+    timeLimitMinutes,
+    passPercentage,
+    seed,
+  });
+}
+
+export async function listExamTemplates(): Promise<ExamTemplate[]> {
+  return cmd("list_exam_templates");
+}
+
+export async function getExamTemplate(id: string): Promise<ExamTemplate | null> {
+  return cmd("get_exam_template", { id });
+}
+
+export async function deleteExamTemplate(id: string): Promise<void> {
+  return cmd("delete_exam_template", { id });
+}
+
+export async function startExamSession(
+  templateId: string | null,
+  name: string,
+  deckIds: string[],
+  tags: string[],
+  allowedTypes: CardType[],
+  questionCount: number,
+  seed: number | null = null
+): Promise<[ExamSession, ExamQuestion[]]> {
+  return cmd("start_exam_session", {
+    templateId,
+    name,
+    deckIds,
+    tags,
+    allowedTypes,
+    questionCount,
+    seed,
+  });
+}
+
+export async function getExamSessionWithQuestions(
+  sessionId: string
+): Promise<[ExamSession, ExamQuestion[]] | null> {
+  return cmd("get_exam_session_with_questions", { sessionId });
+}
+
+export async function submitExamQuestionAnswer(
+  questionId: string,
+  userAnswer: string
+): Promise<ExamQuestion> {
+  return cmd("submit_exam_question_answer", { questionId, userAnswer });
+}
+
+export async function finishExamSession(
+  sessionId: string,
+  passPercentage: number
+): Promise<ExamResult> {
+  return cmd("finish_exam_session", { sessionId, passPercentage });
+}
+
+export async function getExamResult(sessionId: string): Promise<ExamResult | null> {
+  return cmd("get_exam_result", { sessionId });
 }

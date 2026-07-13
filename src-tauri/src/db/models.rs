@@ -114,3 +114,77 @@ impl CardState {
         }
     }
 }
+
+// ── Test Engine Models ─────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExamTemplate {
+    pub id: String,
+    pub name: String,
+    pub deck_ids: Vec<String>,
+    pub tags: Vec<String>,
+    pub allowed_card_types: Vec<String>,
+    pub question_count: u32,
+    pub time_limit_minutes: u32,
+    pub pass_percentage: f64,
+    pub seed: Option<u64>,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExamSession {
+    pub id: String,
+    pub template_id: Option<String>,
+    pub name: String,
+    pub status: String, // "in_progress", "completed", "abandoned"
+    pub started_at: String,
+    pub finished_at: Option<String>,
+    pub seed: u64,
+    pub current_index: u32,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExamQuestion {
+    pub id: String,
+    pub session_id: String,
+    pub card_id: String,
+    pub question_index: u32,
+    pub card_type: String,
+    pub prompt: String,
+    pub options_json: Option<String>,
+    pub expected_answer: String,
+    pub user_answer: Option<String>,
+    pub is_correct: Option<bool>,
+    pub points_earned: f64,
+    pub max_points: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CategoryScore {
+    pub key: String,
+    pub total: u32,
+    pub correct: u32,
+    pub percentage: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExamResultBreakdown {
+    pub by_deck: Vec<CategoryScore>,
+    pub by_tag: Vec<CategoryScore>,
+    pub by_card_type: Vec<CategoryScore>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExamResult {
+    pub session_id: String,
+    pub score_percentage: f64,
+    pub passed: bool,
+    pub total_questions: u32,
+    pub correct_count: u32,
+    pub incorrect_count: u32,
+    pub skipped_count: u32,
+    pub duration_seconds: u64,
+    pub breakdown: ExamResultBreakdown,
+}
+

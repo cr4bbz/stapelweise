@@ -136,6 +136,73 @@ export interface ExamStats {
   cards_per_day: number;
 }
 
+// ── Test Engine Types ──────────────────────────────────────
+
+export interface ExamTemplate {
+  id: string;
+  name: string;
+  deck_ids: string[];
+  tags: string[];
+  allowed_card_types: CardType[];
+  question_count: number;
+  time_limit_minutes: number;
+  pass_percentage: number;
+  seed: number | null;
+  created_at: string;
+}
+
+export interface ExamSession {
+  id: string;
+  template_id: string | null;
+  name: string;
+  status: "in_progress" | "completed" | "abandoned";
+  started_at: string;
+  finished_at: string | null;
+  seed: number;
+  current_index: number;
+  created_at: string;
+}
+
+export interface ExamQuestion {
+  id: string;
+  session_id: string;
+  card_id: string;
+  question_index: number;
+  card_type: CardType;
+  prompt: string;
+  options_json: string | null;
+  expected_answer: string;
+  user_answer: string | null;
+  is_correct: boolean | null;
+  points_earned: number;
+  max_points: number;
+}
+
+export interface CategoryScore {
+  key: string;
+  total: number;
+  correct: number;
+  percentage: number;
+}
+
+export interface ExamResultBreakdown {
+  by_deck: CategoryScore[];
+  by_tag: CategoryScore[];
+  by_card_type: CategoryScore[];
+}
+
+export interface ExamResult {
+  session_id: string;
+  score_percentage: number;
+  passed: boolean;
+  total_questions: number;
+  correct_count: number;
+  incorrect_count: number;
+  skipped_count: number;
+  duration_seconds: number;
+  breakdown: ExamResultBreakdown;
+}
+
 // Structured error payload from Rust backend
 export type ErrorCode =
   | "VALIDATION_FAILED"
