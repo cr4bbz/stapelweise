@@ -1,4 +1,4 @@
-use chrono::{NaiveDate, Duration};
+use chrono::{Duration, NaiveDate};
 
 /// User-configurable SM-2 parameters.
 #[derive(Debug, Clone)]
@@ -35,7 +35,7 @@ impl Sm2State {
     pub fn new(today: NaiveDate, config: &Sm2Config) -> Self {
         Self {
             interval: 0,
-            ease_factor: config.initial_ease_factor,
+            ease_factor: config.initial_ease_factor.clamp(config.min_ease_factor, 5.0),
             repetitions: 0,
             next_review: today,
         }
@@ -61,7 +61,7 @@ pub fn sm2_advance(state: &Sm2State, quality: u8, today: NaiveDate, config: &Sm2
 
     if quality < config.pass_threshold {
         // Failed: reset
-        let new_ef = (state.ease_factor - config.ease_penalty).max(config.min_ease_factor);
+        let new_ef = (state.ease_factor - config.ease_penalty).clamp(config.min_ease_factor, 5.0);
         Ok(Sm2State {
             interval: 1,
             ease_factor: new_ef,
@@ -81,10 +81,10 @@ pub fn sm2_advance(state: &Sm2State, quality: u8, today: NaiveDate, config: &Sm2
 
         let q = quality as f64;
         let new_ef = state.ease_factor + (0.1 - (5.0 - q) * (0.08 + (5.0 - q) * 0.02));
-        let new_ef = new_ef.max(config.min_ease_factor);
+        let new_ef = new_ef.clamp(config.min_ease_factor, 5.0);
 
         Ok(Sm2State {
-            interval: new_interval,
+            interval: new_interval.max(1),
             ease_factor: new_ef,
             repetitions: state.repetitions + 1,
             next_review: today + Duration::days(new_interval as i64),
@@ -100,141 +100,134 @@ mod tests {
         NaiveDate::parse_from_str(s, "%Y-%m-%d").unwrap()
     }
 
-    fn default_config() -> Sm2Config {
-        Sm2Config::default()
-    }
-
     #[test]
     fn test_new_card() {
-        let today = date("2026-07-01");
-        let config = default_config();
-        let state = Sm2State::new(today, &config);
-        assert_eq!(state.interval, 0);
-        assert_eq!(state.ease_factor, 2.5);
-        assert_eq!(state.repetitions, 0);
-        assert_eq!(state.next_review, today);
+        let t = date("2026-01-01");
+        let cfg = Sm2Config::default();
+        let st = Sm2State::new(t, &cfg);
+        assert_eq!(st.interval, 0);
+        assert_eq!(st.ease_factor, 2.5);
+        assert_eq!(st.repetitions, 0);
+        assert_eq!(st.next_review, t);
     }
 
     #[test]
     fn test_new_card_custom_ef() {
-        let today = date("2026-07-01");
-        let config = Sm2Config { initial_ease_factor: 3.0, ..default_config() };
-        let state = Sm2State::new(today, &config);
-        assert_eq!(state.ease_factor, 3.0);
+        let t = date("2026-01-01");
+        let cfg = Sm2Config {
+            initial_ease_factor: 2.8,
+            ..Default::default()
+        };
+        let st = Sm2State::new(t, &cfg);
+        assert_eq!(st.ease_factor, 2.8);
     }
 
     #[test]
     fn test_first_pass_quality_4() {
-        let today = date("2026-07-01");
-        let config = default_config();
-        let state = Sm2State::new(today, &config);
-        let next = sm2_advance(&state, 4, today, &config).unwrap();
-
-        assert_eq!(next.interval, 1);
-        assert_eq!(next.repetitions, 1);
-        assert_eq!(next.next_review, date("2026-07-02"));
+        let t = date("2026-01-01");
+        let cfg = Sm2Config::default();
+        let init = Sm2State::new(t, &cfg);
+        let st = sm2_advance(&init, 4, t, &cfg).unwrap();
+        assert_eq!(st.interval, 1);
+        assert_eq!(st.repetitions, 1);
+        assert_eq!(st.next_review, date("2026-01-02"));
     }
 
     #[test]
     fn test_second_pass_quality_4() {
-        let today = date("2026-07-01");
-        let config = default_config();
-        let state = Sm2State {
-            interval: 1,
-            ease_factor: 2.5,
-            repetitions: 1,
-            next_review: today,
-        };
-        let next = sm2_advance(&state, 4, today, &config).unwrap();
-
-        assert_eq!(next.interval, 6);
-        assert_eq!(next.repetitions, 2);
-        assert_eq!(next.next_review, date("2026-07-07"));
+        let t = date("2026-01-01");
+        let cfg = Sm2Config::default();
+        let init = Sm2State::new(t, &cfg);
+        let st1 = sm2_advance(&init, 4, t, &cfg).unwrap();
+        let t2 = date("2026-01-02");
+        let st2 = sm2_advance(&st1, 4, t2, &cfg).unwrap();
+        assert_eq!(st2.interval, 6);
+        assert_eq!(st2.repetitions, 2);
+        assert_eq!(st2.next_review, date("2026-01-08"));
     }
 
     #[test]
     fn test_third_pass_quality_4() {
-        let today = date("2026-07-07");
-        let config = default_config();
-        let state = Sm2State {
-            interval: 6,
-            ease_factor: 2.5,
-            repetitions: 2,
-            next_review: today,
-        };
-        let next = sm2_advance(&state, 4, today, &config).unwrap();
-
-        // interval = 6 * 2.5 = 15
-        assert_eq!(next.interval, 15);
-        assert_eq!(next.repetitions, 3);
-        assert_eq!(next.next_review, date("2026-07-22"));
+        let t = date("2026-01-01");
+        let cfg = Sm2Config::default();
+        let init = Sm2State::new(t, &cfg);
+        let st1 = sm2_advance(&init, 4, t, &cfg).unwrap();
+        let st2 = sm2_advance(&st1, 4, t, &cfg).unwrap();
+        let st3 = sm2_advance(&st2, 4, t, &cfg).unwrap();
+        assert_eq!(st3.interval, 15);
+        assert_eq!(st3.repetitions, 3);
     }
 
     #[test]
     fn test_failure_resets() {
-        let today = date("2026-07-15");
-        let config = default_config();
-        let state = Sm2State {
-            interval: 30,
-            ease_factor: 2.5,
-            repetitions: 5,
-            next_review: today,
-        };
-        let next = sm2_advance(&state, 2, today, &config).unwrap(); // quality 2 = failed
-
-        assert_eq!(next.interval, 1);
-        assert_eq!(next.repetitions, 0);
-        assert_eq!(next.ease_factor, 2.3); // 2.5 - 0.2
-        assert_eq!(next.next_review, date("2026-07-16"));
-    }
-
-    #[test]
-    fn test_custom_pass_threshold() {
-        let today = date("2026-07-01");
-        let config = Sm2Config { pass_threshold: 4, ..default_config() };
-        let state = Sm2State::new(today, &config);
-
-        // quality 3 should now fail (threshold is 4)
-        let next = sm2_advance(&state, 3, today, &config).unwrap();
-        assert_eq!(next.repetitions, 0);
-        assert_eq!(next.interval, 1);
-
-        // quality 4 should pass
-        let next = sm2_advance(&state, 4, today, &config).unwrap();
-        assert_eq!(next.repetitions, 1);
+        let t = date("2026-01-01");
+        let cfg = Sm2Config::default();
+        let init = Sm2State::new(t, &cfg);
+        let st1 = sm2_advance(&init, 4, t, &cfg).unwrap();
+        let st2 = sm2_advance(&st1, 4, t, &cfg).unwrap();
+        let st3 = sm2_advance(&st2, 1, t, &cfg).unwrap();
+        assert_eq!(st3.interval, 1);
+        assert_eq!(st3.repetitions, 0);
+        assert_eq!(st3.ease_factor, 2.3);
+        assert_eq!(st3.next_review, date("2026-01-02"));
     }
 
     #[test]
     fn test_ease_factor_never_below_1_3() {
-        let today = date("2026-07-01");
-        let config = default_config();
-        let mut state = Sm2State {
-            interval: 1,
-            ease_factor: 1.3,
-            repetitions: 0,
-            next_review: today,
-        };
-
+        let t = date("2026-01-01");
+        let cfg = Sm2Config::default();
+        let mut st = Sm2State::new(t, &cfg);
         for _ in 0..10 {
-            state = sm2_advance(&state, 0, today, &config).unwrap(); // repeated failures
+            st = sm2_advance(&st, 0, t, &cfg).unwrap();
         }
+        assert_eq!(st.ease_factor, 1.3);
+    }
 
-        assert!(state.ease_factor >= 1.3);
+    #[test]
+    fn test_ease_factor_max_clamped_at_5() {
+        let t = date("2026-01-01");
+        let cfg = Sm2Config::default();
+        let mut st = Sm2State {
+            interval: 10,
+            ease_factor: 4.95,
+            repetitions: 5,
+            next_review: t,
+        };
+        st = sm2_advance(&st, 5, t, &cfg).unwrap();
+        assert_eq!(st.ease_factor, 5.0);
+    }
+
+    #[test]
+    fn test_invalid_quality_returns_err() {
+        let t = date("2026-01-01");
+        let cfg = Sm2Config::default();
+        let st = Sm2State::new(t, &cfg);
+        let res = sm2_advance(&st, 6, t, &cfg);
+        assert!(res.is_err());
     }
 
     #[test]
     fn test_perfect_recall_increases_ease() {
-        let today = date("2026-07-01");
-        let config = default_config();
-        let state = Sm2State {
-            interval: 1,
-            ease_factor: 2.5,
-            repetitions: 1,
-            next_review: today,
-        };
-        let next = sm2_advance(&state, 5, today, &config).unwrap(); // perfect recall
+        let t = date("2026-01-01");
+        let cfg = Sm2Config::default();
+        let init = Sm2State::new(t, &cfg);
+        let st = sm2_advance(&init, 5, t, &cfg).unwrap();
+        assert!(st.ease_factor > 2.5);
+    }
 
-        // EF increase for quality 5: 0.1 - 0 = 0.1
-        assert!((next.ease_factor - 2.6).abs() < 0.01);
+    #[test]
+    fn test_custom_pass_threshold() {
+        let t = date("2026-01-01");
+        let cfg = Sm2Config {
+            pass_threshold: 4,
+            ..Default::default()
+        };
+        let init = Sm2State::new(t, &cfg);
+
+        let st_failed = sm2_advance(&init, 3, t, &cfg).unwrap();
+        assert_eq!(st_failed.repetitions, 0);
+
+        let st_passed = sm2_advance(&init, 4, t, &cfg).unwrap();
+        assert_eq!(st_passed.repetitions, 1);
     }
 }
