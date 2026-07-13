@@ -279,12 +279,12 @@
     class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-6 cursor-zoom-out"
     role="button"
     tabindex="0"
-    onclick={() => (zoomedImageSrc = null)}
-    onkeydown={(e) => (e.key === "Escape" || e.key === " ") && (zoomedImageSrc = null)}
+    onclick={(e) => { e.stopPropagation(); zoomedImageSrc = null; }}
+    onkeydown={(e) => { e.stopPropagation(); (e.key === "Escape" || e.key === " ") && (zoomedImageSrc = null); }}
   >
-    <div class="relative max-w-5xl max-h-[90vh] flex flex-col items-center justify-center" onclick={(e) => e.stopPropagation()} role="dialog">
+    <div class="relative max-w-5xl max-h-[90vh] flex flex-col items-center justify-center" onclick={(e) => e.stopPropagation()} role="dialog" tabindex="-1">
       <button
-        onclick={() => (zoomedImageSrc = null)}
+        onclick={(e) => { e.stopPropagation(); zoomedImageSrc = null; }}
         class="absolute -top-12 right-0 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
         title="Schließen"
       >

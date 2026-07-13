@@ -100,33 +100,85 @@
     tags = tags.filter(t => t !== tag);
   }
 
-  function handleImageUpload(targetField: 'front' | 'back' | 'reasoning') {
+  function processImageFile(file: File, targetField: 'front' | 'back' | 'reasoning', textareaEl?: HTMLTextAreaElement | null) {
+    if (file.size > 5 * 1024 * 1024) {
+      error = "Das gewählte Bild ist zu groß (maximal 5 MB erlaubt).";
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (re) => {
+      const result = re.target?.result as string;
+      if (!result) return;
+      const imgTag = `\n![${file.name || 'Bild'}](${result})\n`;
+
+      if (targetField === "front") {
+        if (textareaEl) {
+          const start = textareaEl.selectionStart || front.length;
+          const end = textareaEl.selectionEnd || front.length;
+          front = front.slice(0, start) + imgTag + front.slice(end);
+        } else {
+          front += imgTag;
+        }
+      } else if (targetField === "back") {
+        if (textareaEl) {
+          const start = textareaEl.selectionStart || back.length;
+          const end = textareaEl.selectionEnd || back.length;
+          back = back.slice(0, start) + imgTag + back.slice(end);
+        } else {
+          back += imgTag;
+        }
+      } else if (targetField === "reasoning") {
+        if (textareaEl) {
+          const start = textareaEl.selectionStart || reasoning.length;
+          const end = textareaEl.selectionEnd || reasoning.length;
+          reasoning = reasoning.slice(0, start) + imgTag + reasoning.slice(end);
+        } else {
+          reasoning += imgTag;
+        }
+      }
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function handleImageUpload(targetField: 'front' | 'back' | 'reasoning', textareaEl?: HTMLTextAreaElement | null) {
     const input = document.createElement("input");
     input.type = "file";
     input.accept = "image/*";
     input.onchange = (e: Event) => {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (!file) return;
-      if (file.size > 5 * 1024 * 1024) {
-        error = "Das gewählte Bild ist zu groß (maximal 5 MB erlaubt).";
-        return;
-      }
-      const reader = new FileReader();
-      reader.onload = (re) => {
-        const result = re.target?.result as string;
-        if (!result) return;
-        const imgTag = `\n![${file.name}](${result})\n`;
-        if (targetField === "front") {
-          front += imgTag;
-        } else if (targetField === "back") {
-          back += imgTag;
-        } else if (targetField === "reasoning") {
-          reasoning += imgTag;
-        }
-      };
-      reader.readAsDataURL(file);
+      processImageFile(file, targetField, textareaEl);
     };
     input.click();
+  }
+
+  function handlePaste(e: ClipboardEvent, targetField: 'front' | 'back' | 'reasoning') {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (const item of items) {
+      if (item.type.indexOf("image") !== -1) {
+        const file = item.getAsFile();
+        if (file) {
+          e.preventDefault();
+          processImageFile(file, targetField, e.target as HTMLTextAreaElement);
+          break;
+        }
+      }
+    }
+  }
+
+  function handleDrop(e: DragEvent, targetField: 'front' | 'back' | 'reasoning') {
+    const files = e.dataTransfer?.files;
+    if (files && files.length > 0) {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        if (file.type.startsWith("image/")) {
+          e.preventDefault();
+          processImageFile(file, targetField, e.target as HTMLTextAreaElement);
+          break;
+        }
+      }
+    }
   }
 
   let cardType = $state<string>("basic");
@@ -511,23 +563,27 @@
             </span>
             <button
               type="button"
-              onclick={() => handleImageUpload('front')}
+              onclick={(e) => handleImageUpload('front', (e.currentTarget.parentElement?.nextElementSibling as HTMLTextAreaElement))}
               class="text-xs font-medium text-secondary hover:text-accent-correct transition-colors flex items-center gap-1"
+              title="Klicken zum Auswählen, oder Bild direkt im Textfeld einfügen / per Drag & Drop ablegen"
             >
               🖼️ Bild einfügen
             </button>
           </div>
           <textarea
             bind:value={front}
-            placeholder={cardType === 'ordering' ? 'z. B. Bringe die Schritte in die richtige Reihenfolge:' : cardType === 'multiple_choice' ? 'z. B. Welche der folgenden Aussagen treffen zu?' : 'Frage eingeben...'}
+            onpaste={(e) => handlePaste(e, 'front')}
+            ondrop={(e) => handleDrop(e, 'front')}
+            ondragover={(e) => e.preventDefault()}
+            placeholder={cardType === 'ordering' ? 'z. B. Bringe die Schritte in die richtige Reihenfolge:' : cardType === 'multiple_choice' ? 'z. B. Welche der folgenden Aussagen treffen zu?' : 'Frage eingeben (Strg+V oder Drag&Drop für Bilder)...'}
             class="w-full mt-1 bg-transparent border border-white/20 rounded-lg p-3 text-primary dark:text-primary-dark placeholder:text-secondary resize-none outline-none focus:border-accent-correct transition-colors text-lg font-card"
             rows="2"
             autofocus
           ></textarea>
-          {#if hasMath(front)}
+          {#if hasMath(front) || front.includes('![')}
             <div class="mt-2 p-3 rounded-lg border border-dashed border-accent-correct/40 bg-white/50 dark:bg-black/20">
-              <span class="text-xs text-secondary mb-1 block">Vorschau</span>
-              <div class="font-card text-primary dark:text-primary-dark text-sm">
+              <span class="text-xs text-secondary mb-1 block">Live-Vorschau</span>
+              <div class="font-card text-primary dark:text-primary-dark text-sm max-h-48 overflow-y-auto">
                 {@html renderMarkdown(front)}
               </div>
             </div>
@@ -623,22 +679,26 @@
               <span class="text-xs font-medium text-secondary uppercase tracking-wide">Rückseite</span>
               <button
                 type="button"
-                onclick={() => handleImageUpload('back')}
+                onclick={(e) => handleImageUpload('back', (e.currentTarget.parentElement?.nextElementSibling as HTMLTextAreaElement))}
                 class="text-xs font-medium text-secondary hover:text-accent-correct transition-colors flex items-center gap-1"
+                title="Klicken zum Auswählen, oder Bild direkt im Textfeld einfügen / per Drag & Drop ablegen"
               >
                 🖼️ Bild einfügen
               </button>
             </div>
             <textarea
               bind:value={back}
-              placeholder="Antwort eingeben..."
+              onpaste={(e) => handlePaste(e, 'back')}
+              ondrop={(e) => handleDrop(e, 'back')}
+              ondragover={(e) => e.preventDefault()}
+              placeholder="Antwort eingeben (Strg+V oder Drag&Drop für Bilder)..."
               class="w-full mt-1 bg-transparent border border-white/20 rounded-lg p-3 text-primary dark:text-primary-dark placeholder:text-secondary resize-none outline-none focus:border-accent-correct transition-colors text-lg font-card"
               rows="2"
             ></textarea>
-            {#if hasMath(back)}
+            {#if hasMath(back) || back.includes('![')}
               <div class="mt-2 p-3 rounded-lg border border-dashed border-accent-correct/40 bg-white/50 dark:bg-black/20">
-                <span class="text-xs text-secondary mb-1 block">Vorschau</span>
-                <div class="font-card text-primary dark:text-primary-dark text-sm">
+                <span class="text-xs text-secondary mb-1 block">Live-Vorschau</span>
+                <div class="font-card text-primary dark:text-primary-dark text-sm max-h-48 overflow-y-auto">
                   {@html renderMarkdown(back)}
                 </div>
               </div>
@@ -652,18 +712,30 @@
             </span>
             <button
               type="button"
-              onclick={() => handleImageUpload('reasoning')}
+              onclick={(e) => handleImageUpload('reasoning', (e.currentTarget.parentElement?.nextElementSibling as HTMLTextAreaElement))}
               class="text-xs font-medium text-secondary hover:text-accent-correct transition-colors flex items-center gap-1"
+              title="Klicken zum Auswählen, oder Bild direkt im Textfeld einfügen / per Drag & Drop ablegen"
             >
               🖼️ Bild einfügen
             </button>
           </div>
           <textarea
             bind:value={reasoning}
-            placeholder="Warum ist diese Antwort richtig? Wie hängt sie mit anderem Wissen zusammen?"
+            onpaste={(e) => handlePaste(e, 'reasoning')}
+            ondrop={(e) => handleDrop(e, 'reasoning')}
+            ondragover={(e) => e.preventDefault()}
+            placeholder="Warum ist diese Antwort richtig? Wie hängt sie mit anderem Wissen zusammen? (Strg+V oder Drag&Drop für Bilder)"
             class="w-full mt-1 bg-white/5 dark:bg-black/20 border border-white/10 rounded-lg p-3 text-primary dark:text-primary-dark placeholder:text-secondary/50 resize-none outline-none focus:border-accent-correct/50 transition-colors text-sm font-card"
             rows="2"
           ></textarea>
+          {#if hasMath(reasoning) || reasoning.includes('![')}
+            <div class="mt-2 p-3 rounded-lg border border-dashed border-accent-correct/40 bg-white/50 dark:bg-black/20">
+              <span class="text-xs text-secondary mb-1 block">Live-Vorschau</span>
+              <div class="font-card text-primary dark:text-primary-dark text-sm max-h-48 overflow-y-auto">
+                {@html renderMarkdown(reasoning)}
+              </div>
+            </div>
+          {/if}
         </div>
         <div class="mt-2 pt-4 border-t border-white/10">
           <span class="text-xs font-medium text-secondary uppercase tracking-wide flex items-center gap-2 mb-2">
