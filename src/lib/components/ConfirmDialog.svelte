@@ -16,7 +16,14 @@
 <svelte:window onkeydown={handleKeydown} />
 
 <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onclick={onCancel} onkeydown={(e) => e.key === "Escape" && onCancel()} tabindex="-1" role="presentation">
-  <div class="glass rounded-card p-6 max-w-sm mx-4 shadow-elevation-high" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex="-1">
+  <div
+    class="glass rounded-card p-6 max-w-sm mx-4 shadow-elevation-high"
+    onclick={(e) => e.stopPropagation()}
+    onkeydown={(e) => e.stopPropagation()}
+    role="dialog"
+    aria-modal="true"
+    tabindex="-1"
+  >
     <h2 class="text-lg font-bold text-primary dark:text-primary-dark mb-2">{title}</h2>
     {#if message}
       <p class="text-secondary text-sm mb-4">{message}</p>

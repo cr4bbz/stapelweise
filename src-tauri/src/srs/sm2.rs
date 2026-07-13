@@ -32,6 +32,7 @@ pub struct Sm2State {
 
 impl Sm2State {
     /// Create a fresh SM-2 state for a card that has never been reviewed.
+    #[cfg(test)]
     pub fn new(today: NaiveDate, config: &Sm2Config) -> Self {
         Self {
             interval: 0,

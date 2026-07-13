@@ -42,12 +42,6 @@ pub struct Card {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Tag {
-    pub id: String,
-    pub name: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Review {
     pub id: String,
     pub card_id: String,

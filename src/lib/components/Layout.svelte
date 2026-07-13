@@ -23,13 +23,15 @@
 
 <div class="h-screen flex flex-col bg-atmosphere transition-colors">
   <!-- Top bar -->
-  <header class="flex items-center justify-between px-6 py-3 border-b border-white/10 glass shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
-    <a href="/" class="text-lg font-bold text-primary dark:text-primary-dark tracking-tight">
-      stapelweise
-    </a>
-    <div class="flex items-center gap-1">
+  <header class="border-b border-[#E4E7EC] dark:border-[#2A303B] bg-white/90 dark:bg-[#171B24]/90 backdrop-blur">
+    <div class="app-container flex h-14 items-center justify-between">
+      <a href="/" class="flex items-center gap-2 text-base font-bold text-primary dark:text-primary-dark tracking-tight">
+        <span class="flex h-7 w-7 items-center justify-center rounded-lg bg-accent-correct text-white text-sm font-black">S</span>
+        <span>stapelweise</span>
+      </a>
+      <div class="flex items-center gap-1">
       <button
-        class="p-2 rounded-lg hover:bg-white/30 dark:hover:bg-white/10 text-secondary transition-colors"
+        class="icon-button"
         title="Suche"
         onclick={() => window.dispatchEvent(new CustomEvent("open-search"))}
       >
@@ -38,7 +40,7 @@
         </svg>
       </button>
       <button
-        class="p-2 rounded-lg hover:bg-white/30 dark:hover:bg-white/10 text-secondary transition-colors"
+        class="icon-button"
         title="Einstellungen"
         onclick={() => window.dispatchEvent(new CustomEvent("open-settings"))}
       >
@@ -47,6 +49,7 @@
         </svg>
       </button>
       <ThemeToggle />
+      </div>
     </div>
   </header>
 
@@ -56,9 +59,4 @@
   </main>
 
   <ShortcutHelp visible={showShortcutHelp} onClose={() => (showShortcutHelp = false)} />
-
-  <!-- Footer -->
-  <footer class="px-6 py-2 text-center text-xs text-secondary border-t border-white/10 glass shadow-[0_-1px_3px_rgba(0,0,0,0.04)]">
-    stapelweise v0.1 &middot; Lerne stapelweise
-  </footer>
 </div>

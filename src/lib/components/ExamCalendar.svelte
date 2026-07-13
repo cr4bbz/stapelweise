@@ -39,6 +39,15 @@
     loadExams();
   });
 
+  $effect(() => {
+    const openNewExam = () => {
+      resetForm();
+      showNewForm = true;
+    };
+    window.addEventListener("stapelweise:new-exam", openNewExam);
+    return () => window.removeEventListener("stapelweise:new-exam", openNewExam);
+  });
+
   function startEdit(exam: any) {
     editingExamId = exam.id;
     newName = exam.name;
@@ -80,25 +89,41 @@
     }
   }
 
+  function urgencyTone(daysLeft: number | undefined): string {
+    if (daysLeft === undefined) return "border-[#E4E7EC] bg-[#F8FAFC] text-secondary dark:border-[#2A303B] dark:bg-[#10131A]";
+    if (daysLeft <= 3) return "border-red-200 bg-red-50 text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300";
+    if (daysLeft <= 14) return "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300";
+    return "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300";
+  }
+
+  function urgencyLabel(daysLeft: number | undefined): string {
+    if (daysLeft === undefined) return "wird berechnet";
+    if (daysLeft < 0) return "ueberfaellig";
+    if (daysLeft === 0) return "heute";
+    if (daysLeft <= 3) return "dringend";
+    if (daysLeft <= 14) return "diese Woche";
+    return "geplant";
+  }
+
   let customExamTypes = $derived(Array.from(new Set(exams.map(e => e.exam_type))));
   let allExamTypes = $derived(Array.from(new Set([...examTypes, ...customExamTypes])));
 </script>
 
-<div class="px-6 pb-6">
-  <div class="flex items-center justify-between mb-4">
-    <h2 class="text-lg font-bold text-primary dark:text-primary-dark flex items-center gap-2">
-      📅 Prüfungen & Ziele
+<div class="pb-6">
+  <div class="flex flex-col gap-3 mb-4 sm:flex-row sm:items-center sm:justify-between">
+    <h2 class="section-heading">
+      Prüfungen & Ziele
     </h2>
     <button
       onclick={() => (showNewForm = !showNewForm)}
-      class="text-xs font-medium px-3 py-1.5 rounded-button {showNewForm ? 'bg-secondary/20' : 'bg-accent-correct text-white hover:scale-[1.02]'} transition-all"
+      class="{showNewForm ? 'secondary-action' : 'primary-action'} px-3 py-1.5 text-xs"
     >
       {showNewForm ? "Abbrechen" : "+ Neue Prüfung"}
     </button>
   </div>
 
   {#if showNewForm}
-    <div transition:slide class="glass border border-white/10 dark:border-white/5 rounded-xl p-4 mb-4 shadow-elevation-low">
+    <div transition:slide class="surface-panel p-4 mb-4">
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label for="exam_new_name" class="block text-xs font-bold text-secondary uppercase tracking-wider mb-1">Name</label>
@@ -107,7 +132,7 @@
             type="text"
             bind:value={newName}
             placeholder="z.B. Analysis I"
-            class="w-full glass bg-white/40 dark:bg-black/20 border border-white/10 dark:border-white/5 rounded-lg px-3 py-2 text-sm text-primary dark:text-primary-dark outline-none focus:border-accent-correct"
+            class="w-full bg-white dark:bg-[#10131A] border border-[#E4E7EC] dark:border-[#2A303B] rounded-lg px-3 py-2 text-sm text-primary dark:text-primary-dark outline-none focus:border-accent-correct"
           />
         </div>
         <div class="grid grid-cols-2 gap-4">
@@ -119,7 +144,7 @@
               list="exam-types-list"
               bind:value={newType}
               placeholder="z.B. Klausur"
-              class="w-full glass bg-white/40 dark:bg-black/20 border border-white/10 dark:border-white/5 rounded-lg px-3 py-2 text-sm text-primary dark:text-primary-dark outline-none focus:border-accent-correct"
+              class="w-full bg-white dark:bg-[#10131A] border border-[#E4E7EC] dark:border-[#2A303B] rounded-lg px-3 py-2 text-sm text-primary dark:text-primary-dark outline-none focus:border-accent-correct"
             />
             <datalist id="exam-types-list">
               {#each allExamTypes as t}
@@ -133,7 +158,7 @@
               id="exam_new_date"
               type="date"
               bind:value={newDate}
-              class="w-full glass bg-white/40 dark:bg-black/20 border border-white/10 dark:border-white/5 rounded-lg px-3 py-2 text-sm text-primary dark:text-primary-dark outline-none focus:border-accent-correct cursor-pointer"
+              class="w-full bg-white dark:bg-[#10131A] border border-[#E4E7EC] dark:border-[#2A303B] rounded-lg px-3 py-2 text-sm text-primary dark:text-primary-dark outline-none focus:border-accent-correct cursor-pointer"
             />
           </div>
         </div>
@@ -150,7 +175,7 @@
                 else next.add(deck.id);
                 newDeckIds = next;
               }}
-              class="px-3 py-1.5 rounded-lg text-xs font-medium border transition-all {newDeckIds.has(deck.id) ? 'bg-accent-correct border-accent-correct text-white' : 'bg-white/30 dark:bg-white/5 border-white/10 text-primary dark:text-primary-dark'}"
+              class="px-3 py-1.5 rounded-lg text-xs font-medium border transition-all {newDeckIds.has(deck.id) ? 'bg-accent-correct border-accent-correct text-white' : 'bg-white dark:bg-[#171B24] border-[#E4E7EC] dark:border-[#2A303B] text-primary dark:text-primary-dark'}"
             >
               {deck.name}
             </button>
@@ -170,7 +195,7 @@
         <button
           onclick={handleCreateOrUpdate}
           disabled={!newName || !newDate || newDeckIds.size === 0}
-          class="rounded-button bg-accent-correct text-white px-5 py-2 text-sm font-medium hover:scale-[1.02] transition-transform disabled:opacity-50"
+          class="primary-action px-5 py-2 text-sm disabled:opacity-50"
         >
           {editingExamId ? "Änderungen speichern" : "Prüfung speichern"}
         </button>
@@ -179,14 +204,14 @@
   {/if}
 
   {#if exams.length === 0 && !showNewForm}
-    <div class="text-sm text-secondary text-center py-4 glass rounded-xl border border-white/5">
+    <div class="text-sm text-secondary text-center py-4 surface-panel">
       Keine anstehenden Prüfungen eingetragen.
     </div>
   {:else}
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
       {#each exams as exam}
         {@const stats = examStats[exam.id]}
-        <div class="glass border border-white/10 dark:border-white/5 rounded-xl p-4 shadow-elevation-low relative group">
+        <div class="surface-panel p-4 relative group">
           <div class="absolute top-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
             <button
               onclick={() => startEdit(exam)}
@@ -209,14 +234,21 @@
           </div>
 
           <div class="flex items-start gap-3">
-            <div class="flex flex-col items-center justify-center w-12 h-12 rounded-lg bg-accent-correct/10 text-accent-correct">
-              <span class="text-[10px] uppercase font-bold tracking-wider leading-none">{exam.exam_type.substring(0, 3)}</span>
-              <span class="text-lg font-black leading-none mt-1">{stats ? stats.days_left : '-'}</span>
-              <span class="text-[8px] uppercase">Tage</span>
+            <div class="min-w-[5.5rem] rounded-xl border px-3 py-2 text-center shadow-sm {urgencyTone(stats?.days_left)}">
+              <span class="mx-auto mb-1 inline-flex max-w-full items-center rounded-md bg-white/70 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-current dark:bg-black/20">
+                {exam.exam_type}
+              </span>
+              <div class="flex items-baseline justify-center gap-1">
+                <span class="text-2xl font-black leading-none">{stats ? Math.max(0, stats.days_left) : '-'}</span>
+                <span class="text-[10px] font-bold uppercase tracking-wide">Tage</span>
+              </div>
+              <span class="mt-1 block text-[10px] font-semibold uppercase tracking-wide opacity-80">
+                {urgencyLabel(stats?.days_left)}
+              </span>
             </div>
-            <div>
-              <h3 class="font-bold text-primary dark:text-primary-dark">{exam.name}</h3>
-              <p class="text-xs text-secondary mt-0.5">{exam.exam_type} am {new Date(exam.exam_date).toLocaleDateString('de-DE')}</p>
+            <div class="min-w-0 pt-1">
+              <h3 class="truncate pr-12 font-bold text-primary dark:text-primary-dark">{exam.name}</h3>
+              <p class="text-xs text-secondary mt-0.5">{new Date(exam.exam_date).toLocaleDateString('de-DE')}</p>
             </div>
           </div>
 
@@ -236,16 +268,16 @@
           <div class="mt-3 flex gap-2">
             <button
               onclick={() => onStudyExam(exam.deck_ids, exam.name)}
-              class="flex-1 py-1.5 rounded-lg bg-accent-correct text-white font-medium text-xs hover:scale-[1.01] transition-transform flex items-center justify-center gap-1.5 shadow-sm"
+              class="flex-1 py-1.5 primary-action text-xs"
             >
-              <span>▶️</span> Lernen
+              Lernen
             </button>
             <button
               onclick={() => onSimulateExam(exam.deck_ids, exam.name)}
-              class="px-3 py-1.5 rounded-lg glass border border-white/20 text-primary dark:text-primary-dark font-medium text-xs hover:bg-white/10 transition-colors flex items-center justify-center gap-1 shadow-sm"
+              class="px-3 py-1.5 secondary-action text-xs"
               title="Test-Simulation starten"
             >
-              <span>🧪</span> Simulation
+              Simulation
             </button>
           </div>
         </div>

@@ -6,7 +6,7 @@
 
 <button
   onclick={() => t.toggle()}
-  class="glass rounded-full p-2.5 hover:scale-105 transition-transform"
+  class="icon-button"
   aria-label="Design umschalten"
   title={t.isDark ? "Helles Design" : "Dunkles Design"}
 >

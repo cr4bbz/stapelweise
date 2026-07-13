@@ -48,10 +48,6 @@ impl CommandError {
         Self::new("EXPORT_FAILED", msg, details, true)
     }
 
-    pub fn obsidian_sync(msg: &str, details: Option<String>) -> Self {
-        Self::new("OBSIDIAN_SYNC_ERROR", msg, details, true)
-    }
-
     pub fn internal(msg: &str) -> Self {
         Self::new("INTERNAL_ERROR", msg, None, false)
     }

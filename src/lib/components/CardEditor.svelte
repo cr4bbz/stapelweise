@@ -10,6 +10,7 @@
   import { renderMarkdown } from "$lib/markdown";
   import { hasMath } from "$lib/math";
   import { mediaStore } from "$lib/stores/media";
+  import { tick } from "svelte";
   import { fade, slide } from "svelte/transition";
 
   let { deck, onClose = () => {}, onStudy = () => {} } = $props<{
@@ -32,6 +33,7 @@
   let deleteConfirmCardId = $state<string | null>(null);
   let viewingCard = $state<Card | null>(null);
   let cardFlipped = $state(false);
+  let frontTextarea = $state<HTMLTextAreaElement | null>(null);
 
   let tags = $state<string[]>([]);
   let tagInput = $state("");
@@ -84,6 +86,12 @@
     loadCards();
     loadDueCount();
     loadTags();
+  });
+
+  $effect(() => {
+    if (showNewCard || editingCard) {
+      tick().then(() => frontTextarea?.focus());
+    }
   });
 
   function addTag(e: KeyboardEvent) {
@@ -434,6 +442,12 @@
         role="button"
         tabindex="0"
         onclick={() => (cardFlipped = !cardFlipped)}
+        onkeydown={(e) => {
+          if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
+            e.preventDefault();
+            cardFlipped = !cardFlipped;
+          }
+        }}
       >
         <FlashCard
           front={viewingCard.front}
@@ -573,6 +587,7 @@
             </button>
           </div>
           <textarea
+            bind:this={frontTextarea}
             bind:value={front}
             onpaste={(e) => handlePaste(e, 'front')}
             ondrop={(e) => handleDrop(e, 'front')}
@@ -580,7 +595,6 @@
             placeholder={cardType === 'ordering' ? 'z. B. Bringe die Schritte in die richtige Reihenfolge:' : cardType === 'multiple_choice' ? 'z. B. Welche der folgenden Aussagen treffen zu?' : 'Frage eingeben (Strg+V oder Drag&Drop für Bilder)...'}
             class="w-full mt-1 bg-transparent border border-white/20 rounded-lg p-3 text-primary dark:text-primary-dark placeholder:text-secondary resize-none outline-none focus:border-accent-correct transition-colors text-lg font-card"
             rows="2"
-            autofocus
           ></textarea>
           {#if hasMath(front) || front.includes('![')}
             <div class="mt-2 p-3 rounded-lg border border-dashed border-accent-correct/40 bg-white/50 dark:bg-black/20">

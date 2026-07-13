@@ -29,10 +29,10 @@
 </script>
 
 {#if tags.length > 0}
-  <div class="px-6 pb-4">
-    <div class="glass border border-white/10 dark:border-white/5 rounded-xl p-4 shadow-elevation-low">
+  <div class="pb-5">
+    <div class="surface-panel p-4">
       <div class="flex items-center justify-between mb-3">
-        <span class="text-xs font-bold text-secondary uppercase tracking-wider">
+        <span class="section-kicker">
           Tags ({tags.length})
         </span>
         {#if selectedTags.size > 0}
@@ -41,7 +41,7 @@
               onStudyTags(Array.from(selectedTags));
               selectedTags = new Set();
             }}
-            class="rounded-button bg-accent-correct text-white px-3 py-1 text-xs font-medium hover:scale-[1.02] transition-transform"
+            class="primary-action px-3 py-1 text-xs"
           >
             {selectedTags.size} Tags lernen
           </button>
@@ -52,9 +52,9 @@
         {#each tags as tag}
           <button
             onclick={() => toggleTag(tag)}
-            class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border transition-all cursor-pointer {selectedTags.has(tag) 
+            class="inline-flex items-center rounded-lg px-3 py-1 text-xs font-medium border transition-all cursor-pointer {selectedTags.has(tag) 
               ? 'bg-accent-correct border-accent-correct text-white shadow-sm' 
-              : 'border-white/10 dark:border-white/5 bg-white/40 dark:bg-white/5 hover:bg-white/70 dark:hover:bg-white/10 text-primary dark:text-primary-dark'}"
+              : 'border-[#E4E7EC] dark:border-[#2A303B] bg-white dark:bg-[#171B24] hover:border-accent-correct/40 text-primary dark:text-primary-dark'}"
           >
             #{tag}
           </button>

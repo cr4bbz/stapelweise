@@ -1,4 +1,6 @@
 <script lang="ts">
+  import * as api from "$lib/api";
+  import { deckStore } from "$lib/stores/decks.svelte";
   import { settingsStore } from "$lib/stores/settings.svelte";
 
   let { onClose = () => {} } = $props<{
@@ -240,7 +242,6 @@
               onclick={async () => {
                 if (!s.current.obsidian_vault_path) return;
                 try {
-                  const api = await import("$lib/api");
                   const deckName = "Obsidian Import";
                   await api.syncObsidianVault(s.current.obsidian_vault_path, deckName);
                   alert("Vault erfolgreich importiert!");
@@ -290,7 +291,6 @@
           <button
             onclick={async () => {
               try {
-                const { deckStore } = await import("$lib/stores/decks.svelte");
                 await deckStore.seed();
                 alert("Beispieldaten erfolgreich geladen! Kehre zur Hauptübersicht zurück, um sie zu sehen.");
               } catch (e: any) {

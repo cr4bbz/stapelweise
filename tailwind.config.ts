@@ -7,30 +7,30 @@ export default {
     extend: {
       colors: {
         background: {
-          DEFAULT: "#FAF9F6",
-          dark: "#0B0B13",
+          DEFAULT: "#F6F7F9",
+          dark: "#10131A",
         },
         surface: {
           DEFAULT: "#FFFFFF",
-          dark: "#12121F",
+          dark: "#171B24",
         },
         primary: {
-          DEFAULT: "#1E3A5F",
-          dark: "#E0E0E0",
+          DEFAULT: "#172033",
+          dark: "#F4F6FA",
         },
         secondary: {
-          DEFAULT: "#64748B",
-          dark: "#94A3B8",
+          DEFAULT: "#667085",
+          dark: "#A8B0BE",
         },
         accent: {
-          correct: "#E6A817",
-          "correct-dark": "#FACC15",
+          correct: "#2563EB",
+          "correct-dark": "#60A5FA",
           incorrect: "#DC2626",
           "incorrect-dark": "#EF4444",
-          easy: "#22C55E",
+          easy: "#059669",
           "easy-dark": "#4ADE80",
-          hard: "#F97316",
-          "hard-dark": "#FB923C",
+          hard: "#D97706",
+          "hard-dark": "#FBBF24",
         },
         glass: {
           light: "rgba(255, 255, 255, 0.6)",
@@ -42,13 +42,13 @@ export default {
         serif: ["Source Serif 4", "Georgia", "serif"],
       },
       borderRadius: {
-        card: "1rem",
-        button: "9999px",
+        card: "0.75rem",
+        button: "0.625rem",
       },
       boxShadow: {
-        'elevation-low':  '0 1px 2px rgba(0,0,0,0.04), 0 2px 4px rgba(0,0,0,0.04)',
-        'elevation-mid':  '0 2px 4px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.08)',
-        'elevation-high': '0 4px 8px rgba(0,0,0,0.04), 0 8px 24px rgba(0,0,0,0.12)',
+        'elevation-low':  '0 1px 2px rgba(16,24,40,0.04), 0 1px 3px rgba(16,24,40,0.08)',
+        'elevation-mid':  '0 4px 10px rgba(16,24,40,0.08), 0 1px 3px rgba(16,24,40,0.06)',
+        'elevation-high': '0 12px 28px rgba(16,24,40,0.14), 0 2px 6px rgba(16,24,40,0.08)',
       },
     },
   },
