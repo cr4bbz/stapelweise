@@ -470,21 +470,36 @@ impl Repository {
     /// Undo the last review in a deck: restore previous card state and delete the review.
     /// Returns None if there is no review to undo or if the previous state is missing.
     pub fn undo_last_review(&self, deck_id: &str) -> Result<Option<(Card, CardState)>> {
-        let review = match self.get_last_review(deck_id)? {
-            Some(r) => r,
-            None => return Ok(None),
+        self.conn.execute_batch("BEGIN IMMEDIATE")?;
+
+        let review = match self.get_last_review(deck_id) {
+            Ok(Some(r)) => r,
+            Ok(None) => {
+                let _ = self.conn.execute_batch("ROLLBACK");
+                return Ok(None);
+            }
+            Err(e) => {
+                let _ = self.conn.execute_batch("ROLLBACK");
+                return Err(e);
+            }
         };
 
         // Restore previous state from saved JSON — only then delete the review
         let prev_state: CardState = match review.prev_state {
             Some(ref json) => match serde_json::from_str(json) {
                 Ok(s) => s,
-                Err(_) => return Ok(None),
+                Err(_) => {
+                    let _ = self.conn.execute_batch("ROLLBACK");
+                    return Ok(None);
+                }
             },
-            None => return Ok(None),
+            None => {
+                let _ = self.conn.execute_batch("ROLLBACK");
+                return Ok(None);
+            }
         };
 
-        self.conn.execute(
+        if let Err(e) = self.conn.execute(
             "UPDATE card_state SET interval = ?1, ease_factor = ?2, repetitions = ?3, next_review = ?4, total_reviews = ?5, correct_streak = ?6, last_review = ?7 WHERE card_id = ?8",
             params![
                 prev_state.interval,
@@ -496,11 +511,18 @@ impl Repository {
                 prev_state.last_review,
                 prev_state.card_id,
             ],
-        )?;
+        ) {
+            let _ = self.conn.execute_batch("ROLLBACK");
+            return Err(e);
+        }
 
         // Delete the review only after successful state restore
-        self.conn
-            .execute("DELETE FROM reviews WHERE id = ?1", params![review.id])?;
+        if let Err(e) = self.conn.execute("DELETE FROM reviews WHERE id = ?1", params![review.id]) {
+            let _ = self.conn.execute_batch("ROLLBACK");
+            return Err(e);
+        }
+
+        self.conn.execute_batch("COMMIT")?;
 
         // Return card + restored state
         match (self.get_card(&review.card_id)?, self.get_card_state(&review.card_id)?) {

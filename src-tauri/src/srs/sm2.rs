@@ -54,18 +54,20 @@ impl Sm2State {
 ///
 /// Today's date is passed in explicitly so this function stays pure
 /// (no system clock dependency).
-pub fn sm2_advance(state: &Sm2State, quality: u8, today: NaiveDate, config: &Sm2Config) -> Sm2State {
-    assert!(quality <= 5, "quality must be 0-5");
+pub fn sm2_advance(state: &Sm2State, quality: u8, today: NaiveDate, config: &Sm2Config) -> Result<Sm2State, String> {
+    if quality > 5 {
+        return Err("quality must be 0-5".to_string());
+    }
 
     if quality < config.pass_threshold {
         // Failed: reset
         let new_ef = (state.ease_factor - config.ease_penalty).max(config.min_ease_factor);
-        Sm2State {
+        Ok(Sm2State {
             interval: 1,
             ease_factor: new_ef,
             repetitions: 0,
             next_review: today + Duration::days(1),
-        }
+        })
     } else {
         // Passed: advance
         let new_interval = match state.repetitions {
@@ -81,12 +83,12 @@ pub fn sm2_advance(state: &Sm2State, quality: u8, today: NaiveDate, config: &Sm2
         let new_ef = state.ease_factor + (0.1 - (5.0 - q) * (0.08 + (5.0 - q) * 0.02));
         let new_ef = new_ef.max(config.min_ease_factor);
 
-        Sm2State {
+        Ok(Sm2State {
             interval: new_interval,
             ease_factor: new_ef,
             repetitions: state.repetitions + 1,
             next_review: today + Duration::days(new_interval as i64),
-        }
+        })
     }
 }
 
@@ -126,7 +128,7 @@ mod tests {
         let today = date("2026-07-01");
         let config = default_config();
         let state = Sm2State::new(today, &config);
-        let next = sm2_advance(&state, 4, today, &config);
+        let next = sm2_advance(&state, 4, today, &config).unwrap();
 
         assert_eq!(next.interval, 1);
         assert_eq!(next.repetitions, 1);
@@ -143,7 +145,7 @@ mod tests {
             repetitions: 1,
             next_review: today,
         };
-        let next = sm2_advance(&state, 4, today, &config);
+        let next = sm2_advance(&state, 4, today, &config).unwrap();
 
         assert_eq!(next.interval, 6);
         assert_eq!(next.repetitions, 2);
@@ -160,7 +162,7 @@ mod tests {
             repetitions: 2,
             next_review: today,
         };
-        let next = sm2_advance(&state, 4, today, &config);
+        let next = sm2_advance(&state, 4, today, &config).unwrap();
 
         // interval = 6 * 2.5 = 15
         assert_eq!(next.interval, 15);
@@ -178,7 +180,7 @@ mod tests {
             repetitions: 5,
             next_review: today,
         };
-        let next = sm2_advance(&state, 2, today, &config); // quality 2 = failed
+        let next = sm2_advance(&state, 2, today, &config).unwrap(); // quality 2 = failed
 
         assert_eq!(next.interval, 1);
         assert_eq!(next.repetitions, 0);
@@ -193,12 +195,12 @@ mod tests {
         let state = Sm2State::new(today, &config);
 
         // quality 3 should now fail (threshold is 4)
-        let next = sm2_advance(&state, 3, today, &config);
+        let next = sm2_advance(&state, 3, today, &config).unwrap();
         assert_eq!(next.repetitions, 0);
         assert_eq!(next.interval, 1);
 
         // quality 4 should pass
-        let next = sm2_advance(&state, 4, today, &config);
+        let next = sm2_advance(&state, 4, today, &config).unwrap();
         assert_eq!(next.repetitions, 1);
     }
 
@@ -214,7 +216,7 @@ mod tests {
         };
 
         for _ in 0..10 {
-            state = sm2_advance(&state, 0, today, &config); // repeated failures
+            state = sm2_advance(&state, 0, today, &config).unwrap(); // repeated failures
         }
 
         assert!(state.ease_factor >= 1.3);
@@ -230,7 +232,7 @@ mod tests {
             repetitions: 1,
             next_review: today,
         };
-        let next = sm2_advance(&state, 5, today, &config); // perfect recall
+        let next = sm2_advance(&state, 5, today, &config).unwrap(); // perfect recall
 
         // EF increase for quality 5: 0.1 - 0 = 0.1
         assert!((next.ease_factor - 2.6).abs() < 0.01);

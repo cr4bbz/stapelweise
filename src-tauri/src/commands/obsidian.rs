@@ -17,6 +17,13 @@ fn calculate_hash(s: &str) -> String {
 
 #[tauri::command(rename_all = "camelCase")]
 pub fn sync_obsidian_vault(state: State<DbState>, vault_path: String, deck_name: String) -> Result<Deck, CommandError> {
+    let canonical_path = fs::canonicalize(&vault_path)
+        .map_err(|e| CommandError(format!("Ungültiger Vault-Pfad '{}': {}", vault_path, e)))?;
+
+    if !canonical_path.is_dir() {
+        return Err(CommandError(format!("Pfad '{}' ist kein Ordner", vault_path)));
+    }
+
     let db = state.lock().map_err(|e| CommandError(format!("Lock error: {}", e)))?;
     
     let settings = AppSettings::load(&db.repo).unwrap_or_else(|_| AppSettings::defaults());
@@ -28,7 +35,7 @@ pub fn sync_obsidian_vault(state: State<DbState>, vault_path: String, deck_name:
 
     let mut seen_paths = HashSet::new();
 
-    for entry in WalkDir::new(&vault_path).into_iter().filter_map(|e| e.ok()) {
+    for entry in WalkDir::new(&canonical_path).into_iter().filter_map(|e| e.ok()) {
         if entry.file_type().is_file() {
             if let Some(ext) = entry.path().extension() {
                 if ext == "md" {
@@ -47,13 +54,22 @@ pub fn sync_obsidian_vault(state: State<DbState>, vault_path: String, deck_name:
                             match existing {
                                 Some((card_id, old_hash)) => {
                                     if old_hash != hash {
-                                        let _ = db.repo.update_card(&card_id, "basic", None, None, &front, &back, vec![]);
-                                        let _ = db.repo.upsert_obsidian_card(&card_id, &file_path, 0, &hash);
+                                        if let Err(e) = db.repo.update_card(&card_id, "basic", None, None, &front, &back, vec![]) {
+                                            eprintln!("Fehler beim Aktualisieren der Obsidian-Karte {}: {}", card_id, e);
+                                        }
+                                        if let Err(e) = db.repo.upsert_obsidian_card(&card_id, &file_path, 0, &hash) {
+                                            eprintln!("Fehler beim Speichern der Obsidian-Metadata {}: {}", card_id, e);
+                                        }
                                     }
                                 }
                                 None => {
-                                    if let Ok(card) = db.repo.create_card(deck_id, "basic", None, None, &front, &back, vec![]) {
-                                        let _ = db.repo.upsert_obsidian_card(&card.id, &file_path, 0, &hash);
+                                    match db.repo.create_card(deck_id, "basic", None, None, &front, &back, vec![]) {
+                                        Ok(card) => {
+                                            if let Err(e) = db.repo.upsert_obsidian_card(&card.id, &file_path, 0, &hash) {
+                                                eprintln!("Fehler beim Speichern der Obsidian-Metadata {}: {}", card.id, e);
+                                            }
+                                        }
+                                        Err(e) => eprintln!("Fehler beim Erstellen der Obsidian-Karte: {}", e),
                                     }
                                 }
                             }
@@ -70,7 +86,9 @@ pub fn sync_obsidian_vault(state: State<DbState>, vault_path: String, deck_name:
             if !seen_paths.contains(&path) {
                 // Was deleted or tag removed
                 if let Ok(Some((card_id, _))) = db.repo.get_obsidian_card_hash(&path) {
-                    let _ = db.repo.delete_card(&card_id);
+                    if let Err(e) = db.repo.delete_card(&card_id) {
+                        eprintln!("Fehler beim Löschen der entfernten Obsidian-Karte {}: {}", card_id, e);
+                    }
                 }
             }
         }

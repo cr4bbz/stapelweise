@@ -45,7 +45,7 @@
         </div>
       {/if}
       <div class="flex-1 flex items-center justify-center w-full mt-4">
-        <p class="{familyClass} {sizeClass} text-primary dark:text-primary-dark text-center text-balance select-none">
+        <p class="{familyClass} {sizeClass} text-primary dark:text-primary-dark text-center text-balance">
           {@html renderedFront}
         </p>
       </div>
@@ -60,14 +60,14 @@
         </div>
       {/if}
       <div class="flex-1 flex items-center justify-center w-full mt-4">
-        <div class="{familyClass} {sizeClass} text-primary dark:text-primary-dark text-center text-balance select-none w-full">
+        <div class="{familyClass} {sizeClass} text-primary dark:text-primary-dark text-center text-balance w-full">
           {@html renderedBack}
         </div>
       </div>
       {#if renderedReasoning}
         <div class="mt-4 pt-4 border-t border-white/10 w-full text-center shrink-0">
           <span class="text-[10px] uppercase text-secondary/70 font-semibold tracking-wider">Warum?</span>
-          <div class="{familyClass} text-sm mt-1 text-primary/80 dark:text-primary-dark/80 text-balance select-none opacity-90">
+          <div class="{familyClass} text-sm mt-1 text-primary/80 dark:text-primary-dark/80 text-balance opacity-90">
             {@html renderedReasoning}
           </div>
         </div>

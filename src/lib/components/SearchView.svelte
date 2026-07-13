@@ -2,7 +2,7 @@
   import * as api from "$lib/api";
   import type { SearchResult } from "$lib/types";
   import EmptyState from "./EmptyState.svelte";
-  import { renderMath } from "$lib/math";
+  import { renderMarkdown } from "$lib/markdown";
   import { fade } from "svelte/transition";
 
   let { onClose = () => {}, onSelectCard = (_deckId: string) => {} } = $props<{
@@ -114,11 +114,11 @@
               <div class="grid grid-cols-2 gap-4">
                 <div>
                   <span class="text-xs font-medium text-secondary uppercase tracking-wide">Frage</span>
-                  <p class="font-card text-primary dark:text-primary-dark mt-0.5 line-clamp-2">{@html renderMath(result.card.front)}</p>
+                  <div class="font-card text-primary dark:text-primary-dark mt-0.5 line-clamp-2">{@html renderMarkdown(result.card.front)}</div>
                 </div>
                 <div>
                   <span class="text-xs font-medium text-secondary uppercase tracking-wide">Antwort</span>
-                  <p class="font-card text-primary dark:text-primary-dark mt-0.5 line-clamp-2">{@html renderMath(result.card.back)}</p>
+                  <div class="font-card text-primary dark:text-primary-dark mt-0.5 line-clamp-2">{@html renderMarkdown(result.card.back)}</div>
                 </div>
               </div>
               {#if result.card.tags && result.card.tags.length > 0}

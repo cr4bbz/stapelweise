@@ -163,7 +163,7 @@ pub fn submit_review(
     };
 
     // Advance via SM-2 with user config
-    let next = sm2::sm2_advance(&sm2_input, quality, today, &sm2_config);
+    let next = sm2::sm2_advance(&sm2_input, quality, today, &sm2_config).map_err(|e| CommandError(e))?;
 
     let now_str = now.format("%Y-%m-%dT%H:%M:%S").to_string();
 

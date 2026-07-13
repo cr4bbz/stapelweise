@@ -142,7 +142,7 @@
             max="200"
             step="5"
             value={s.current.session_limit}
-            oninput={(e) => s.save({ session_limit: Number((e.target as HTMLInputElement).value) })}
+            onchange={(e) => s.save({ session_limit: Number((e.target as HTMLInputElement).value) })}
             class="w-full accent-accent-correct"
           />
           <div class="flex justify-between text-xs text-secondary mt-0.5">
@@ -164,7 +164,7 @@
             max="5"
             step="1"
             value={s.current.sm2_pass_threshold}
-            oninput={(e) => s.save({ sm2_pass_threshold: Number((e.target as HTMLInputElement).value) })}
+            onchange={(e) => s.save({ sm2_pass_threshold: Number((e.target as HTMLInputElement).value) })}
             class="w-full accent-accent-correct"
           />
           <div class="flex justify-between text-xs text-secondary mt-0.5">
@@ -187,7 +187,7 @@
             max="3.0"
             step="0.1"
             value={s.current.sm2_initial_ef}
-            oninput={(e) => s.save({ sm2_initial_ef: Number((e.target as HTMLInputElement).value) })}
+            onchange={(e) => s.save({ sm2_initial_ef: Number((e.target as HTMLInputElement).value) })}
             class="w-full accent-accent-correct"
           />
           <div class="flex justify-between text-xs text-secondary mt-0.5">
