@@ -85,6 +85,35 @@
     tags = tags.filter(t => t !== tag);
   }
 
+  function handleImageUpload(targetField: 'front' | 'back' | 'reasoning') {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/*";
+    input.onchange = (e: Event) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      if (file.size > 5 * 1024 * 1024) {
+        error = "Das gewählte Bild ist zu groß (maximal 5 MB erlaubt).";
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (re) => {
+        const result = re.target?.result as string;
+        if (!result) return;
+        const imgTag = `\n![${file.name}](${result})\n`;
+        if (targetField === "front") {
+          front += imgTag;
+        } else if (targetField === "back") {
+          back += imgTag;
+        } else if (targetField === "reasoning") {
+          reasoning += imgTag;
+        }
+      };
+      reader.readAsDataURL(file);
+    };
+    input.click();
+  }
+
   let cardType = $state<string>("basic");
   let mcOptions = $state<{ text: string; correct: boolean }[]>([
     { text: "", correct: true },
@@ -460,9 +489,18 @@
         </div>
 
         <div>
-          <label class="text-xs font-medium text-secondary uppercase tracking-wide">
-            {cardType === 'ordering' ? 'Titel / Fragestellung' : cardType === 'multiple_choice' ? 'Frage / Aufgabenstellung' : 'Vorderseite'}
-          </label>
+          <div class="flex items-center justify-between">
+            <label class="text-xs font-medium text-secondary uppercase tracking-wide">
+              {cardType === 'ordering' ? 'Titel / Fragestellung' : cardType === 'multiple_choice' ? 'Frage / Aufgabenstellung' : 'Vorderseite'}
+            </label>
+            <button
+              type="button"
+              onclick={() => handleImageUpload('front')}
+              class="text-xs font-medium text-secondary hover:text-accent-correct transition-colors flex items-center gap-1"
+            >
+              🖼️ Bild einfügen
+            </button>
+          </div>
           <textarea
             bind:value={front}
             placeholder={cardType === 'ordering' ? 'z. B. Bringe die Schritte in die richtige Reihenfolge:' : cardType === 'multiple_choice' ? 'z. B. Welche der folgenden Aussagen treffen zu?' : 'Frage eingeben...'}
@@ -565,7 +603,16 @@
         {:else}
           <!-- Standard Backside Input -->
           <div>
-            <label class="text-xs font-medium text-secondary uppercase tracking-wide">Rückseite</label>
+            <div class="flex items-center justify-between">
+              <label class="text-xs font-medium text-secondary uppercase tracking-wide">Rückseite</label>
+              <button
+                type="button"
+                onclick={() => handleImageUpload('back')}
+                class="text-xs font-medium text-secondary hover:text-accent-correct transition-colors flex items-center gap-1"
+              >
+                🖼️ Bild einfügen
+              </button>
+            </div>
             <textarea
               bind:value={back}
               placeholder="Antwort eingeben..."
@@ -583,9 +630,18 @@
           </div>
         {/if}
         <div class="mt-4 pt-4 border-t border-white/10">
-          <label class="text-xs font-medium text-secondary uppercase tracking-wide flex items-center gap-2">
-            Warum? <span class="text-[10px] lowercase opacity-70">(Optional, fördert Verstehen)</span>
-          </label>
+          <div class="flex items-center justify-between mb-1">
+            <label class="text-xs font-medium text-secondary uppercase tracking-wide flex items-center gap-2">
+              Warum? <span class="text-[10px] lowercase opacity-70">(Optional, fördert Verstehen)</span>
+            </label>
+            <button
+              type="button"
+              onclick={() => handleImageUpload('reasoning')}
+              class="text-xs font-medium text-secondary hover:text-accent-correct transition-colors flex items-center gap-1"
+            >
+              🖼️ Bild einfügen
+            </button>
+          </div>
           <textarea
             bind:value={reasoning}
             placeholder="Warum ist diese Antwort richtig? Wie hängt sie mit anderem Wissen zusammen?"

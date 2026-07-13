@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import { settingsStore } from "$lib/stores/settings.svelte";
   import { renderMarkdown } from "$lib/markdown";
 
@@ -19,6 +20,21 @@
     cardType?: string;
     content?: string | null;
   }>();
+
+  let zoomedImageSrc = $state<string | null>(null);
+
+  onMount(() => {
+    const handleZoom = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (typeof detail === "string") {
+        zoomedImageSrc = detail;
+      }
+    };
+    window.addEventListener("stapelweise:zoom-image", handleZoom);
+    return () => {
+      window.removeEventListener("stapelweise:zoom-image", handleZoom);
+    };
+  });
 
   let isCloze = $derived(cardType === "cloze" || front.includes("==") || front.includes("{{c1::"));
   let isMultipleChoice = $derived(cardType === "multiple_choice");
@@ -256,3 +272,31 @@
     </div>
   </div>
 </div>
+
+<!-- Image Zoom Modal -->
+{#if zoomedImageSrc}
+  <div
+    class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-6 cursor-zoom-out"
+    role="button"
+    tabindex="0"
+    onclick={() => (zoomedImageSrc = null)}
+    onkeydown={(e) => (e.key === "Escape" || e.key === " ") && (zoomedImageSrc = null)}
+  >
+    <div class="relative max-w-5xl max-h-[90vh] flex flex-col items-center justify-center" onclick={(e) => e.stopPropagation()} role="dialog">
+      <button
+        onclick={() => (zoomedImageSrc = null)}
+        class="absolute -top-12 right-0 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
+        title="Schließen"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+      <img
+        src={zoomedImageSrc}
+        alt="Großansicht"
+        class="max-w-full max-h-[85vh] rounded-2xl shadow-2xl border border-white/20 object-contain"
+      />
+    </div>
+  </div>
+{/if}
