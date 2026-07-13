@@ -1,4 +1,6 @@
 @import "katex/dist/katex.min.css";
+@import "@fontsource/pixelify-sans/600.css";
+@import "@fontsource/pixelify-sans/700.css";
 
 @tailwind base;
 @tailwind components;
