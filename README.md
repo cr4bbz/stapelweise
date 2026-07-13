@@ -9,6 +9,7 @@
 
 <p align="center">
   <a href="https://github.com/cr4bbz/stapelweise/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
+  <a href="https://github.com/cr4bbz/stapelweise/blob/main/PRODUCT_MANIFEST.md"><img src="https://img.shields.io/badge/version-v1.0.0-green.svg" alt="v1.0 Release"></a>
   <a href="https://tauri.app"><img src="https://img.shields.io/badge/Tauri-2-FFC131?logo=tauri&logoColor=white" alt="Tauri 2"></a>
   <a href="https://svelte.dev"><img src="https://img.shields.io/badge/Svelte-5-FF3E00?logo=svelte&logoColor=white" alt="Svelte 5"></a>
   <a href="https://www.rust-lang.org"><img src="https://img.shields.io/badge/Rust-1.80+-DEA584?logo=rust&logoColor=white" alt="Rust"></a>
