@@ -36,6 +36,10 @@ pub struct Card {
     pub reasoning: Option<String>,
     pub front: String,
     pub back: String,
+    #[serde(default)]
+    pub front_language: Option<String>,
+    #[serde(default)]
+    pub back_language: Option<String>,
     pub tags: Vec<String>,
     pub created_at: String,
     pub updated_at: String,
@@ -181,4 +185,3 @@ pub struct ExamResult {
     pub duration_seconds: u64,
     pub breakdown: ExamResultBreakdown,
 }
-

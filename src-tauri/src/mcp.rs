@@ -113,7 +113,8 @@ pub fn run_mcp_loop(db: Database) {
                         }
                     } else if tool_name == "get_deck_stats" {
                         let deck_id = req["params"]["arguments"]["deck_id"].as_str().unwrap_or("");
-                        let today_start = chrono::Local::now().format("%Y-%m-%dT00:00:00").to_string();
+                        let today_start =
+                            chrono::Local::now().format("%Y-%m-%dT00:00:00").to_string();
                         match db.repo.get_deck_stats(deck_id, &today_start) {
                             Ok(stats) => json!(stats).to_string(),
                             Err(e) => format!("Error: {}", e),
@@ -123,8 +124,16 @@ pub fn run_mcp_loop(db: Database) {
                         let front = req["params"]["arguments"]["front"].as_str().unwrap_or("");
                         let back = req["params"]["arguments"]["back"].as_str().unwrap_or("");
                         let reasoning = req["params"]["arguments"]["reasoning"].as_str();
-                        
-                        match db.repo.create_card(deck_id, "basic", None, reasoning, front, back, vec![]) {
+
+                        match db.repo.create_card(
+                            deck_id,
+                            "basic",
+                            None,
+                            reasoning,
+                            front,
+                            back,
+                            vec![],
+                        ) {
                             Ok(card) => json!(card).to_string(),
                             Err(e) => format!("Error: {}", e),
                         }

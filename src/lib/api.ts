@@ -102,9 +102,11 @@ export async function createCard(
   reasoning: string | null = null,
   cardType: CardType = "basic",
   content: string | null = null,
-  tags: string[] = []
+  tags: string[] = [],
+  frontLanguage: string | null = null,
+  backLanguage: string | null = null
 ): Promise<Card> {
-  return cmd("create_card", { deckId, front, back, reasoning, cardType, content, tags });
+  return cmd("create_card", { deckId, front, back, reasoning, cardType, content, tags, frontLanguage, backLanguage });
 }
 
 export async function listCards(deckId: string): Promise<Card[]> {
@@ -118,9 +120,11 @@ export async function updateCard(
   reasoning: string | null = null,
   cardType: CardType = "basic",
   content: string | null = null,
-  tags: string[] = []
+  tags: string[] = [],
+  frontLanguage: string | null = null,
+  backLanguage: string | null = null
 ): Promise<void> {
-  return cmd("update_card", { cardId, front, back, reasoning, cardType, content, tags });
+  return cmd("update_card", { cardId, front, back, reasoning, cardType, content, tags, frontLanguage, backLanguage });
 }
 
 export async function deleteCard(cardId: string): Promise<void> {

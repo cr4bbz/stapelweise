@@ -1,6 +1,6 @@
 use rusqlite::Connection;
 
-const LATEST_VERSION: i32 = 7;
+const LATEST_VERSION: i32 = 8;
 
 /// Run all pending migrations to bring the database up to `LATEST_VERSION`.
 ///
@@ -39,6 +39,9 @@ pub fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
     }
     if version < 7 {
         apply_v7(conn)?;
+    }
+    if version < 8 {
+        apply_v8(conn)?;
     }
 
     Ok(())
@@ -84,9 +87,55 @@ fn detect_existing_schema_version(conn: &Connection) -> Result<i32, rusqlite::Er
         return Ok(2);
     }
 
-    // All migrations already applied — set user_version to latest
+    let has_v4_schema = conn
+        .prepare("SELECT card_type, content, reasoning FROM cards LIMIT 0")
+        .is_ok()
+        && table_exists(conn, "tags")?
+        && table_exists(conn, "card_tags")?;
+    if !has_v4_schema {
+        return Ok(3);
+    }
+
+    if !table_exists(conn, "obsidian_vaults")? || !table_exists(conn, "obsidian_cards")? {
+        return Ok(4);
+    }
+
+    if !table_exists(conn, "exams")? || !table_exists(conn, "exam_decks")? {
+        return Ok(5);
+    }
+
+    let has_v7_schema = [
+        "exam_templates",
+        "exam_sessions",
+        "exam_questions",
+        "exam_results",
+    ]
+    .iter()
+    .try_fold(true, |all_exist, table| {
+        Ok::<bool, rusqlite::Error>(all_exist && table_exists(conn, table)?)
+    })?;
+    if !has_v7_schema {
+        return Ok(6);
+    }
+
+    let has_card_languages = conn
+        .prepare("SELECT front_language, back_language FROM cards LIMIT 0")
+        .is_ok();
+    if !has_card_languages {
+        return Ok(7);
+    }
+
     conn.pragma_update(None, "user_version", LATEST_VERSION)?;
     Ok(LATEST_VERSION)
+}
+
+fn table_exists(conn: &Connection, table: &str) -> Result<bool, rusqlite::Error> {
+    conn.query_row(
+        "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?1",
+        [table],
+        |row| row.get::<_, i32>(0),
+    )
+    .map(|count| count > 0)
 }
 
 fn apply_v1(conn: &Connection) -> Result<(), rusqlite::Error> {
@@ -165,12 +214,17 @@ fn apply_v3(conn: &Connection) -> Result<(), rusqlite::Error> {
 
 fn apply_v4(conn: &Connection) -> Result<(), rusqlite::Error> {
     // Extend cards table
-    let has_card_type: bool = conn
-        .prepare("SELECT card_type FROM cards LIMIT 0")
-        .is_ok();
+    let has_card_type: bool = conn.prepare("SELECT card_type FROM cards LIMIT 0").is_ok();
     if !has_card_type {
-        conn.execute("ALTER TABLE cards ADD COLUMN card_type TEXT NOT NULL DEFAULT 'basic';", [])?;
+        conn.execute(
+            "ALTER TABLE cards ADD COLUMN card_type TEXT NOT NULL DEFAULT 'basic';",
+            [],
+        )?;
+    }
+    if conn.prepare("SELECT content FROM cards LIMIT 0").is_err() {
         conn.execute("ALTER TABLE cards ADD COLUMN content TEXT;", [])?;
+    }
+    if conn.prepare("SELECT reasoning FROM cards LIMIT 0").is_err() {
         conn.execute("ALTER TABLE cards ADD COLUMN reasoning TEXT;", [])?;
     }
 
@@ -203,7 +257,7 @@ fn apply_v5(conn: &Connection) -> Result<(), rusqlite::Error> {
             file_path TEXT NOT NULL,
             line_number INTEGER NOT NULL,
             hash TEXT NOT NULL
-        );"
+        );",
     )?;
 
     conn.pragma_update(None, "user_version", 5)?;
@@ -223,7 +277,7 @@ fn apply_v6(conn: &Connection) -> Result<(), rusqlite::Error> {
             exam_id TEXT NOT NULL REFERENCES exams(id) ON DELETE CASCADE,
             deck_id TEXT NOT NULL REFERENCES decks(id) ON DELETE CASCADE,
             PRIMARY KEY (exam_id, deck_id)
-        );"
+        );",
     )?;
 
     conn.pragma_update(None, "user_version", 6)?;
@@ -279,10 +333,28 @@ fn apply_v7(conn: &Connection) -> Result<(), rusqlite::Error> {
             skipped_count INTEGER NOT NULL,
             duration_seconds INTEGER NOT NULL,
             breakdown_json TEXT NOT NULL
-        );"
+        );",
     )?;
 
     conn.pragma_update(None, "user_version", 7)?;
+    Ok(())
+}
+
+fn apply_v8(conn: &Connection) -> Result<(), rusqlite::Error> {
+    if conn
+        .prepare("SELECT front_language FROM cards LIMIT 0")
+        .is_err()
+    {
+        conn.execute("ALTER TABLE cards ADD COLUMN front_language TEXT;", [])?;
+    }
+    if conn
+        .prepare("SELECT back_language FROM cards LIMIT 0")
+        .is_err()
+    {
+        conn.execute("ALTER TABLE cards ADD COLUMN back_language TEXT;", [])?;
+    }
+
+    conn.pragma_update(None, "user_version", 8)?;
     Ok(())
 }
 
@@ -312,8 +384,11 @@ mod tests {
         assert_eq!(table_count, 15);
 
         // Verify prev_state column exists
-        conn.execute("INSERT INTO decks (id, name, created_at, updated_at) VALUES ('d1', 'test', '', '')", [])
-            .unwrap();
+        conn.execute(
+            "INSERT INTO decks (id, name, created_at, updated_at) VALUES ('d1', 'test', '', '')",
+            [],
+        )
+        .unwrap();
         conn.execute("INSERT INTO cards (id, deck_id, front, back, created_at, updated_at) VALUES ('c1', 'd1', '', '', '', '')", [])
             .unwrap();
         conn.execute(
@@ -321,6 +396,15 @@ mod tests {
             [],
         )
         .unwrap();
+
+        let languages: (Option<String>, Option<String>) = conn
+            .query_row(
+                "SELECT front_language, back_language FROM cards WHERE id = 'c1'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(languages, (None, None));
     }
 
     #[test]
@@ -384,5 +468,25 @@ mod tests {
             .query_row("PRAGMA user_version", [], |row| row.get(0))
             .unwrap();
         assert_eq!(version, LATEST_VERSION);
+    }
+
+    #[test]
+    fn test_existing_unversioned_v3_database_reaches_latest() {
+        let conn = Connection::open_in_memory().unwrap();
+        apply_v1(&conn).unwrap();
+        apply_v2(&conn).unwrap();
+        apply_v3(&conn).unwrap();
+        conn.pragma_update(None, "user_version", 0).unwrap();
+
+        run_migrations(&conn).unwrap();
+
+        let version: i32 = conn
+            .query_row("PRAGMA user_version", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(version, LATEST_VERSION);
+        assert!(conn
+            .prepare("SELECT card_type, content, reasoning, front_language, back_language FROM cards LIMIT 0")
+            .is_ok());
+        assert!(table_exists(&conn, "exam_results").unwrap());
     }
 }

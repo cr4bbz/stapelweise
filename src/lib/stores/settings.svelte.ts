@@ -5,6 +5,10 @@ const defaults: AppSettings = {
   theme: "auto",
   card_font_family: "serif",
   card_font_size: "medium",
+  learning_animations: true,
+  card_flip_animation: true,
+  control_transition_animation: true,
+  rating_buttons_animation: true,
   session_limit: 50,
   sm2_initial_ef: 2.5,
   sm2_pass_threshold: 3,
@@ -74,6 +78,23 @@ function fontFamilyClass(family: AppSettings["card_font_family"]): string {
   return family === "sans" ? "font-card-sans" : "font-card";
 }
 
+function animationEnabled(setting: boolean): boolean {
+  if (!current.learning_animations || !setting) return false;
+  return typeof window === "undefined" || !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+function cardFlipAnimationEnabled(): boolean {
+  return animationEnabled(current.card_flip_animation);
+}
+
+function controlTransitionAnimationEnabled(): boolean {
+  return animationEnabled(current.control_transition_animation);
+}
+
+function ratingButtonsAnimationEnabled(): boolean {
+  return animationEnabled(current.rating_buttons_animation);
+}
+
 export function getSettingsStore() {
   return {
     get current() {
@@ -86,6 +107,9 @@ export function getSettingsStore() {
     save,
     fontSizeClass,
     fontFamilyClass,
+    cardFlipAnimationEnabled,
+    controlTransitionAnimationEnabled,
+    ratingButtonsAnimationEnabled,
   };
 }
 

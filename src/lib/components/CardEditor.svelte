@@ -10,13 +10,16 @@
   import { renderMarkdown } from "$lib/markdown";
   import { hasMath } from "$lib/math";
   import { mediaStore } from "$lib/stores/media";
+  import { settingsStore } from "$lib/stores/settings.svelte";
+  import { languageLabel, languageOptions } from "$lib/languages";
   import { tick } from "svelte";
   import { fade, slide } from "svelte/transition";
 
-  let { deck, onClose = () => {}, onStudy = () => {} } = $props<{
+  let { deck, onClose = () => {}, onStudy = () => {}, onPractice = () => {} } = $props<{
     deck: Deck;
     onClose?: () => void;
     onStudy?: () => void;
+    onPractice?: () => void;
   }>();
 
   let cards = $state<Card[]>([]);
@@ -24,6 +27,8 @@
   let showNewCard = $state(false);
   let front = $state("");
   let back = $state("");
+  let frontLanguage = $state("");
+  let backLanguage = $state("");
   let reasoning = $state("");
   let editingCard = $state<Card | null>(null);
   let error = $state<string | null>(null);
@@ -34,6 +39,7 @@
   let viewingCard = $state<Card | null>(null);
   let cardFlipped = $state(false);
   let frontTextarea = $state<HTMLTextAreaElement | null>(null);
+  let cardFontClass = $derived(settingsStore.fontFamilyClass(settingsStore.current.card_font_family));
 
   let tags = $state<string[]>([]);
   let tagInput = $state("");
@@ -83,6 +89,7 @@
   }
 
   $effect(() => {
+    settingsStore.load();
     loadCards();
     loadDueCount();
     loadTags();
@@ -222,11 +229,24 @@
     editingCard = card;
     front = mediaStore.compactMarkdown(card.front);
     back = mediaStore.compactMarkdown(card.back);
+    frontLanguage = card.front_language ?? "";
+    backLanguage = card.back_language ?? "";
     reasoning = mediaStore.compactMarkdown(card.reasoning || "");
     tags = [...card.tags];
     cardType = card.card_type || "basic";
 
     if (cardType === "multiple_choice") {
+      mcOptions = card.back
+        .split("\n")
+        .map((line) => line.match(/^\s*\[([ xX])\]\s*(.*)$/))
+        .filter((match): match is RegExpMatchArray => Boolean(match?.[2]?.trim()))
+        .map((match) => ({ text: match[2].trim(), correct: match[1].toLowerCase() === "x" }));
+      if (mcOptions.length < 2) {
+        mcOptions = [
+          { text: "", correct: true },
+          { text: "", correct: false },
+        ];
+      }
       try {
         if (card.content) {
           const parsed = JSON.parse(card.content);
@@ -236,6 +256,11 @@
         // fallback
       }
     } else if (cardType === "ordering") {
+      orderingItems = card.back
+        .split("\n")
+        .map((line) => line.replace(/^\s*\d+[.)]\s*/, "").trim())
+        .filter(Boolean);
+      if (orderingItems.length < 2) orderingItems = ["", ""];
       try {
         if (card.content) {
           const parsed = JSON.parse(card.content);
@@ -253,6 +278,8 @@
     showNewCard = false;
     front = "";
     back = "";
+    frontLanguage = "";
+    backLanguage = "";
     reasoning = "";
     tags = [];
     tagInput = "";
@@ -296,7 +323,7 @@
 
     error = null;
     try {
-      const card = await api.createCard(deck.id, front.trim(), finalBack, reasoning.trim() || null, cType, contentJson, tags);
+      const card = await api.createCard(deck.id, front.trim(), finalBack, reasoning.trim() || null, cType, contentJson, tags, frontLanguage || null, backLanguage || null);
       cards = [card, ...cards];
       cancelEdit();
       loadDueCount();
@@ -339,9 +366,9 @@
 
     error = null;
     try {
-      await api.updateCard(card.id, front.trim(), finalBack, reasoning.trim() || null, cType, contentJson, tags);
+      await api.updateCard(card.id, front.trim(), finalBack, reasoning.trim() || null, cType, contentJson, tags, frontLanguage || null, backLanguage || null);
       cards = cards.map((c) =>
-        c.id === card.id ? ({ ...c, card_type: cType, content: contentJson, front: front.trim(), back: finalBack, reasoning: reasoning.trim() || null, tags } as Card) : c
+        c.id === card.id ? ({ ...c, card_type: cType, content: contentJson, front: front.trim(), back: finalBack, front_language: frontLanguage || null, back_language: backLanguage || null, reasoning: reasoning.trim() || null, tags } as Card) : c
       );
       cancelEdit();
       loadTags();
@@ -452,6 +479,8 @@
         <FlashCard
           front={viewingCard.front}
           back={viewingCard.back}
+          frontLanguage={viewingCard.front_language}
+          backLanguage={viewingCard.back_language}
           reasoning={viewingCard.reasoning}
           tags={viewingCard.tags}
           flipped={cardFlipped}
@@ -470,7 +499,7 @@
   {:else}
     <div in:fade={{ duration: 150 }} out:fade={{ duration: 100 }} class="col-start-1 row-start-1 flex flex-col h-full w-full">
   <!-- Header -->
-  <div class="flex items-center gap-3 p-6 pb-4">
+  <div class="flex flex-wrap items-center gap-3 p-6 pb-4">
     <button
       onclick={onClose}
       class="p-2 rounded-lg hover:bg-white/30 dark:hover:bg-white/10 text-secondary transition-colors"
@@ -480,7 +509,7 @@
         <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
       </svg>
     </button>
-    <h1 class="text-2xl font-bold text-primary dark:text-primary-dark truncate">
+    <h1 class="{cardFontClass} min-w-0 text-2xl font-normal text-primary dark:text-primary-dark truncate">
       {deck.name}
     </h1>
     <span class="text-secondary text-sm">{cards.length} Karten</span>
@@ -488,7 +517,7 @@
       <span class="text-accent-correct text-sm font-medium">{dueCount} fällig</span>
     {/if}
 
-    <div class="ml-auto flex gap-2">
+    <div class="ml-auto flex flex-wrap justify-end gap-2">
       <button
         onclick={() => (showStats = true)}
         class="p-2 rounded-lg hover:bg-white/30 dark:hover:bg-white/10 text-secondary transition-colors"
@@ -509,12 +538,20 @@
           </svg>
         </button>
       {/if}
-      {#if cards.length > 0}
+      {#if cards.length > 0 && dueCount != null && dueCount > 0}
         <button
           onclick={onStudy}
-          class="rounded-button bg-accent-correct text-white px-5 py-2 text-sm font-semibold hover:scale-[1.02] transition-transform"
+          class="primary-action px-4 py-2 text-sm"
         >
-          Lernen
+          Fällige lernen
+        </button>
+      {/if}
+      {#if cards.length > 0}
+        <button
+          onclick={onPractice}
+          class="{dueCount === 0 ? 'primary-action' : 'secondary-action'} px-4 py-2 text-sm"
+        >
+          Frei lernen
         </button>
       {/if}
       <button
@@ -523,6 +560,8 @@
           editingCard = null;
           front = "";
           back = "";
+          frontLanguage = "";
+          backLanguage = "";
           reasoning = "";
           error = null;
         }}
@@ -572,6 +611,35 @@
           </div>
         </div>
 
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <label class="flex items-center gap-2 text-xs font-medium text-secondary">
+            <span class="shrink-0">Sprache vorn</span>
+            <select
+              bind:value={frontLanguage}
+              aria-label="Sprache der Vorderseite"
+              class="min-w-0 flex-1 rounded-md border border-white/15 bg-white/60 px-2.5 py-1.5 text-xs text-primary outline-none focus:border-accent-correct dark:bg-black/20 dark:text-primary-dark"
+            >
+              <option value="">Nicht festgelegt</option>
+              {#each languageOptions as language}
+                <option value={language.code}>{language.label}</option>
+              {/each}
+            </select>
+          </label>
+          <label class="flex items-center gap-2 text-xs font-medium text-secondary">
+            <span class="shrink-0">Sprache hinten</span>
+            <select
+              bind:value={backLanguage}
+              aria-label="Sprache der Rückseite"
+              class="min-w-0 flex-1 rounded-md border border-white/15 bg-white/60 px-2.5 py-1.5 text-xs text-primary outline-none focus:border-accent-correct dark:bg-black/20 dark:text-primary-dark"
+            >
+              <option value="">Nicht festgelegt</option>
+              {#each languageOptions as language}
+                <option value={language.code}>{language.label}</option>
+              {/each}
+            </select>
+          </label>
+        </div>
+
         <div>
           <div class="flex items-center justify-between">
             <span class="text-xs font-medium text-secondary uppercase tracking-wide">
@@ -593,13 +661,13 @@
             ondrop={(e) => handleDrop(e, 'front')}
             ondragover={(e) => e.preventDefault()}
             placeholder={cardType === 'ordering' ? 'z. B. Bringe die Schritte in die richtige Reihenfolge:' : cardType === 'multiple_choice' ? 'z. B. Welche der folgenden Aussagen treffen zu?' : 'Frage eingeben (Strg+V oder Drag&Drop für Bilder)...'}
-            class="w-full mt-1 bg-transparent border border-white/20 rounded-lg p-3 text-primary dark:text-primary-dark placeholder:text-secondary resize-none outline-none focus:border-accent-correct transition-colors text-lg font-card"
+            class="{cardFontClass} w-full mt-1 bg-transparent border border-white/20 rounded-lg p-3 text-primary dark:text-primary-dark placeholder:text-secondary resize-none outline-none focus:border-accent-correct transition-colors text-lg"
             rows="2"
           ></textarea>
           {#if hasMath(front) || front.includes('![')}
             <div class="mt-2 p-3 rounded-lg border border-dashed border-accent-correct/40 bg-white/50 dark:bg-black/20">
               <span class="text-xs text-secondary mb-1 block">Live-Vorschau</span>
-              <div class="font-card text-primary dark:text-primary-dark text-sm max-h-48 overflow-y-auto">
+              <div class="{cardFontClass} text-primary dark:text-primary-dark text-sm max-h-48 overflow-y-auto">
                 {@html renderMarkdown(front)}
               </div>
             </div>
@@ -626,7 +694,7 @@
                     type="text"
                     bind:value={opt.text}
                     placeholder={`Option ${idx + 1}`}
-                    class="flex-1 bg-white/5 dark:bg-black/20 border border-white/10 rounded-lg p-2 text-primary dark:text-primary-dark placeholder:text-secondary/50 outline-none focus:border-accent-correct text-sm font-card"
+                    class="{cardFontClass} flex-1 bg-white/5 dark:bg-black/20 border border-white/10 rounded-lg p-2 text-primary dark:text-primary-dark placeholder:text-secondary/50 outline-none focus:border-accent-correct text-sm"
                   />
                   {#if mcOptions.length > 2}
                     <button
@@ -664,7 +732,7 @@
                     type="text"
                     bind:value={orderingItems[idx]}
                     placeholder={`Schritt ${idx + 1}`}
-                    class="flex-1 bg-white/5 dark:bg-black/20 border border-white/10 rounded-lg p-2 text-primary dark:text-primary-dark placeholder:text-secondary/50 outline-none focus:border-accent-correct text-sm font-card"
+                    class="{cardFontClass} flex-1 bg-white/5 dark:bg-black/20 border border-white/10 rounded-lg p-2 text-primary dark:text-primary-dark placeholder:text-secondary/50 outline-none focus:border-accent-correct text-sm"
                   />
                   {#if orderingItems.length > 2}
                     <button
@@ -708,13 +776,13 @@
               ondrop={(e) => handleDrop(e, 'back')}
               ondragover={(e) => e.preventDefault()}
               placeholder="Antwort eingeben (Strg+V oder Drag&Drop für Bilder)..."
-              class="w-full mt-1 bg-transparent border border-white/20 rounded-lg p-3 text-primary dark:text-primary-dark placeholder:text-secondary resize-none outline-none focus:border-accent-correct transition-colors text-lg font-card"
+              class="{cardFontClass} w-full mt-1 bg-transparent border border-white/20 rounded-lg p-3 text-primary dark:text-primary-dark placeholder:text-secondary resize-none outline-none focus:border-accent-correct transition-colors text-lg"
               rows="2"
             ></textarea>
             {#if hasMath(back) || back.includes('![')}
               <div class="mt-2 p-3 rounded-lg border border-dashed border-accent-correct/40 bg-white/50 dark:bg-black/20">
                 <span class="text-xs text-secondary mb-1 block">Live-Vorschau</span>
-                <div class="font-card text-primary dark:text-primary-dark text-sm max-h-48 overflow-y-auto">
+                <div class="{cardFontClass} text-primary dark:text-primary-dark text-sm max-h-48 overflow-y-auto">
                   {@html renderMarkdown(back)}
                 </div>
               </div>
@@ -741,13 +809,13 @@
             ondrop={(e) => handleDrop(e, 'reasoning')}
             ondragover={(e) => e.preventDefault()}
             placeholder="Warum ist diese Antwort richtig? Wie hängt sie mit anderem Wissen zusammen? (Strg+V oder Drag&Drop für Bilder)"
-            class="w-full mt-1 bg-white/5 dark:bg-black/20 border border-white/10 rounded-lg p-3 text-primary dark:text-primary-dark placeholder:text-secondary/50 resize-none outline-none focus:border-accent-correct/50 transition-colors text-sm font-card"
+            class="{cardFontClass} w-full mt-1 bg-white/5 dark:bg-black/20 border border-white/10 rounded-lg p-3 text-primary dark:text-primary-dark placeholder:text-secondary/50 resize-none outline-none focus:border-accent-correct/50 transition-colors text-sm"
             rows="2"
           ></textarea>
           {#if hasMath(reasoning) || reasoning.includes('![')}
             <div class="mt-2 p-3 rounded-lg border border-dashed border-accent-correct/40 bg-white/50 dark:bg-black/20">
               <span class="text-xs text-secondary mb-1 block">Live-Vorschau</span>
-              <div class="font-card text-primary dark:text-primary-dark text-sm max-h-48 overflow-y-auto">
+              <div class="{cardFontClass} text-primary dark:text-primary-dark text-sm max-h-48 overflow-y-auto">
                 {@html renderMarkdown(reasoning)}
               </div>
             </div>
@@ -775,7 +843,7 @@
               bind:value={tagInput}
               onkeydown={addTag}
               placeholder="Tags eingeben..."
-              class="w-full bg-white/5 dark:bg-black/20 border border-white/10 rounded-lg p-2 text-primary dark:text-primary-dark placeholder:text-secondary/50 outline-none focus:border-accent-correct/50 transition-colors text-sm font-card"
+              class="{cardFontClass} w-full bg-white/5 dark:bg-black/20 border border-white/10 rounded-lg p-2 text-primary dark:text-primary-dark placeholder:text-secondary/50 outline-none focus:border-accent-correct/50 transition-colors text-sm"
             />
             {#if matchingTags.length > 0}
               <div class="absolute z-30 left-0 right-0 top-full mt-1 glass rounded-lg border border-white/20 shadow-elevation-high p-1.5 flex flex-wrap gap-1 max-h-32 overflow-y-auto">
@@ -841,6 +909,8 @@
           editingCard = null;
           front = "";
           back = "";
+          frontLanguage = "";
+          backLanguage = "";
           reasoning = "";
           tags = [];
           tagInput = "";
@@ -879,7 +949,7 @@
               <div class="grid grid-cols-2 gap-4">
                 <div>
                   <div class="flex items-center gap-2 mb-0.5">
-                    <span class="text-xs font-medium text-secondary uppercase tracking-wide">Frage</span>
+                    <span class="text-xs font-medium text-secondary uppercase tracking-wide">Frage{card.front_language ? ` · ${languageLabel(card.front_language)}` : ""}</span>
                     {#if card.card_type === 'multiple_choice'}
                       <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30">🔘 MC</span>
                     {:else if card.card_type === 'ordering'}
@@ -888,11 +958,11 @@
                       <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30">🧩 Cloze</span>
                     {/if}
                   </div>
-                  <p class="font-card text-primary dark:text-primary-dark mt-0.5 max-h-20 overflow-hidden">{@html renderMarkdown(card.front)}</p>
+                  <p class="{cardFontClass} text-primary dark:text-primary-dark mt-0.5 max-h-20 overflow-hidden">{@html renderMarkdown(card.front)}</p>
                 </div>
                 <div>
-                  <span class="text-xs font-medium text-secondary uppercase tracking-wide">Antwort</span>
-                  <p class="font-card text-primary dark:text-primary-dark mt-0.5 max-h-20 overflow-hidden">{@html renderMarkdown(card.back)}</p>
+                  <span class="text-xs font-medium text-secondary uppercase tracking-wide">Antwort{card.back_language ? ` · ${languageLabel(card.back_language)}` : ""}</span>
+                  <p class="{cardFontClass} text-primary dark:text-primary-dark mt-0.5 max-h-20 overflow-hidden">{@html renderMarkdown(card.back)}</p>
                 </div>
               </div>
               {#if card.tags && card.tags.length > 0}

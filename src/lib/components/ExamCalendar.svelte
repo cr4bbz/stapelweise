@@ -109,8 +109,8 @@
   let allExamTypes = $derived(Array.from(new Set([...examTypes, ...customExamTypes])));
 </script>
 
-<div class="pb-6">
-  <div class="flex flex-col gap-3 mb-4 sm:flex-row sm:items-center sm:justify-between">
+<section>
+  <div class="section-header">
     <h2 class="section-heading">
       Prüfungen & Ziele
     </h2>
@@ -284,4 +284,4 @@
       {/each}
     </div>
   {/if}
-</div>
+</section>

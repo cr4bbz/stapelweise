@@ -1,9 +1,9 @@
 mod commands;
 mod db;
+pub mod mcp;
 mod seed;
 mod srs;
 pub mod test_engine;
-pub mod mcp;
 
 use db::Database;
 use tauri::Manager;
@@ -19,8 +19,7 @@ pub fn run() {
                 .app_data_dir()
                 .expect("failed to resolve app data dir");
 
-            let database =
-                Database::new(app_data_dir).expect("failed to initialize database");
+            let database = Database::new(app_data_dir).expect("failed to initialize database");
 
             app.manage(db::DbState::new(database));
             Ok(())
@@ -81,8 +80,7 @@ pub fn run_mcp() {
                 .app_data_dir()
                 .expect("failed to resolve app data dir");
 
-            let database =
-                Database::new(app_data_dir).expect("failed to initialize database");
+            let database = Database::new(app_data_dir).expect("failed to initialize database");
 
             std::thread::spawn(move || {
                 mcp::run_mcp_loop(database);

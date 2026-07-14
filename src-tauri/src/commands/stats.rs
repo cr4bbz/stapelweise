@@ -1,6 +1,6 @@
+use super::CommandError;
 use crate::db::models::{DashboardStats, DeckStats};
 use crate::db::DbState;
-use super::CommandError;
 use chrono::Local;
 use tauri::State;
 

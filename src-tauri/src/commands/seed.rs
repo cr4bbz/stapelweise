@@ -1,7 +1,7 @@
-use crate::db::DbState;
-use crate::db::models::Deck;
-use crate::seed::SeedGenerator;
 use super::CommandError;
+use crate::db::models::Deck;
+use crate::db::DbState;
+use crate::seed::SeedGenerator;
 use tauri::State;
 
 #[tauri::command(rename_all = "camelCase")]

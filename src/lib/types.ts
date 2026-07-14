@@ -23,6 +23,8 @@ export interface BaseCard {
   reasoning: string | null;
   front: string;
   back: string;
+  front_language: string | null;
+  back_language: string | null;
   tags: string[];
   created_at: string;
   updated_at: string;
@@ -53,6 +55,8 @@ export type Card = BasicCard | ClozeCard | MultipleChoiceCard | FreeTextCard | O
 export interface JsonCardInput {
   front: string;
   back: string;
+  front_language?: string | null;
+  back_language?: string | null;
   card_type?: CardType;
   content?: string | null;
   reasoning?: string | null;
@@ -112,6 +116,10 @@ export interface AppSettings {
   theme: "light" | "dark" | "auto";
   card_font_family: "serif" | "sans";
   card_font_size: "small" | "medium" | "large";
+  learning_animations: boolean;
+  card_flip_animation: boolean;
+  control_transition_animation: boolean;
+  rating_buttons_animation: boolean;
   session_limit: number;
   sm2_initial_ef: number;
   sm2_pass_threshold: number;

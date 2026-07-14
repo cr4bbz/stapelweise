@@ -1,10 +1,16 @@
-use crate::db::DbState;
-use crate::db::models::{Card, CardState, Review, SearchResult};
-use crate::srs::sm2;
 use super::CommandError;
-use chrono::{Utc, Local, NaiveDate};
+use crate::db::models::{Card, CardState, Review, SearchResult};
+use crate::db::DbState;
+use crate::srs::sm2;
+use chrono::{Local, NaiveDate, Utc};
 use tauri::State;
 use uuid::Uuid;
+
+fn normalize_language(value: Option<String>) -> Option<String> {
+    value
+        .map(|language| language.trim().replace('_', "-").to_lowercase())
+        .filter(|language| !language.is_empty())
+}
 
 // ── Card CRUD ────────────────────────────────────────
 
@@ -18,17 +24,40 @@ pub fn create_card(
     front: String,
     back: String,
     tags: Option<Vec<String>>,
+    front_language: Option<String>,
+    back_language: Option<String>,
 ) -> Result<Card, CommandError> {
-    let db = state.lock().map_err(|e| CommandError::from(format!("Lock error: {}", e)))?;
+    let db = state
+        .lock()
+        .map_err(|e| CommandError::from(format!("Lock error: {}", e)))?;
     let c_type = card_type.unwrap_or_else(|| "basic".to_string());
     let tags_vec = tags.unwrap_or_default();
-    let card = db.repo.create_card(&deck_id, &c_type, content.as_deref(), reasoning.as_deref(), &front, &back, tags_vec)?;
+    let front_language = normalize_language(front_language);
+    let back_language = normalize_language(back_language);
+    let mut card = db.repo.create_card(
+        &deck_id,
+        &c_type,
+        content.as_deref(),
+        reasoning.as_deref(),
+        &front,
+        &back,
+        tags_vec,
+    )?;
+    db.repo.update_card_languages(
+        &card.id,
+        front_language.as_deref(),
+        back_language.as_deref(),
+    )?;
+    card.front_language = front_language;
+    card.back_language = back_language;
     Ok(card)
 }
 
 #[tauri::command(rename_all = "camelCase")]
 pub fn list_cards(state: State<DbState>, deck_id: String) -> Result<Vec<Card>, CommandError> {
-    let db = state.lock().map_err(|e| CommandError::from(format!("Lock error: {}", e)))?;
+    let db = state
+        .lock()
+        .map_err(|e| CommandError::from(format!("Lock error: {}", e)))?;
     let cards = db.repo.list_cards(&deck_id)?;
     Ok(cards)
 }
@@ -43,31 +72,59 @@ pub fn update_card(
     front: String,
     back: String,
     tags: Option<Vec<String>>,
+    front_language: Option<String>,
+    back_language: Option<String>,
 ) -> Result<(), CommandError> {
-    let db = state.lock().map_err(|e| CommandError::from(format!("Lock error: {}", e)))?;
+    let db = state
+        .lock()
+        .map_err(|e| CommandError::from(format!("Lock error: {}", e)))?;
     let c_type = card_type.unwrap_or_else(|| "basic".to_string());
     let tags_vec = tags.unwrap_or_default();
-    db.repo.update_card(&card_id, &c_type, content.as_deref(), reasoning.as_deref(), &front, &back, tags_vec)?;
+    db.repo.update_card(
+        &card_id,
+        &c_type,
+        content.as_deref(),
+        reasoning.as_deref(),
+        &front,
+        &back,
+        tags_vec,
+    )?;
+    let front_language = normalize_language(front_language);
+    let back_language = normalize_language(back_language);
+    db.repo.update_card_languages(
+        &card_id,
+        front_language.as_deref(),
+        back_language.as_deref(),
+    )?;
     Ok(())
 }
 
 #[tauri::command(rename_all = "camelCase")]
 pub fn delete_card(state: State<DbState>, card_id: String) -> Result<(), CommandError> {
-    let db = state.lock().map_err(|e| CommandError::from(format!("Lock error: {}", e)))?;
+    let db = state
+        .lock()
+        .map_err(|e| CommandError::from(format!("Lock error: {}", e)))?;
     db.repo.delete_card(&card_id)?;
     Ok(())
 }
 
 #[tauri::command(rename_all = "camelCase")]
-pub fn get_card_state(state: State<DbState>, card_id: String) -> Result<Option<CardState>, CommandError> {
-    let db = state.lock().map_err(|e| CommandError::from(format!("Lock error: {}", e)))?;
+pub fn get_card_state(
+    state: State<DbState>,
+    card_id: String,
+) -> Result<Option<CardState>, CommandError> {
+    let db = state
+        .lock()
+        .map_err(|e| CommandError::from(format!("Lock error: {}", e)))?;
     let state = db.repo.get_card_state(&card_id)?;
     Ok(state)
 }
 
 #[tauri::command(rename_all = "camelCase")]
 pub fn get_all_tags(state: State<DbState>) -> Result<Vec<String>, CommandError> {
-    let db = state.lock().map_err(|e| CommandError::from(format!("Lock error: {}", e)))?;
+    let db = state
+        .lock()
+        .map_err(|e| CommandError::from(format!("Lock error: {}", e)))?;
     let tags = db.repo.get_all_tags()?;
     Ok(tags)
 }
@@ -87,7 +144,9 @@ pub fn get_due_cards(
     deck_ids: Vec<String>,
     limit: u32,
 ) -> Result<Vec<DueCard>, CommandError> {
-    let db = state.lock().map_err(|e| CommandError::from(format!("Lock error: {}", e)))?;
+    let db = state
+        .lock()
+        .map_err(|e| CommandError::from(format!("Lock error: {}", e)))?;
     let settings = db.settings();
     let effective_limit = limit.min(settings.session_limit);
     let cards = db.repo.get_due_cards(&deck_ids, effective_limit)?;
@@ -103,7 +162,9 @@ pub fn get_due_cards_by_tags(
     tags: Vec<String>,
     limit: u32,
 ) -> Result<Vec<DueCard>, CommandError> {
-    let db = state.lock().map_err(|e| CommandError::from(format!("Lock error: {}", e)))?;
+    let db = state
+        .lock()
+        .map_err(|e| CommandError::from(format!("Lock error: {}", e)))?;
     let settings = db.settings();
     let effective_limit = limit.min(settings.session_limit);
     let cards = db.repo.get_due_cards_by_tags(&tags, effective_limit)?;
@@ -115,14 +176,18 @@ pub fn get_due_cards_by_tags(
 
 #[tauri::command(rename_all = "camelCase")]
 pub fn count_due_cards(state: State<DbState>, deck_id: String) -> Result<u32, CommandError> {
-    let db = state.lock().map_err(|e| CommandError::from(format!("Lock error: {}", e)))?;
+    let db = state
+        .lock()
+        .map_err(|e| CommandError::from(format!("Lock error: {}", e)))?;
     let count = db.repo.count_due_cards(&deck_id)?;
     Ok(count)
 }
 
 #[tauri::command(rename_all = "camelCase")]
 pub fn count_total_cards(state: State<DbState>, deck_id: String) -> Result<u32, CommandError> {
-    let db = state.lock().map_err(|e| CommandError::from(format!("Lock error: {}", e)))?;
+    let db = state
+        .lock()
+        .map_err(|e| CommandError::from(format!("Lock error: {}", e)))?;
     let count = db.repo.count_total_cards(&deck_id)?;
     Ok(count)
 }
@@ -137,7 +202,9 @@ pub fn submit_review(
         return Err(CommandError::validation("quality must be 0-5"));
     }
 
-    let db = state.lock().map_err(|e| CommandError::from(format!("Lock error: {}", e)))?;
+    let db = state
+        .lock()
+        .map_err(|e| CommandError::from(format!("Lock error: {}", e)))?;
     let now = Utc::now();
     let today = Local::now().date_naive();
 
@@ -155,15 +222,13 @@ pub fn submit_review(
         interval: current_state.interval,
         ease_factor: current_state.ease_factor,
         repetitions: current_state.repetitions,
-        next_review: NaiveDate::parse_from_str(
-            &current_state.next_review,
-            "%Y-%m-%d",
-        )
-        .unwrap_or(today),
+        next_review: NaiveDate::parse_from_str(&current_state.next_review, "%Y-%m-%d")
+            .unwrap_or(today),
     };
 
     // Advance via SM-2 with user config
-    let next = sm2::sm2_advance(&sm2_input, quality, today, &sm2_config).map_err(CommandError::from)?;
+    let next =
+        sm2::sm2_advance(&sm2_input, quality, today, &sm2_config).map_err(CommandError::from)?;
 
     let now_str = now.format("%Y-%m-%dT%H:%M:%S").to_string();
 
@@ -204,18 +269,28 @@ pub fn submit_review(
 }
 
 #[tauri::command(rename_all = "camelCase")]
-pub fn undo_last_review(state: State<DbState>, deck_id: String) -> Result<Option<DueCard>, CommandError> {
-    let db = state.lock().map_err(|e| CommandError::from(format!("Lock error: {}", e)))?;
+pub fn undo_last_review(
+    state: State<DbState>,
+    deck_id: String,
+) -> Result<Option<DueCard>, CommandError> {
+    let db = state
+        .lock()
+        .map_err(|e| CommandError::from(format!("Lock error: {}", e)))?;
     let restored = db.repo.undo_last_review(&deck_id)?;
     Ok(restored.map(|(card, state)| DueCard { card, state }))
 }
 
 #[tauri::command(rename_all = "camelCase")]
-pub fn search_cards(state: State<DbState>, query: String) -> Result<Vec<SearchResult>, CommandError> {
+pub fn search_cards(
+    state: State<DbState>,
+    query: String,
+) -> Result<Vec<SearchResult>, CommandError> {
     if query.trim().is_empty() {
         return Ok(vec![]);
     }
-    let db = state.lock().map_err(|e| CommandError::from(format!("Lock error: {}", e)))?;
+    let db = state
+        .lock()
+        .map_err(|e| CommandError::from(format!("Lock error: {}", e)))?;
     let results = db.repo.search_cards(&query)?;
     Ok(results)
 }

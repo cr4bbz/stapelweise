@@ -285,6 +285,8 @@
             <FlashCard
               front={testCards[currentIndex].front}
               back={testCards[currentIndex].back}
+              frontLanguage={testCards[currentIndex].front_language}
+              backLanguage={testCards[currentIndex].back_language}
               reasoning={testCards[currentIndex].reasoning}
               tags={testCards[currentIndex].tags}
               flipped={isFlipped}

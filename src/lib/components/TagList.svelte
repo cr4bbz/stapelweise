@@ -29,7 +29,7 @@
 </script>
 
 {#if tags.length > 0}
-  <div class="pb-5">
+  <div>
     <div class="surface-panel p-4">
       <div class="flex items-center justify-between mb-3">
         <span class="section-kicker">
@@ -62,6 +62,14 @@
       </div>
     </div>
   </div>
+{:else}
+  <section class="surface-panel p-4">
+    <div class="mb-3 flex items-center justify-between">
+      <h2 class="section-heading">Tags</h2>
+      <span class="section-kicker">0</span>
+    </div>
+    <p class="text-sm text-secondary">Tags erscheinen hier, sobald du sie einer Karte zuweist.</p>
+  </section>
 {/if}
 
 <style>

@@ -35,7 +35,8 @@ pub fn evaluate_answer(
                 if let Ok(mc) = serde_json::from_str::<MultipleChoiceContent>(json_str) {
                     // Expecting user_answer to be newline-separated or JSON array of selected texts
                     let user_selected: Vec<String> = if clean_user.starts_with('[') {
-                        serde_json::from_str(clean_user).unwrap_or_else(|_| vec![clean_user.to_string()])
+                        serde_json::from_str(clean_user)
+                            .unwrap_or_else(|_| vec![clean_user.to_string()])
                     } else {
                         clean_user.lines().map(|s| s.trim().to_string()).collect()
                     };
@@ -85,7 +86,8 @@ pub fn evaluate_answer(
                             .collect()
                     };
 
-                    let expected_items: Vec<String> = ord.items.iter().map(|s| s.trim().to_string()).collect();
+                    let expected_items: Vec<String> =
+                        ord.items.iter().map(|s| s.trim().to_string()).collect();
                     let is_exact = user_items == expected_items;
                     return (is_exact, if is_exact { 1.0 } else { 0.0 });
                 }
@@ -169,7 +171,12 @@ mod tests {
     #[test]
     fn test_eval_ordering() {
         let json = r#"{"items":["Step 1","Step 2","Step 3"]}"#;
-        let (ok, score) = evaluate_answer("ordering", "", Some(json), "1. Step 1\n2. Step 2\n3. Step 3");
+        let (ok, score) = evaluate_answer(
+            "ordering",
+            "",
+            Some(json),
+            "1. Step 1\n2. Step 2\n3. Step 3",
+        );
         assert!(ok);
         assert_eq!(score, 1.0);
     }

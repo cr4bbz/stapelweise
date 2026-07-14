@@ -1,24 +1,31 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, tick } from "svelte";
   import { settingsStore } from "$lib/stores/settings.svelte";
   import { renderMarkdown } from "$lib/markdown";
+  import { languageLabel } from "$lib/languages";
 
   let {
     front = "",
     back = "",
+    frontLanguage = null,
+    backLanguage = null,
     reasoning = null,
     tags = [],
     flipped = false,
     cardType = "basic",
     content = null,
+    onTurnComplete = () => {},
   } = $props<{
     front?: string;
     back?: string;
+    frontLanguage?: string | null;
+    backLanguage?: string | null;
     reasoning?: string | null;
     tags?: string[];
     flipped?: boolean;
     cardType?: string;
     content?: string | null;
+    onTurnComplete?: (flipped: boolean) => void;
   }>();
 
   let zoomedImageSrc = $state<string | null>(null);
@@ -142,19 +149,87 @@
 
   let sizeClass = $derived(settingsStore.fontSizeClass(settingsStore.current.card_font_size, shortCard));
   let familyClass = $derived(settingsStore.fontFamilyClass(settingsStore.current.card_font_family));
+  let displayedFlipped = $state(false);
+  let rotation = $state(0);
+  let turnTransition = $state("none");
+  let animationToken = 0;
+  let requestedFlipped = false;
+
+  const wait = (duration: number) => new Promise<void>((resolve) => setTimeout(resolve, duration));
+
+  async function animateFlip(target: boolean) {
+    const token = ++animationToken;
+    const direction = target ? 1 : -1;
+
+    turnTransition = "transform 170ms cubic-bezier(0.4, 0, 1, 1)";
+    rotation = direction * 90;
+    await wait(170);
+    if (token !== animationToken) return;
+
+    turnTransition = "none";
+    displayedFlipped = target;
+    rotation = direction * -90;
+    await tick();
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    if (token !== animationToken) return;
+
+    turnTransition = "transform 220ms cubic-bezier(0, 0, 0.2, 1)";
+    rotation = 0;
+    await wait(220);
+    if (token === animationToken) onTurnComplete(target);
+  }
+
+  $effect(() => {
+    const target = flipped;
+    const animationsEnabled = settingsStore.cardFlipAnimationEnabled();
+
+    if (!animationsEnabled) {
+      animationToken += 1;
+      requestedFlipped = target;
+      displayedFlipped = target;
+      turnTransition = "none";
+      rotation = 0;
+      onTurnComplete(target);
+      return;
+    }
+
+    if (target === requestedFlipped) return;
+
+    requestedFlipped = target;
+    if (target === displayedFlipped) {
+      animationToken += 1;
+      turnTransition = "transform 160ms cubic-bezier(0, 0, 0.2, 1)";
+      rotation = 0;
+      return;
+    }
+
+    void animateFlip(target);
+  });
 </script>
 
-<div class="card-flip w-full max-w-2xl mx-auto h-80">
-  <div class="card-flip-inner relative w-full h-full {flipped ? 'flipped' : ''}">
+<div class="relative mx-auto h-80 w-full max-w-2xl [perspective:1400px]" aria-live="polite">
+  {#if !displayedFlipped}
     <!-- Front -->
-    <div class="card-front absolute inset-0 glass-card rounded-card p-6 flex flex-col items-center justify-between shadow-elevation-mid overflow-y-auto">
-      {#if tags.length > 0}
-        <div class="w-full flex flex-wrap gap-1 justify-center shrink-0 mb-2">
+    <div
+      class="glass-card flex h-full w-full flex-col items-center justify-between overflow-y-auto rounded-card p-6 shadow-elevation-mid [backface-visibility:hidden] [will-change:transform]"
+      style:transform="rotateY({rotation}deg)"
+      style:transition={turnTransition}
+    >
+      <div class="mb-2 flex w-full shrink-0 items-start justify-between gap-3">
+        <div class="flex items-center gap-2">
+          <span class="section-kicker pt-0.5">Frage</span>
+          {#if frontLanguage}
+            <span class="rounded border border-accent-correct/30 bg-accent-correct/10 px-1.5 py-0.5 text-[10px] font-medium text-accent-correct">{languageLabel(frontLanguage)}</span>
+          {/if}
+        </div>
+        {#if tags.length > 0}
+          <div class="flex flex-wrap justify-end gap-1">
           {#each tags as tag}
             <span class="inline-flex items-center bg-white/10 text-secondary px-2 py-0.5 rounded text-[10px] font-medium tracking-wide">#{tag}</span>
           {/each}
-        </div>
-      {/if}
+          </div>
+        {/if}
+      </div>
 
       <!-- Front Prompt -->
       <div class="flex-1 flex items-center justify-center w-full my-auto">
@@ -208,16 +283,28 @@
         </div>
       {/if}
     </div>
-
+  {:else}
     <!-- Back -->
-    <div class="card-back absolute inset-0 glass-card rounded-card p-6 flex flex-col items-center justify-between shadow-elevation-mid overflow-y-auto">
-      {#if tags.length > 0}
-        <div class="w-full flex flex-wrap gap-1 justify-center shrink-0 mb-2">
+    <div
+      class="glass-card flex h-full w-full flex-col items-center justify-between overflow-y-auto rounded-card p-6 shadow-elevation-mid [backface-visibility:hidden] [will-change:transform]"
+      style:transform="rotateY({rotation}deg)"
+      style:transition={turnTransition}
+    >
+      <div class="mb-2 flex w-full shrink-0 items-start justify-between gap-3">
+        <div class="flex items-center gap-2">
+          <span class="section-kicker pt-0.5">{isMultipleChoice || isOrdering ? "Lösung" : "Antwort"}</span>
+          {#if backLanguage}
+            <span class="rounded border border-accent-correct/30 bg-accent-correct/10 px-1.5 py-0.5 text-[10px] font-medium text-accent-correct">{languageLabel(backLanguage)}</span>
+          {/if}
+        </div>
+        {#if tags.length > 0}
+          <div class="flex flex-wrap justify-end gap-1">
           {#each tags as tag}
             <span class="inline-flex items-center bg-white/10 text-secondary px-2 py-0.5 rounded text-[10px] font-medium tracking-wide">#{tag}</span>
           {/each}
-        </div>
-      {/if}
+          </div>
+        {/if}
+      </div>
 
       <!-- Multiple Choice Feedback (Back View) -->
       {#if isMultipleChoice && mcOptions.length > 0}
@@ -270,7 +357,7 @@
         </div>
       {/if}
     </div>
-  </div>
+  {/if}
 </div>
 
 <!-- Image Zoom Modal -->

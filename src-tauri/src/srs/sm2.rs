@@ -36,7 +36,9 @@ impl Sm2State {
     pub fn new(today: NaiveDate, config: &Sm2Config) -> Self {
         Self {
             interval: 0,
-            ease_factor: config.initial_ease_factor.clamp(config.min_ease_factor, 5.0),
+            ease_factor: config
+                .initial_ease_factor
+                .clamp(config.min_ease_factor, 5.0),
             repetitions: 0,
             next_review: today,
         }
@@ -55,7 +57,12 @@ impl Sm2State {
 ///
 /// Today's date is passed in explicitly so this function stays pure
 /// (no system clock dependency).
-pub fn sm2_advance(state: &Sm2State, quality: u8, today: NaiveDate, config: &Sm2Config) -> Result<Sm2State, String> {
+pub fn sm2_advance(
+    state: &Sm2State,
+    quality: u8,
+    today: NaiveDate,
+    config: &Sm2Config,
+) -> Result<Sm2State, String> {
     if quality > 5 {
         return Err("quality must be 0-5".to_string());
     }

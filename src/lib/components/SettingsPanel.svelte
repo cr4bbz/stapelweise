@@ -2,12 +2,19 @@
   import * as api from "$lib/api";
   import { deckStore } from "$lib/stores/decks.svelte";
   import { settingsStore } from "$lib/stores/settings.svelte";
+  import type { AppSettings } from "$lib/types";
 
   let { onClose = () => {} } = $props<{
     onClose?: () => void;
   }>();
 
   const s = settingsStore;
+  type AnimationSetting = "card_flip_animation" | "control_transition_animation" | "rating_buttons_animation";
+  const animationOptions: { key: AnimationSetting; label: string }[] = [
+    { key: "card_flip_animation", label: "Karten wenden" },
+    { key: "control_transition_animation", label: "Bedienelemente wechseln" },
+    { key: "rating_buttons_animation", label: "Bewertungstasten einblenden" },
+  ];
 
   $effect(() => {
     s.load();
@@ -39,13 +46,17 @@
       default: return String(v);
     }
   }
+
+  function toggleAnimation(key: AnimationSetting) {
+    s.save({ [key]: !s.current[key] } as Partial<AppSettings>);
+  }
 </script>
 
 <svelte:window onkeydown={handleKeydown} />
 
 <div class="flex flex-col h-full">
   <!-- Header -->
-  <div class="flex items-center gap-3 p-6 pb-4">
+  <div class="app-container flex items-center gap-3 pt-6 pb-4 sm:pt-8">
     <button
       onclick={onClose}
       class="p-2 rounded-lg hover:bg-white/30 dark:hover:bg-white/10 text-secondary transition-colors"
@@ -60,7 +71,7 @@
     </h1>
   </div>
 
-  <div class="flex-1 overflow-y-auto px-6 pb-6 space-y-8">
+  <div class="app-container flex-1 overflow-y-auto pb-8 space-y-8">
     <!-- Section: Erscheinungsbild -->
     <section>
       <h2 class="text-sm font-semibold text-secondary uppercase tracking-wider mb-4">Erscheinungsbild</h2>
@@ -121,6 +132,49 @@
               >
                 {size === "small" ? "Klein" : size === "medium" ? "Mittel" : "Groß"}
               </button>
+            {/each}
+          </div>
+        </div>
+
+        <!-- Learning Animations -->
+        <div class="max-w-2xl space-y-3 pt-1">
+          <div class="flex items-center justify-between gap-6">
+            <div>
+              <span class="text-sm font-medium text-primary dark:text-primary-dark">Lernanimationen</span>
+              <p class="text-xs text-secondary">Alle Bewegungen im Lernmodus.</p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={s.current.learning_animations}
+              aria-label="Alle Lernanimationen"
+              onclick={() => s.save({ learning_animations: !s.current.learning_animations })}
+              class="relative h-6 w-11 shrink-0 rounded-full transition-colors {s.current.learning_animations ? 'bg-accent-correct' : 'bg-secondary/35'}"
+            >
+              <span
+                class="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform {s.current.learning_animations ? 'translate-x-5' : 'translate-x-0'}"
+              ></span>
+            </button>
+          </div>
+
+          <div class="ml-2 space-y-2 border-l border-secondary/20 pl-4 {s.current.learning_animations ? '' : 'opacity-45'}">
+            {#each animationOptions as option}
+              <div class="flex min-h-8 items-center justify-between gap-6">
+                <span class="text-xs font-medium text-primary dark:text-primary-dark">{option.label}</span>
+                <button
+                  type="button"
+                  role="switch"
+                  disabled={!s.current.learning_animations}
+                  aria-checked={s.current[option.key]}
+                  aria-label={option.label}
+                  onclick={() => toggleAnimation(option.key)}
+                  class="relative h-5 w-9 shrink-0 rounded-full transition-colors disabled:cursor-not-allowed {s.current[option.key] ? 'bg-accent-correct' : 'bg-secondary/35'}"
+                >
+                  <span
+                    class="absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-transform {s.current[option.key] ? 'translate-x-4' : 'translate-x-0'}"
+                  ></span>
+                </button>
+              </div>
             {/each}
           </div>
         </div>
@@ -287,7 +341,7 @@
         <!-- Beispieldaten -->
         <div>
           <span class="text-sm font-medium text-primary dark:text-primary-dark">Beispieldaten</span>
-          <p class="text-xs text-secondary mb-3">Lade 3 thematische Muster-Stapel (Grammatik, Geschichte, Biologie) mit verschiedenen Lernzuständen in deine Bibliothek, um die App zu testen.</p>
+          <p class="text-xs text-secondary mb-3">Lade 4 thematische Muster-Stapel (Grammatik, Geschichte, Biologie sowie Logik & Mengenlehre) mit verschiedenen Lernzuständen und Kartentypen in deine Bibliothek.</p>
           <button
             onclick={async () => {
               try {

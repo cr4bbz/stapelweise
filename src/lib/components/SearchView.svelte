@@ -4,8 +4,10 @@
   import EmptyState from "./EmptyState.svelte";
   import { renderMarkdown } from "$lib/markdown";
   import { fade } from "svelte/transition";
+  import { settingsStore } from "$lib/stores/settings.svelte";
 
-  let { onClose = () => {}, onSelectCard = (_deckId: string) => {} } = $props<{
+  let { initialQuery = "", onClose = () => {}, onSelectCard = (_deckId: string) => {} } = $props<{
+    initialQuery?: string;
     onClose?: () => void;
     onSelectCard?: (deckId: string) => void;
   }>();
@@ -15,9 +17,17 @@
   let searched = $state(false);
   let loading = $state(false);
   let inputEl = $state<HTMLInputElement | null>(null);
+  let initialSearchStarted = false;
+  let cardFontClass = $derived(settingsStore.fontFamilyClass(settingsStore.current.card_font_family));
 
   $effect(() => {
+    settingsStore.load();
     inputEl?.focus();
+    if (initialQuery.trim() && !initialSearchStarted) {
+      initialSearchStarted = true;
+      query = initialQuery;
+      void doSearch();
+    }
   });
 
   async function doSearch() {
@@ -114,11 +124,11 @@
               <div class="grid grid-cols-2 gap-4">
                 <div>
                   <span class="text-xs font-medium text-secondary uppercase tracking-wide">Frage</span>
-                  <div class="font-card text-primary dark:text-primary-dark mt-0.5 line-clamp-2">{@html renderMarkdown(result.card.front)}</div>
+                  <div class="{cardFontClass} text-primary dark:text-primary-dark mt-0.5 line-clamp-2">{@html renderMarkdown(result.card.front)}</div>
                 </div>
                 <div>
                   <span class="text-xs font-medium text-secondary uppercase tracking-wide">Antwort</span>
-                  <div class="font-card text-primary dark:text-primary-dark mt-0.5 line-clamp-2">{@html renderMarkdown(result.card.back)}</div>
+                  <div class="{cardFontClass} text-primary dark:text-primary-dark mt-0.5 line-clamp-2">{@html renderMarkdown(result.card.back)}</div>
                 </div>
               </div>
               {#if result.card.tags && result.card.tags.length > 0}

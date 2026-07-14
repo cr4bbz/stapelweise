@@ -1,6 +1,6 @@
 <script lang="ts">
   import { deckStore } from "$lib/stores/decks.svelte";
-  import { studyStore } from "$lib/stores/study.svelte";
+  import { settingsStore } from "$lib/stores/settings.svelte";
   import EmptyState from "./EmptyState.svelte";
   import ErrorBanner from "./ErrorBanner.svelte";
   import ConfirmDialog from "./ConfirmDialog.svelte";
@@ -12,11 +12,17 @@
   let {
     onSelectDeck = (_deck: Deck) => {},
     onStudyDeck = (_deck: Deck) => {},
+    onPracticeDeck = (_deck: Deck) => {},
     onStudyDecks = (_decks: Deck[]) => {},
+    onLibraryChanged = () => {},
+    refreshToken = 0,
   } = $props<{
     onSelectDeck?: (deck: Deck) => void;
     onStudyDeck?: (deck: Deck) => void;
+    onPracticeDeck?: (deck: Deck) => void;
     onStudyDecks?: (decks: Deck[]) => void;
+    onLibraryChanged?: () => void;
+    refreshToken?: number;
   }>();
 
   let showNewDeck = $state(false);
@@ -31,17 +37,22 @@
   let newDeckInput = $state<HTMLInputElement | null>(null);
   let editingDeckInput = $state<HTMLInputElement | null>(null);
   let importInput = $state<HTMLInputElement | null>(null);
+  let appliedRefreshToken = -1;
 
   const store = deckStore;
+  let cardFontClass = $derived(settingsStore.fontFamilyClass(settingsStore.current.card_font_family));
 
   async function loadCounts() {
     const missing = store.decks.filter(d => !(d.id in totalCounts));
     if (missing.length === 0) return;
     await Promise.all(missing.map(async (deck) => {
       try {
-        await studyStore.loadCounts(deck.id);
-        dueCounts = { ...dueCounts, [deck.id]: studyStore.dueCount };
-        totalCounts = { ...totalCounts, [deck.id]: studyStore.totalCount };
+        const [due, total] = await Promise.all([
+          api.countDueCards(deck.id),
+          api.countTotalCards(deck.id),
+        ]);
+        dueCounts = { ...dueCounts, [deck.id]: due };
+        totalCounts = { ...totalCounts, [deck.id]: total };
       } catch {
         // If counting fails, it's fine — the deck might be new
       }
@@ -49,6 +60,12 @@
   }
 
   $effect(() => {
+    settingsStore.load();
+    if (refreshToken !== appliedRefreshToken) {
+      appliedRefreshToken = refreshToken;
+      dueCounts = {};
+      totalCounts = {};
+    }
     if (store.decks.length > 0) {
       loadCounts();
     }
@@ -111,6 +128,7 @@
     error = null;
     try {
       await store.remove(deck.id);
+      onLibraryChanged();
       const { [deck.id]: _, ...rest } = dueCounts;
       dueCounts = rest;
       const { [deck.id]: __, ...rest2 } = totalCounts;
@@ -148,6 +166,7 @@
       
       await store.load();
       await loadCounts();
+      onLibraryChanged();
     } catch (err: any) {
       error = "Fehler beim Importieren: " + (err?.toString() || "");
     }
@@ -163,6 +182,7 @@
     try {
       await store.seed();
       await loadCounts();
+      onLibraryChanged();
     } catch (e: any) {
       error = e?.toString() || "Fehler beim Laden der Beispieldaten";
     }
@@ -176,9 +196,12 @@
         cards: cards.map(c => ({
           front: c.front,
           back: c.back,
+          front_language: c.front_language,
+          back_language: c.back_language,
           reasoning: c.reasoning,
           tags: c.tags,
-          card_type: c.card_type
+          card_type: c.card_type,
+          content: c.content
         }))
       };
       const json = JSON.stringify(exportData, null, 2);
@@ -199,12 +222,12 @@
 
 <svelte:window onkeydown={handleKeydown} />
 
-<div class="flex flex-col">
+<section class="flex flex-col">
   <!-- Header -->
-  <div class="flex flex-col gap-3 pb-4 sm:flex-row sm:items-center sm:justify-between">
-    <h1 class="text-xl font-bold text-primary dark:text-primary-dark">
+  <div class="section-header">
+    <h2 class="section-heading">
       Deine Stapel
-    </h1>
+    </h2>
     <div class="flex flex-wrap gap-2">
       {#if selectedDeckIds.size > 0}
         <button
@@ -334,7 +357,7 @@
                     bind:this={editingDeckInput}
                     type="text"
                     bind:value={editingName}
-                    class="w-[85%] bg-transparent border-b-2 border-accent-correct outline-none text-xl font-bold text-primary dark:text-primary-dark pb-0.5"
+                    class="{cardFontClass} w-[85%] bg-transparent border-b-2 border-accent-correct outline-none text-xl text-primary dark:text-primary-dark pb-0.5"
                     onkeydown={(e) => {
                       if (e.key === "Enter") handleRename();
                       if (e.key === "Escape") editingDeckId = null;
@@ -342,7 +365,7 @@
                     onclick={(e) => e.stopPropagation()}
                   />
                 {:else}
-                  <h3 class="font-card text-lg text-primary dark:text-primary-dark line-clamp-2 w-[85%] leading-tight">
+                  <h3 class="{cardFontClass} text-lg text-primary dark:text-primary-dark line-clamp-2 w-[85%] leading-tight">
                     {deck.name}
                   </h3>
                 {/if}
@@ -359,8 +382,8 @@
                 </div>
               </button>
 
-              <!-- Action buttons -->
-              <div class="flex items-center justify-between gap-1 shrink-0 pt-3 mt-3 border-t border-[#E4E7EC] dark:border-[#2A303B] w-full">
+              <!-- Clear navigation and learning actions -->
+              <div class="flex shrink-0 flex-col gap-2 pt-3 mt-3 border-t border-[#E4E7EC] dark:border-[#2A303B] w-full">
                 {#if editingDeckId === deck.id}
                   <div class="flex gap-2">
                     <button
@@ -373,46 +396,36 @@
                     >Abbrechen</button>
                   </div>
                 {:else}
-                  <div class="flex gap-0.5">
-                    <button
-                      class="icon-button !h-8 !w-8"
-                      title="Stapel umbenennen"
-                      onclick={() => startEdit(deck)}
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                        <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
-                      </svg>
+                  <div class="flex items-center justify-between gap-2">
+                    <button class="secondary-action px-3 py-1.5 text-xs" onclick={() => onSelectDeck(deck)}>
+                      Stapel öffnen
                     </button>
-                    <button
-                      class="icon-button !h-8 !w-8"
-                      title="Stapel exportieren (JSON)"
-                      onclick={() => handleExport(deck)}
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                        <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" />
-                      </svg>
-                    </button>
-                    <button
-                      class="icon-button !h-8 !w-8 hover:!text-accent-incorrect"
-                      title="Stapel löschen"
-                      onclick={() => (deleteConfirmDeck = deck)}
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                        <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
-                      </svg>
-                    </button>
+                    <div class="flex gap-0.5">
+                      <button class="icon-button !h-8 !w-8" title="Stapel umbenennen" onclick={() => startEdit(deck)}>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" /></svg>
+                      </button>
+                      <button class="icon-button !h-8 !w-8" title="Stapel exportieren (JSON)" onclick={() => handleExport(deck)}>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
+                      </button>
+                      <button class="icon-button !h-8 !w-8 hover:!text-accent-incorrect" title="Stapel löschen" onclick={() => (deleteConfirmDeck = deck)}>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" /></svg>
+                      </button>
+                    </div>
                   </div>
                   {#if (totalCounts[deck.id] ?? 0) > 0}
-                    <button
-                      class="primary-action px-4 py-1.5 text-xs ml-auto"
-                      title="Stapel lernen"
-                      onclick={(e) => {
-                        e.stopPropagation();
-                        onStudyDeck(deck);
-                      }}
-                    >
-                      Lernen
-                    </button>
+                    <div class="grid grid-cols-2 gap-2">
+                      {#if (dueCounts[deck.id] ?? 0) > 0}
+                        <button class="primary-action px-3 py-1.5 text-xs" onclick={() => onStudyDeck(deck)}>
+                          Fällige lernen
+                        </button>
+                      {/if}
+                      <button
+                        class="{(dueCounts[deck.id] ?? 0) > 0 ? 'secondary-action' : 'primary-action col-span-2'} px-3 py-1.5 text-xs"
+                        onclick={() => onPracticeDeck(deck)}
+                      >
+                        Frei lernen
+                      </button>
+                    </div>
                   {/if}
                 {/if}
               </div>
@@ -423,7 +436,7 @@
       </div>
     {/if}
   </div>
-</div>
+</section>
 
 {#if deleteConfirmDeck}
   <ConfirmDialog
