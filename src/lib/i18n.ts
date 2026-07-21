@@ -101,6 +101,10 @@ const studyTranslations: Record<UiLanguage, Record<string, string>> = {
     mathInvalidInput: "Der Ausdruck konnte nicht gelesen werden.",
     mathUndecidable: "Die Gleichwertigkeit konnte nicht entschieden werden.",
     mathUnavailable: "Die mathematische Pruefung ist gerade nicht verfuegbar.",
+    undoLastRating: "Letzte Bewertung rueckgaengig",
+    endTestTitle: "Test vorzeitig beenden?",
+    endTestMessage: "Nicht beantwortete Karten werden als falsch gewertet.",
+    endTestConfirm: "Test beenden",
   },
   en: {
     scorePassesFrom: "Pass from",
@@ -132,6 +136,10 @@ const studyTranslations: Record<UiLanguage, Record<string, string>> = {
     mathInvalidInput: "The expression could not be read.",
     mathUndecidable: "The equivalence could not be decided.",
     mathUnavailable: "Mathematical checking is unavailable right now.",
+    undoLastRating: "Undo last rating",
+    endTestTitle: "End test early?",
+    endTestMessage: "Unanswered cards will be marked as incorrect.",
+    endTestConfirm: "End test",
   },
   es: {
     scorePassesFrom: "Aprobado desde",
@@ -163,6 +171,10 @@ const studyTranslations: Record<UiLanguage, Record<string, string>> = {
     mathInvalidInput: "No se pudo leer la expresion.",
     mathUndecidable: "No se pudo decidir la equivalencia.",
     mathUnavailable: "La comprobacion matematica no esta disponible ahora.",
+    undoLastRating: "Deshacer ultima valoracion",
+    endTestTitle: "Terminar la prueba antes?",
+    endTestMessage: "Las tarjetas sin responder se marcaran como incorrectas.",
+    endTestConfirm: "Terminar prueba",
   },
   fr: {
     scorePassesFrom: "Reussi a partir de",
@@ -194,6 +206,10 @@ const studyTranslations: Record<UiLanguage, Record<string, string>> = {
     mathInvalidInput: "L'expression n'a pas pu etre lue.",
     mathUndecidable: "L'equivalence n'a pas pu etre decidee.",
     mathUnavailable: "La verification mathematique est indisponible.",
+    undoLastRating: "Annuler la derniere evaluation",
+    endTestTitle: "Terminer le test plus tot ?",
+    endTestMessage: "Les cartes sans reponse seront marquees incorrectes.",
+    endTestConfirm: "Terminer le test",
   },
   pt: {
     scorePassesFrom: "Aprovado a partir de",
@@ -225,6 +241,10 @@ const studyTranslations: Record<UiLanguage, Record<string, string>> = {
     mathInvalidInput: "Nao foi possivel ler a expressao.",
     mathUndecidable: "Nao foi possivel decidir a equivalencia.",
     mathUnavailable: "A verificacao matematica esta indisponivel.",
+    undoLastRating: "Anular a ultima avaliacao",
+    endTestTitle: "Terminar o teste mais cedo?",
+    endTestMessage: "Os cartoes sem resposta serao marcados como incorretos.",
+    endTestConfirm: "Terminar teste",
   },
 };
 

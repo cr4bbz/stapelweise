@@ -1,6 +1,7 @@
 <script lang="ts">
   import { untrack } from "svelte";
   import { fade } from "svelte/transition";
+  import { Undo2 } from "@lucide/svelte";
   import { studyStore } from "$lib/stores/study.svelte";
   import { settingsStore } from "$lib/stores/settings.svelte";
   import * as api from "$lib/api";
@@ -193,6 +194,19 @@
     }
   }
 
+  async function handleUndo() {
+    try {
+      const undone = await s.undo();
+      if (!undone) return;
+      ratingControlsReady = false;
+      showingAnswer = false;
+      ratingMessage = null;
+      onReview();
+    } catch {
+      ratingMessage = t("ratingSaveFailed");
+    }
+  }
+
   async function continueSession() {
     loading = true;
     const hasCards = s.isPractice
@@ -234,6 +248,16 @@
     <h1 class="{cardFontClass} min-w-0 flex-1 truncate text-xl font-normal text-primary dark:text-primary-dark">
       {deckName}
     </h1>
+    <button
+      onclick={handleUndo}
+      disabled={!s.canUndo}
+      class="flex h-8 items-center gap-1 border border-secondary/25 px-2 text-xs text-secondary transition-colors enabled:hover:border-accent-correct enabled:hover:text-accent-correct disabled:cursor-not-allowed disabled:opacity-40"
+      title={t("undoLastRating")}
+      aria-label={t("undoLastRating")}
+    >
+      <Undo2 size={14} />
+      <span class="hidden sm:inline">{t("undoLastRating")}</span>
+    </button>
     <span class="text-xs text-secondary sm:text-sm">
       {s.isPractice ? t("freePractice") : t("learningRound")}
     </span>
@@ -329,7 +353,7 @@
             />
           {/key}
         </div>
-        <div class="flex {activeFreeTextContent ? 'h-80 sm:h-56' : 'h-44 sm:h-28'} w-full shrink-0 flex-col items-center justify-start gap-3">
+        <div class="flex h-80 w-full shrink-0 flex-col items-center justify-start gap-3 sm:h-56">
           {#if activeFreeTextContent && s.currentCard}
             <FreeTextResponse
               value={activeFreeTextAnswer}

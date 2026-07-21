@@ -8,6 +8,7 @@
   import { t } from "$lib/i18n";
   import FlashCard from "./FlashCard.svelte";
   import FreeTextResponse from "./FreeTextResponse.svelte";
+  import ConfirmDialog from "./ConfirmDialog.svelte";
 
   let {
     deckIds = [],
@@ -48,6 +49,7 @@
   let timerInterval = $state<ReturnType<typeof setInterval> | null>(null);
   let startTime = $state<number>(0);
   let endTime = $state<number>(0);
+  let finishConfirmOpen = $state(false);
 
   let activeFreeTextContent = $derived.by(() => {
     const card = testCards[currentIndex];
@@ -173,6 +175,10 @@
     mode = "result";
   }
 
+  function requestFinishTest() {
+    finishConfirmOpen = true;
+  }
+
   function handleKeydown(e: KeyboardEvent) {
     const target = e.target as HTMLElement | null;
     if (target?.matches("input, textarea, select")) {
@@ -194,7 +200,7 @@
       if (e.key === "1" || e.key === "Enter") {
         e.preventDefault();
         handleAnswer(true);
-      } else if (e.key === "2" || e.key === "Backspace") {
+      } else if (e.key === "2") {
         e.preventDefault();
         handleAnswer(false);
       }
@@ -327,7 +333,7 @@
             {t("Frage")} {currentIndex + 1} {t("von")} {testCards.length}
           </span>
           <button
-            onclick={finishTest}
+            onclick={requestFinishTest}
             class="text-xs font-medium text-secondary hover:text-accent-incorrect transition-colors"
           >
             🏁 {t("Test vorzeitig beenden")}
@@ -387,8 +393,9 @@
                 ✅ {t("Richtig / Gewusst")}
               </button>
             </div>
-          {/if}
-        </div>
+  {/if}
+
+          </div>
       </div>
 
     {:else if mode === "result"}
@@ -457,3 +464,17 @@
     {/if}
   </div>
 </div>
+
+{#if finishConfirmOpen}
+  <ConfirmDialog
+    title={t("endTestTitle")}
+    message={t("endTestMessage")}
+    confirmLabel="endTestConfirm"
+    danger={true}
+    onConfirm={() => {
+      finishConfirmOpen = false;
+      finishTest();
+    }}
+    onCancel={() => (finishConfirmOpen = false)}
+  />
+{/if}
