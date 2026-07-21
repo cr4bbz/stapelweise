@@ -1,6 +1,6 @@
 <script lang="ts">
   import * as api from "$lib/api";
-  import type { Card, CardState, CardType, Deck } from "$lib/types";
+  import type { Card, CardState, CardType, Deck, FreeTextEvaluationMode } from "$lib/types";
   import EmptyState from "./EmptyState.svelte";
   import ErrorBanner from "./ErrorBanner.svelte";
   import StatsDashboard from "./StatsDashboard.svelte";
@@ -11,6 +11,7 @@
   import { Printer } from "@lucide/svelte";
   import { renderMarkdown } from "$lib/markdown";
   import { hasMath } from "$lib/math";
+  import { parseFreeTextContent, serializeFreeTextContent } from "$lib/free-text";
   import { mediaStore } from "$lib/stores/media";
   import { settingsStore } from "$lib/stores/settings.svelte";
   import { t } from "$lib/i18n";
@@ -208,6 +209,8 @@
     { text: "", correct: false },
   ]);
   let orderingItems = $state<string[]>(["", ""]);
+  let freeTextEvaluationMode = $state<FreeTextEvaluationMode>("manual");
+  let expectedLatex = $state("");
 
   function addMcOption() {
     mcOptions = [...mcOptions, { text: "", correct: false }];
@@ -273,6 +276,10 @@
       } catch {
         // fallback
       }
+    } else if (cardType === "free_text") {
+      const freeTextContent = parseFreeTextContent(card.content);
+      freeTextEvaluationMode = freeTextContent.evaluationMode;
+      expectedLatex = freeTextContent.expectedLatex ?? "";
     }
     showNewCard = false;
   }
@@ -293,6 +300,8 @@
       { text: "", correct: false },
     ];
     orderingItems = ["", ""];
+    freeTextEvaluationMode = "manual";
+    expectedLatex = "";
   }
 
   function startNewCard(prefill?: { front?: string; back?: string }) {
@@ -305,6 +314,9 @@
     reasoning = "";
     tags = [];
     error = null;
+    cardType = "basic";
+    freeTextEvaluationMode = "manual";
+    expectedLatex = "";
   }
 
   $effect(() => {
@@ -316,6 +328,15 @@
     window.addEventListener("stapelweise:prefill-card", prefillCard);
     return () => window.removeEventListener("stapelweise:prefill-card", prefillCard);
   });
+
+  function serializeFreeTextSettings(): string | null {
+    if (freeTextEvaluationMode === "symbolic" && !expectedLatex.trim()) {
+      error = t("mathExpectedRequired");
+      return null;
+    }
+
+    return serializeFreeTextContent(freeTextEvaluationMode, expectedLatex);
+  }
 
   async function handleCreate() {
     if (!front.trim()) return;
@@ -340,6 +361,10 @@
       }
       contentJson = JSON.stringify({ items: validOrd });
       finalBack = validOrd.map((item, idx) => `${idx + 1}. ${item}`).join("\n");
+    } else if (cType === "free_text") {
+      if (!finalBack) return;
+      contentJson = serializeFreeTextSettings();
+      if (!contentJson) return;
     } else {
       if (!finalBack) return;
       if (front.includes("==") || front.includes("{{c1::")) {
@@ -383,6 +408,10 @@
       }
       contentJson = JSON.stringify({ items: validOrd });
       finalBack = validOrd.map((item, idx) => `${idx + 1}. ${item}`).join("\n");
+    } else if (cType === "free_text") {
+      if (!finalBack) return;
+      contentJson = serializeFreeTextSettings();
+      if (!contentJson) return;
     } else {
       if (!finalBack) return;
       if (front.includes("==") || front.includes("{{c1::")) {
@@ -640,9 +669,15 @@
             >
               🔢 Reihenfolge
             </button>
+            <button
+              type="button"
+              onclick={() => cardType = "free_text"}
+              class="px-2.5 py-1 text-xs font-semibold rounded-lg transition-all {cardType === 'free_text' ? 'bg-accent-correct text-white shadow-sm' : 'text-secondary hover:text-primary dark:hover:text-primary-dark'}"
+            >
+              {t("freeTextCard")}
+            </button>
           </div>
         </div>
-
         <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <label class="flex items-center gap-2 text-xs font-medium text-secondary">
             <span class="shrink-0">{t("Sprache vorn")}</span>
@@ -821,6 +856,48 @@
             {/if}
           </div>
         {/if}
+        {#if cardType === 'free_text'}
+          <section class="space-y-3 rounded-md border border-secondary/20 bg-secondary/5 p-3">
+            <div>
+              <span class="text-xs font-medium text-secondary uppercase tracking-wide">{t("freeTextEvaluation")}</span>
+              <div class="mt-2 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onclick={() => freeTextEvaluationMode = "manual"}
+                  aria-pressed={freeTextEvaluationMode === "manual"}
+                  class="secondary-action px-3 py-1.5 text-xs {freeTextEvaluationMode === 'manual' ? '!border-accent-correct !text-accent-correct' : ''}"
+                >
+                  {t("freeTextManual")}
+                </button>
+                <button
+                  type="button"
+                  onclick={() => freeTextEvaluationMode = "symbolic"}
+                  aria-pressed={freeTextEvaluationMode === "symbolic"}
+                  class="secondary-action px-3 py-1.5 text-xs {freeTextEvaluationMode === 'symbolic' ? '!border-accent-correct !text-accent-correct' : ''}"
+                >
+                  {t("freeTextSymbolic")}
+                </button>
+              </div>
+            </div>
+            {#if freeTextEvaluationMode === 'symbolic'}
+              <label class="block text-xs font-medium text-secondary">
+                {t("mathExpectedExpression")}
+                <textarea
+                  bind:value={expectedLatex}
+                  rows="2"
+                  placeholder={t("mathLatexPlaceholder")}
+                  class="mt-1 w-full resize-none rounded-md border border-white/20 bg-transparent p-2.5 text-sm text-primary outline-none focus:border-accent-correct dark:text-primary-dark"
+                ></textarea>
+              </label>
+              <p class="text-xs text-secondary">{t("mathSymbolicHint")}</p>
+              {#if hasMath(expectedLatex)}
+                <div class="rounded-md border border-dashed border-accent-correct/40 bg-white/50 p-3 dark:bg-black/20">
+                  <div class="text-sm text-primary dark:text-primary-dark">{@html renderMarkdown(expectedLatex)}</div>
+                </div>
+              {/if}
+            {/if}
+          </section>
+        {/if}
         <div class="mt-4 pt-4 border-t border-white/10">
           <div class="flex items-center justify-between mb-1">
             <span class="text-xs font-medium text-secondary uppercase tracking-wide flex items-center gap-2">
@@ -988,6 +1065,8 @@
                       <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-accent-easy/20 text-accent-easy border border-accent-easy/30">🔢 Sequenz</span>
                     {:else if card.card_type === 'cloze'}
                       <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-accent-hard/20 text-accent-hard border border-accent-hard/30">🧩 Cloze</span>
+                    {:else if card.card_type === 'free_text'}
+                      <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-secondary/15 text-secondary border border-secondary/30">{t("freeTextCard")}</span>
                     {/if}
                   </div>
                   <p class="{cardFontClass} text-primary dark:text-primary-dark mt-0.5 max-h-20 overflow-hidden">{@html renderMarkdown(card.front)}</p>

@@ -15,6 +15,14 @@ export interface OrderingContent {
   items: string[];
 }
 
+export type FreeTextEvaluationMode = "manual" | "symbolic";
+
+export interface FreeTextContent {
+  version: 1;
+  evaluationMode: FreeTextEvaluationMode;
+  expectedLatex?: string;
+}
+
 export interface BaseCard {
   id: string;
   deck_id: string;
