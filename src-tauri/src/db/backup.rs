@@ -2,7 +2,7 @@ use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 
-use super::models::{Card, CardState, Deck, ExamTemplate, Review};
+use super::models::{Card, CardState, Deck, Exam, ExamTemplate, Review};
 use super::repository::Repository;
 use super::settings::AppSettings;
 use crate::commands::CommandError;
@@ -16,6 +16,9 @@ pub struct BackupPackage {
     pub card_states: Vec<CardState>,
     pub reviews: Vec<Review>,
     pub settings: Option<AppSettings>,
+    #[serde(default)]
+    pub exams: Vec<Exam>,
+    #[serde(default)]
     pub exam_templates: Vec<ExamTemplate>,
 }
 
@@ -26,6 +29,7 @@ pub struct ImportInspection {
     pub deck_count: usize,
     pub card_count: usize,
     pub review_count: usize,
+    pub exam_count: usize,
     pub template_count: usize,
     pub existing_deck_conflicts: Vec<String>,
     pub existing_card_conflicts: usize,
@@ -33,7 +37,7 @@ pub struct ImportInspection {
 }
 
 pub fn export_backup(repo: &Repository) -> Result<BackupPackage, CommandError> {
-    let decks = repo.list_decks()?;
+    let decks = repo.list_all_decks()?;
     let cards = repo.list_all_cards()?;
     let reviews = repo.list_all_reviews()?;
 
@@ -45,26 +49,30 @@ pub fn export_backup(repo: &Repository) -> Result<BackupPackage, CommandError> {
     }
 
     let settings = AppSettings::load(repo).ok();
+    let exams = repo.list_exams(true)?;
     let exam_templates = repo.list_exam_templates()?;
 
     Ok(BackupPackage {
-        version: 1,
+        version: 2,
         exported_at: Utc::now().to_rfc3339(),
         decks,
         cards,
         card_states,
         reviews,
         settings,
+        exams,
         exam_templates,
     })
 }
 
-pub fn inspect_backup(repo: &Repository, json_data: &str) -> Result<ImportInspection, CommandError> {
-    let pkg: BackupPackage = serde_json::from_str(json_data).map_err(|e| {
-        CommandError::import_failed("Ungültiges Backup-JSON", Some(e.to_string()))
-    })?;
+pub fn inspect_backup(
+    repo: &Repository,
+    json_data: &str,
+) -> Result<ImportInspection, CommandError> {
+    let pkg: BackupPackage = serde_json::from_str(json_data)
+        .map_err(|e| CommandError::import_failed("Ungültiges Backup-JSON", Some(e.to_string())))?;
 
-    let existing_decks = repo.list_decks()?;
+    let existing_decks = repo.list_all_decks()?;
     let existing_deck_names: HashSet<String> = existing_decks.into_iter().map(|d| d.name).collect();
 
     let mut deck_conflicts = Vec::new();
@@ -85,8 +93,11 @@ pub fn inspect_backup(repo: &Repository, json_data: &str) -> Result<ImportInspec
     }
 
     let mut warnings = Vec::new();
-    if pkg.version > 1 {
-        warnings.push(format!("Das Backup hat Version {}, aktuell unterstützt wird Version 1.", pkg.version));
+    if pkg.version > 2 {
+        warnings.push(format!(
+            "Das Backup hat Version {}, aktuell unterstützt wird Version 2.",
+            pkg.version
+        ));
     }
 
     Ok(ImportInspection {
@@ -95,6 +106,7 @@ pub fn inspect_backup(repo: &Repository, json_data: &str) -> Result<ImportInspec
         deck_count: pkg.decks.len(),
         card_count: pkg.cards.len(),
         review_count: pkg.reviews.len(),
+        exam_count: pkg.exams.len(),
         template_count: pkg.exam_templates.len(),
         existing_deck_conflicts: deck_conflicts,
         existing_card_conflicts: card_conflicts,
@@ -120,9 +132,9 @@ pub fn restore_backup(
     // 1. Decks
     for deck in &pkg.decks {
         if let Err(e) = repo.conn().execute(
-            "INSERT INTO decks (id, name, created_at, updated_at) VALUES (?1, ?2, ?3, ?4)
-             ON CONFLICT(id) DO UPDATE SET name = excluded.name, updated_at = excluded.updated_at",
-            rusqlite::params![deck.id, deck.name, deck.created_at, deck.updated_at],
+            "INSERT INTO decks (id, name, archived, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5)
+             ON CONFLICT(id) DO UPDATE SET name = excluded.name, archived = excluded.archived, updated_at = excluded.updated_at",
+            rusqlite::params![deck.id, deck.name, deck.archived, deck.created_at, deck.updated_at],
         ) {
             let _ = repo.conn().execute_batch("ROLLBACK;");
             return Err(CommandError::from(e));
@@ -137,14 +149,17 @@ pub fn restore_backup(
         }
 
         if let Err(e) = repo.conn().execute(
-            "INSERT INTO cards (id, deck_id, card_type, content, reasoning, front, back, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+            "INSERT INTO cards (id, deck_id, card_type, content, reasoning, front, back, front_language, back_language, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
              ON CONFLICT(id) DO UPDATE SET
                front = excluded.front,
                back = excluded.back,
                card_type = excluded.card_type,
+               deck_id = excluded.deck_id,
                content = excluded.content,
                reasoning = excluded.reasoning,
+               front_language = excluded.front_language,
+               back_language = excluded.back_language,
                updated_at = excluded.updated_at",
             rusqlite::params![
                 card.id,
@@ -154,6 +169,8 @@ pub fn restore_backup(
                 card.reasoning,
                 card.front,
                 card.back,
+                card.front_language,
+                card.back_language,
                 card.created_at,
                 card.updated_at
             ],
@@ -202,7 +219,7 @@ pub fn restore_backup(
 
     // 4. Reviews
     for rev in &pkg.reviews {
-        let _ = repo.conn().execute(
+        if let Err(e) = repo.conn().execute(
             "INSERT INTO reviews (id, card_id, quality, reviewed_at, interval, ease_factor, repetitions, prev_state)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
              ON CONFLICT(id) DO NOTHING",
@@ -216,19 +233,74 @@ pub fn restore_backup(
                 rev.repetitions,
                 rev.prev_state
             ],
-        );
+        ) {
+            let _ = repo.conn().execute_batch("ROLLBACK;");
+            return Err(CommandError::from(e));
+        }
     }
 
-    // 5. ExamTemplates
+    // 5. Exams and their deck assignments
+    for exam in &pkg.exams {
+        if let Err(e) = repo.conn().execute(
+            "INSERT INTO exams (id, name, exam_type, exam_date, archived, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+             ON CONFLICT(id) DO UPDATE SET
+               name = excluded.name,
+               exam_type = excluded.exam_type,
+               exam_date = excluded.exam_date,
+               archived = excluded.archived",
+            rusqlite::params![
+                exam.id,
+                exam.name,
+                exam.exam_type,
+                exam.exam_date,
+                exam.archived,
+                exam.created_at
+            ],
+        ) {
+            let _ = repo.conn().execute_batch("ROLLBACK;");
+            return Err(CommandError::from(e));
+        }
+
+        if let Err(e) = repo.conn().execute(
+            "DELETE FROM exam_decks WHERE exam_id = ?1",
+            rusqlite::params![exam.id],
+        ) {
+            let _ = repo.conn().execute_batch("ROLLBACK;");
+            return Err(CommandError::from(e));
+        }
+
+        for deck_id in &exam.deck_ids {
+            if let Err(e) = repo.conn().execute(
+                "INSERT INTO exam_decks (exam_id, deck_id) VALUES (?1, ?2)",
+                rusqlite::params![exam.id, deck_id],
+            ) {
+                let _ = repo.conn().execute_batch("ROLLBACK;");
+                return Err(CommandError::from(e));
+            }
+        }
+    }
+
+    // 6. ExamTemplates
     for tmpl in &pkg.exam_templates {
-        let deck_ids_json = serde_json::to_string(&tmpl.deck_ids).unwrap_or_else(|_| "[]".to_string());
+        let deck_ids_json =
+            serde_json::to_string(&tmpl.deck_ids).unwrap_or_else(|_| "[]".to_string());
         let tags_json = serde_json::to_string(&tmpl.tags).unwrap_or_else(|_| "[]".to_string());
-        let allowed_types_json = serde_json::to_string(&tmpl.allowed_card_types).unwrap_or_else(|_| "[]".to_string());
+        let allowed_types_json =
+            serde_json::to_string(&tmpl.allowed_card_types).unwrap_or_else(|_| "[]".to_string());
 
         if let Err(e) = repo.conn().execute(
             "INSERT INTO exam_templates (id, name, deck_ids_json, tags_json, allowed_types_json, question_count, time_limit_minutes, pass_percentage, seed, created_at)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
-             ON CONFLICT(id) DO UPDATE SET name = excluded.name, question_count = excluded.question_count",
+             ON CONFLICT(id) DO UPDATE SET
+               name = excluded.name,
+               deck_ids_json = excluded.deck_ids_json,
+               tags_json = excluded.tags_json,
+               allowed_types_json = excluded.allowed_types_json,
+               question_count = excluded.question_count,
+               time_limit_minutes = excluded.time_limit_minutes,
+               pass_percentage = excluded.pass_percentage,
+               seed = excluded.seed",
             rusqlite::params![
                 tmpl.id,
                 tmpl.name,
@@ -247,9 +319,12 @@ pub fn restore_backup(
         }
     }
 
-    // 6. Settings
+    // 7. Settings
     if let Some(ref s) = pkg.settings {
-        let _ = s.save(repo);
+        if let Err(e) = s.save(repo) {
+            let _ = repo.conn().execute_batch("ROLLBACK;");
+            return Err(CommandError::from(e));
+        }
     }
 
     repo.conn().execute_batch("COMMIT;")?;

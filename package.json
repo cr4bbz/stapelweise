@@ -13,7 +13,13 @@
   },
   "license": "MIT",
   "dependencies": {
+    "@fontsource/press-start-2p": "^5.2.7",
+    "@fontsource/silkscreen": "^5.3.0",
+    "@fontsource/source-sans-3": "^5.3.0",
+    "@fontsource/source-serif-4": "^5.3.0",
+    "@lucide/svelte": "^1.24.0",
     "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-deep-link": "^2.4.9",
     "@tauri-apps/plugin-opener": "^2",
     "@tauri-apps/plugin-window-state": "^2",
     "katex": "^0.17.0",

@@ -36,6 +36,17 @@ export function getDeckStore() {
       await api.deleteDeck(deckId);
       decks = decks.filter((d) => d.id !== deckId);
     },
+    async archive(deckId: string) {
+      await api.archiveDeck(deckId);
+      decks = decks.filter((d) => d.id !== deckId);
+    },
+    async restore(deckId: string): Promise<Deck> {
+      await api.restoreDeck(deckId);
+      const deck = await api.getDeck(deckId);
+      if (!deck) throw new Error("Deck not found after restore");
+      decks = [deck, ...decks];
+      return deck;
+    },
     async seed() {
       loading = true;
       try {

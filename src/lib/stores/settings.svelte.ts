@@ -1,10 +1,18 @@
 import * as api from "$lib/api";
+import { isColorTheme } from "$lib/themes";
 import type { AppSettings } from "$lib/types";
 
 const defaults: AppSettings = {
+  ui_language: "de",
   theme: "auto",
+  color_theme: "academy",
+  pixel_font: "press-start",
   card_font_family: "serif",
   card_font_size: "medium",
+  learning_animations: true,
+  card_flip_animation: true,
+  control_transition_animation: true,
+  rating_buttons_animation: true,
   session_limit: 50,
   sm2_initial_ef: 2.5,
   sm2_pass_threshold: 3,
@@ -12,7 +20,26 @@ const defaults: AppSettings = {
   obsidian_flashcard_tag: "#flashcard",
 };
 
-let current = $state<AppSettings>({ ...defaults });
+const colorThemeStorageKey = "stapelweise.color-theme";
+const pixelFontStorageKey = "stapelweise.pixel-font";
+
+function storedColorTheme(): AppSettings["color_theme"] {
+  if (typeof localStorage === "undefined") return defaults.color_theme;
+  const savedTheme = localStorage.getItem(colorThemeStorageKey);
+  return savedTheme && isColorTheme(savedTheme) ? savedTheme : defaults.color_theme;
+}
+
+function storedPixelFont(): AppSettings["pixel_font"] {
+  if (typeof localStorage === "undefined") return defaults.pixel_font;
+  const savedFont = localStorage.getItem(pixelFontStorageKey);
+  return savedFont === "silkscreen" || savedFont === "press-start" || savedFont === "source-sans" || savedFont === "source-serif"
+    ? savedFont
+    : defaults.pixel_font;
+}
+
+const initialColorTheme = storedColorTheme();
+const initialPixelFont = storedPixelFont();
+let current = $state<AppSettings>({ ...defaults, color_theme: initialColorTheme, pixel_font: initialPixelFont });
 let loaded = $state(false);
 let loadPromise: Promise<void> | null = null;
 
@@ -30,6 +57,32 @@ function applyThemeToDom(theme: string) {
   localStorage.setItem("theme", isDark ? "dark" : "light");
 }
 
+function applyColorThemeToDom(colorTheme: AppSettings["color_theme"]) {
+  if (typeof document === "undefined") return;
+  const resolvedTheme = isColorTheme(colorTheme) ? colorTheme : defaults.color_theme;
+  document.documentElement.dataset.colorTheme = resolvedTheme;
+  localStorage.setItem(colorThemeStorageKey, resolvedTheme);
+}
+
+function applyPixelFontToDom(pixelFont: AppSettings["pixel_font"]) {
+  if (typeof document === "undefined") return;
+  const resolvedFont = ["press-start", "silkscreen", "source-sans", "source-serif"].includes(pixelFont)
+    ? pixelFont
+    : "press-start";
+  document.documentElement.dataset.pixelFont = resolvedFont;
+  localStorage.setItem(pixelFontStorageKey, resolvedFont);
+}
+
+if (typeof document !== "undefined") {
+  applyColorThemeToDom(initialColorTheme);
+  applyPixelFontToDom(initialPixelFont);
+}
+
+function applyLanguageToDom(language: AppSettings["ui_language"]) {
+  if (typeof document === "undefined") return;
+  document.documentElement.lang = language;
+}
+
 async function load() {
   if (loaded) return;
   if (loadPromise) return loadPromise;
@@ -43,6 +96,9 @@ async function load() {
       loaded = true;
       loadPromise = null;
       applyThemeToDom(current.theme);
+      applyColorThemeToDom(current.color_theme);
+      applyPixelFontToDom(current.pixel_font);
+      applyLanguageToDom(current.ui_language);
     }
   })();
   return loadPromise;
@@ -51,6 +107,9 @@ async function load() {
 async function save(partial: Partial<AppSettings>) {
   current = { ...current, ...partial };
   if ("theme" in partial) applyThemeToDom(partial.theme!);
+  if ("color_theme" in partial) applyColorThemeToDom(partial.color_theme!);
+  if ("pixel_font" in partial) applyPixelFontToDom(partial.pixel_font!);
+  if ("ui_language" in partial) applyLanguageToDom(partial.ui_language!);
   try {
     await api.updateSettings(current);
   } catch (e) {
@@ -74,6 +133,23 @@ function fontFamilyClass(family: AppSettings["card_font_family"]): string {
   return family === "sans" ? "font-card-sans" : "font-card";
 }
 
+function animationEnabled(setting: boolean): boolean {
+  if (!current.learning_animations || !setting) return false;
+  return typeof window === "undefined" || !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+function cardFlipAnimationEnabled(): boolean {
+  return animationEnabled(current.card_flip_animation);
+}
+
+function controlTransitionAnimationEnabled(): boolean {
+  return animationEnabled(current.control_transition_animation);
+}
+
+function ratingButtonsAnimationEnabled(): boolean {
+  return animationEnabled(current.rating_buttons_animation);
+}
+
 export function getSettingsStore() {
   return {
     get current() {
@@ -86,6 +162,9 @@ export function getSettingsStore() {
     save,
     fontSizeClass,
     fontFamilyClass,
+    cardFlipAnimationEnabled,
+    controlTransitionAnimationEnabled,
+    ratingButtonsAnimationEnabled,
   };
 }
 

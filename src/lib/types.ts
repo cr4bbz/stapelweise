@@ -23,6 +23,8 @@ export interface BaseCard {
   reasoning: string | null;
   front: string;
   back: string;
+  front_language: string | null;
+  back_language: string | null;
   tags: string[];
   created_at: string;
   updated_at: string;
@@ -53,6 +55,8 @@ export type Card = BasicCard | ClozeCard | MultipleChoiceCard | FreeTextCard | O
 export interface JsonCardInput {
   front: string;
   back: string;
+  front_language?: string | null;
+  back_language?: string | null;
   card_type?: CardType;
   content?: string | null;
   reasoning?: string | null;
@@ -62,6 +66,7 @@ export interface JsonCardInput {
 export interface Deck {
   id: string;
   name: string;
+  archived: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -109,9 +114,16 @@ export interface DashboardStats {
 }
 
 export interface AppSettings {
+  ui_language: "de" | "en" | "es" | "fr" | "pt";
   theme: "light" | "dark" | "auto";
+  color_theme: "academy" | "night-library" | "printwork" | "graphite";
+  pixel_font: "press-start" | "silkscreen" | "source-sans" | "source-serif";
   card_font_family: "serif" | "sans";
   card_font_size: "small" | "medium" | "large";
+  learning_animations: boolean;
+  card_flip_animation: boolean;
+  control_transition_animation: boolean;
+  rating_buttons_animation: boolean;
   session_limit: number;
   sm2_initial_ef: number;
   sm2_pass_threshold: number;
@@ -124,6 +136,7 @@ export interface Exam {
   name: string;
   exam_type: string;
   exam_date: string;
+  archived: boolean;
   created_at: string;
   deck_ids: string[];
 }
@@ -209,10 +222,17 @@ export interface ImportInspection {
   deck_count: number;
   card_count: number;
   review_count: number;
+  exam_count: number;
   template_count: number;
   existing_deck_conflicts: string[];
   existing_card_conflicts: number;
   warnings: string[];
+}
+
+export interface IntegrationImportResult {
+  deck: Deck;
+  imported: number;
+  skipped: number;
 }
 
 // Structured error payload from Rust backend

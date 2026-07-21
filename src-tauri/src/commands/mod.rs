@@ -1,12 +1,13 @@
-pub mod decks;
-pub mod cards;
-pub mod exams;
-pub mod test_engine;
 pub mod backup;
+pub mod cards;
+pub mod decks;
+pub mod exams;
+pub mod integrations;
+pub mod obsidian;
 pub mod seed;
 pub mod settings;
 pub mod stats;
-pub mod obsidian;
+pub mod test_engine;
 
 use serde::Serialize;
 use std::fmt;
@@ -48,10 +49,6 @@ impl CommandError {
         Self::new("EXPORT_FAILED", msg, details, true)
     }
 
-    pub fn obsidian_sync(msg: &str, details: Option<String>) -> Self {
-        Self::new("OBSIDIAN_SYNC_ERROR", msg, details, true)
-    }
-
     pub fn internal(msg: &str) -> Self {
         Self::new("INTERNAL_ERROR", msg, None, false)
     }
@@ -65,13 +62,23 @@ impl fmt::Display for CommandError {
 
 impl From<rusqlite::Error> for CommandError {
     fn from(e: rusqlite::Error) -> Self {
-        CommandError::new("DB_ERROR", "Datenbankfehler aufgetreten", Some(e.to_string()), true)
+        CommandError::new(
+            "DB_ERROR",
+            "Datenbankfehler aufgetreten",
+            Some(e.to_string()),
+            true,
+        )
     }
 }
 
 impl From<serde_json::Error> for CommandError {
     fn from(e: serde_json::Error) -> Self {
-        CommandError::new("IMPORT_INVALID_JSON", "Ungültiges JSON-Format", Some(e.to_string()), true)
+        CommandError::new(
+            "IMPORT_INVALID_JSON",
+            "Ungültiges JSON-Format",
+            Some(e.to_string()),
+            true,
+        )
     }
 }
 

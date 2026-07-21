@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 pub struct Deck {
     pub id: String,
     pub name: String,
+    #[serde(default)]
+    pub archived: bool,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -14,6 +16,8 @@ pub struct Exam {
     pub name: String,
     pub exam_type: String,
     pub exam_date: String,
+    #[serde(default)]
+    pub archived: bool,
     pub created_at: String,
     pub deck_ids: Vec<String>,
 }
@@ -36,15 +40,13 @@ pub struct Card {
     pub reasoning: Option<String>,
     pub front: String,
     pub back: String,
+    #[serde(default)]
+    pub front_language: Option<String>,
+    #[serde(default)]
+    pub back_language: Option<String>,
     pub tags: Vec<String>,
     pub created_at: String,
     pub updated_at: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Tag {
-    pub id: String,
-    pub name: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -187,4 +189,3 @@ pub struct ExamResult {
     pub duration_seconds: u64,
     pub breakdown: ExamResultBreakdown,
 }
-

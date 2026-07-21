@@ -1,6 +1,7 @@
 use crate::db::models::{CardState, Deck};
 use crate::db::repository::Repository;
 use chrono::{NaiveDate, Utc};
+use std::collections::HashSet;
 
 /// SM-2 scenario variants for seed data
 pub(crate) enum Scenario {
@@ -117,12 +118,28 @@ pub struct SeedCard<'a> {
 }
 
 impl SeedGenerator {
-    fn build_deck(repo: &Repository, name: &str, cards: Vec<SeedCard>, today: NaiveDate, skip: &[String]) -> Result<Option<Deck>, String> {
-        if skip.contains(&name.to_string()) {
-            return Ok(None);
-        }
-        let deck = repo.create_deck(name).map_err(|e| e.to_string())?;
+    fn build_deck(
+        repo: &Repository,
+        name: &str,
+        cards: Vec<SeedCard>,
+        today: NaiveDate,
+        existing_decks: &[Deck],
+    ) -> Result<Option<Deck>, String> {
+        let (deck, created) = match existing_decks.iter().find(|deck| deck.name == name) {
+            Some(deck) => (deck.clone(), false),
+            None => (repo.create_deck(name).map_err(|e| e.to_string())?, true),
+        };
+        let mut existing_fronts: HashSet<String> = repo
+            .list_cards(&deck.id)
+            .map_err(|e| e.to_string())?
+            .into_iter()
+            .map(|card| card.front)
+            .collect();
+
         for card in cards {
+            if existing_fronts.contains(card.front) {
+                continue;
+            }
             let tag_strings = card.tags.into_iter().map(|s| s.to_string()).collect();
             repo.seed_insert_card_with_state(
                 &deck.id,
@@ -133,27 +150,48 @@ impl SeedGenerator {
                 card.card_type,
                 card.content,
                 card.reasoning,
-            ).map_err(|e| e.to_string())?;
+            )
+            .map_err(|e| e.to_string())?;
+            existing_fronts.insert(card.front.to_string());
         }
-        Ok(Some(deck))
+        Ok(created.then_some(deck))
     }
 
     pub fn generate(repo: &Repository) -> Result<Vec<Deck>, String> {
         let today = Utc::now().date_naive();
-        let existing_names: Vec<String> = repo
-            .list_decks()
-            .map_err(|e| e.to_string())?
+        let mut existing_decks = repo.list_decks().map_err(|e| e.to_string())?;
+        let current_logic_name = "Formale Logik & Mengenlehre";
+        let legacy_logic_name = "Formale Logik & Problemlösen";
+        let has_current_logic_deck = existing_decks
             .iter()
-            .map(|d| d.name.clone())
-            .collect();
+            .any(|deck| deck.name == current_logic_name);
+        if !has_current_logic_deck {
+            if let Some(legacy_deck) = existing_decks
+                .iter_mut()
+                .find(|deck| deck.name == legacy_logic_name)
+            {
+                repo.update_deck(&legacy_deck.id, current_logic_name)
+                    .map_err(|e| e.to_string())?;
+                legacy_deck.name = current_logic_name.to_string();
+            }
+        }
         let mut decks = Vec::new();
 
         // Helper macro/closure for basic cards
-        let basic = |front: &'static str, back: &'static str, scenario: Scenario, tags: Vec<&'static str>| SeedCard {
-            front, back, scenario, tags, card_type: "basic", content: None, reasoning: None,
+        let basic = |front: &'static str,
+                     back: &'static str,
+                     scenario: Scenario,
+                     tags: Vec<&'static str>| SeedCard {
+            front,
+            back,
+            scenario,
+            tags,
+            card_type: "basic",
+            content: None,
+            reasoning: None,
         };
 
-        // ── Deck 1: Deutsche Grammatik (15 Karten) ────────
+        // ── Deck 1: Deutsche Grammatik (18 Karten) ────────
         let cards1 = vec![
             basic("der, die, das", "Bestimmte Artikel im Nominativ", Scenario::New, vec!["Artikel", "Grundlagen"]),
             basic("Konjunktiv II", "würde + Infinitiv", Scenario::New, vec!["Verben", "Möglichkeit"]),
@@ -170,12 +208,40 @@ impl SeedGenerator {
             basic("Komparativ", "Adjektiv + er: schnell -> schneller", Scenario::New, vec!["Adjektive", "Steigerung"]),
             basic("Superlativ", "am + Adjektiv + sten: am schnellsten", Scenario::New, vec!["Adjektive", "Steigerung"]),
             basic("Genitiv-Präpositionen", "wegen, während, trotz, anstatt", Scenario::DueTodayFirst, vec!["Präpositionen", "Fälle"]),
+            SeedCard {
+                front: "Welchen Kasus verlangt die Präposition **mit**?",
+                back: "[x] Dativ\n[ ] Akkusativ\n[ ] Genitiv\n[ ] Nominativ",
+                scenario: Scenario::New,
+                tags: vec!["Präpositionen", "Fälle"],
+                card_type: "multiple_choice",
+                content: Some(r#"{"options":[{"text":"Dativ","correct":true},{"text":"Akkusativ","correct":false},{"text":"Genitiv","correct":false},{"text":"Nominativ","correct":false}]}"#),
+                reasoning: Some("Die Präposition **mit** gehört zu den Präpositionen, die immer den Dativ verlangen."),
+            },
+            SeedCard {
+                front: "In einem eingeleiteten Nebensatz steht das ==finite Verb am Ende==.",
+                back: "Beispiel: Ich bleibe zu Hause, weil es heute regnet.",
+                scenario: Scenario::DueTodayFirst,
+                tags: vec!["Syntax", "Nebensätze"],
+                card_type: "cloze",
+                content: None,
+                reasoning: Some("Subjunktionen wie *weil*, *obwohl* oder *dass* leiten einen Nebensatz mit Verbendstellung ein."),
+            },
+            SeedCard {
+                front: "Bringe die Satzglieder in eine natürliche Hauptsatz-Reihenfolge:",
+                back: "1. Morgen\n2. werde\n3. ich\n4. in der Bibliothek\n5. lernen",
+                scenario: Scenario::DueTomorrow,
+                tags: vec!["Syntax", "Satzbau"],
+                card_type: "ordering",
+                content: Some(r#"{"items":["Morgen","werde","ich","in der Bibliothek","lernen"]}"#),
+                reasoning: Some("Im deutschen Aussagesatz steht das finite Verb an zweiter Position; der infinite Verbteil bildet häufig die Satzklammer am Ende."),
+            },
         ];
-        if let Some(d) = Self::build_deck(repo, "Grammatik Basis", cards1, today, &existing_names)? {
+        if let Some(d) = Self::build_deck(repo, "Grammatik Basis", cards1, today, &existing_decks)?
+        {
             decks.push(d);
         }
 
-        // ── Deck 2: Weltgeschichte (8 Karten) ────────────
+        // ── Deck 2: Weltgeschichte (11 Karten) ────────────
         let cards2 = vec![
             basic("Zweiter Weltkrieg Ende", "1945", Scenario::New, vec!["20. Jahrhundert", "Krieg"]),
             basic("Französische Revolution", "1789", Scenario::DueTodayFirst, vec!["Europa", "18. Jahrhundert"]),
@@ -185,22 +251,212 @@ impl SeedGenerator {
             basic("Industrielle Revolution", "Übergang zur Maschinenproduktion (~1760)", Scenario::DueIn7Days, vec!["Wirtschaft", "Europa"]),
             basic("Entdeckung Amerikas", "1492 durch Christoph Kolumbus", Scenario::DueIn30Days, vec!["Entdecker", "15. Jahrhundert"]),
             basic("Mondlandung", "1969 (Apollo 11)", Scenario::Graduated, vec!["20. Jahrhundert", "Raumfahrt"]),
+            SeedCard {
+                front: "Welches Ereignis fand chronologisch zuerst statt?",
+                back: "[x] Unterzeichnung der Magna Carta\n[ ] Französische Revolution\n[ ] Fall der Berliner Mauer\n[ ] Mondlandung",
+                scenario: Scenario::New,
+                tags: vec!["Chronologie", "Epochen"],
+                card_type: "multiple_choice",
+                content: Some(r#"{"options":[{"text":"Unterzeichnung der Magna Carta","correct":true},{"text":"Französische Revolution","correct":false},{"text":"Fall der Berliner Mauer","correct":false},{"text":"Mondlandung","correct":false}]}"#),
+                reasoning: Some("Die Magna Carta wurde 1215 besiegelt, deutlich vor 1789, 1969 und 1989."),
+            },
+            SeedCard {
+                front: "Johannes Gutenberg revolutionierte im 15. Jahrhundert die Wissensverbreitung durch den ==Buchdruck mit beweglichen Lettern==.",
+                back: "Seine Technik machte Bücher schneller und in größeren Auflagen produzierbar.",
+                scenario: Scenario::DueTodayFirst,
+                tags: vec!["Frühe Neuzeit", "Mediengeschichte"],
+                card_type: "cloze",
+                content: None,
+                reasoning: Some("Der mechanische Buchdruck senkte die Kosten der Vervielfältigung und beschleunigte die Verbreitung von Ideen."),
+            },
+            SeedCard {
+                front: "Ordne diese Phasen der Französischen Revolution chronologisch:",
+                back: "1. Einberufung der Generalstände\n2. Sturm auf die Bastille\n3. Ausrufung der Republik\n4. Herrschaft des Direktoriums",
+                scenario: Scenario::DueIn7Days,
+                tags: vec!["Frankreich", "Chronologie"],
+                card_type: "ordering",
+                content: Some(r#"{"items":["Einberufung der Generalstände","Sturm auf die Bastille","Ausrufung der Republik","Herrschaft des Direktoriums"]}"#),
+                reasoning: Some("Die Abfolge führt von Mai 1789 über Juli 1789 und September 1792 bis zum Direktorium ab 1795."),
+            },
         ];
-        if let Some(d) = Self::build_deck(repo, "Weltgeschichte Extra", cards2, today, &existing_names)? {
+        if let Some(d) =
+            Self::build_deck(repo, "Weltgeschichte Extra", cards2, today, &existing_decks)?
+        {
             decks.push(d);
         }
 
-        // ── Deck 3: Biologie Grundlagen (3 Karten) ───────
+        // ── Deck 3: Biologie Grundlagen (6 Karten) ───────
         let cards3 = vec![
             basic("Zellatmung", "C₆H₁₂O₆ + 6O₂ → 6CO₂ + 6H₂O + Energie", Scenario::New, vec!["Zelle", "Stoffwechsel"]),
             basic("Photosynthese", "6CO₂ + 6H₂O + Licht → C₆H₁₂O₆ + 6O₂", Scenario::New, vec!["Pflanzen", "Stoffwechsel"]),
             basic("DNA-Basen", "Adenin, Thymin, Guanin, Cytosin", Scenario::New, vec!["Genetik", "Zelle"]),
+            SeedCard {
+                front: "Welches Zellorganell erzeugt den größten Teil des ATP bei der Zellatmung?",
+                back: "[x] Mitochondrium\n[ ] Ribosom\n[ ] Golgi-Apparat\n[ ] Lysosom",
+                scenario: Scenario::DueTodayFirst,
+                tags: vec!["Zelle", "Stoffwechsel"],
+                card_type: "multiple_choice",
+                content: Some(r#"{"options":[{"text":"Mitochondrium","correct":true},{"text":"Ribosom","correct":false},{"text":"Golgi-Apparat","correct":false},{"text":"Lysosom","correct":false}]}"#),
+                reasoning: Some("In der inneren Mitochondrienmembran erzeugt die oxidative Phosphorylierung den größten Anteil des ATP."),
+            },
+            SeedCard {
+                front: "In der DNA paart ==Adenin mit Thymin== und ==Guanin mit Cytosin==.",
+                back: "A-T bilden zwei, G-C drei Wasserstoffbrückenbindungen.",
+                scenario: Scenario::New,
+                tags: vec!["Genetik", "DNA"],
+                card_type: "cloze",
+                content: None,
+                reasoning: Some("Die komplementäre Basenpaarung ermöglicht die präzise Replikation der DNA."),
+            },
+            SeedCard {
+                front: "Ordne die vereinfachten Schritte der Proteinbiosynthese:",
+                back: "1. DNA-Abschnitt wird transkribiert\n2. mRNA verlässt den Zellkern\n3. Ribosom bindet an die mRNA\n4. Aminosäuren werden zur Polypeptidkette verknüpft",
+                scenario: Scenario::DueTomorrow,
+                tags: vec!["Genetik", "Proteinbiosynthese"],
+                card_type: "ordering",
+                content: Some(r#"{"items":["DNA-Abschnitt wird transkribiert","mRNA verlässt den Zellkern","Ribosom bindet an die mRNA","Aminosäuren werden zur Polypeptidkette verknüpft"]}"#),
+                reasoning: Some("Auf die Transkription im Zellkern folgt die Translation der mRNA an den Ribosomen."),
+            },
         ];
-        if let Some(d) = Self::build_deck(repo, "Biologie Intro", cards3, today, &existing_names)? {
+        if let Some(d) = Self::build_deck(repo, "Biologie Intro", cards3, today, &existing_decks)? {
             decks.push(d);
         }
 
-        // ── Deck 4: Formale Logik & Problemlösen (20 Karten mit ALLEN Kartentypen) ────────
+        // ── Deck 4: LaTeX mit Stapelweise (alle Kartentypen) ────────
+        let cards5 = vec![
+            SeedCard {
+                front: "Berechne die Fläche unter $f(x) = x^2$ von 0 bis 1.",
+                back: "$$\\int_0^1 x^2\\,dx = \\frac{1}{3}$$",
+                scenario: Scenario::New,
+                tags: vec!["LaTeX", "Mathematik", "Formeln"],
+                card_type: "basic",
+                content: None,
+                reasoning: Some("Inline-Formeln stehen zwischen $...$, abgesetzte Formeln zwischen $$...$$."),
+            },
+            SeedCard {
+                front: "Die Ableitung von $x^n$ ist ==$n x^{n-1}$==.",
+                back: "$$\\frac{d}{dx}x^n = n x^{n-1}$$",
+                scenario: Scenario::DueTodayFirst,
+                tags: vec!["LaTeX", "Ableitungen", "Cloze"],
+                card_type: "cloze",
+                content: None,
+                reasoning: Some("Die Karte verbindet Lückentext mit gerendertem LaTeX."),
+            },
+            SeedCard {
+                front: "Welche Eingabe erzeugt den Bruch $\\frac{a}{b}$?",
+                back: "[x] $\\frac{a}{b}$\n[ ] $\\fraction{a}{b}$\n[ ] $a/b$\n[ ] $\\divide{a}{b}$",
+                scenario: Scenario::DueTodayStruggling,
+                tags: vec!["LaTeX", "Syntax", "Brüche"],
+                card_type: "multiple_choice",
+                content: Some(r#"{"options":[{"text":"\\frac{a}{b}","correct":true},{"text":"\\fraction{a}{b}","correct":false},{"text":"a/b","correct":false},{"text":"\\divide{a}{b}","correct":false}]}"#),
+                reasoning: Some("KaTeX verwendet den LaTeX-Befehl \\frac{Zähler}{Nenner}."),
+            },
+            SeedCard {
+                front: "Ordne einen guten Ablauf für eine Formelkarte in Stapelweise:",
+                back: "1. Formel mit $...$ oder $$...$$ schreiben\n2. Live-Vorschau prüfen\n3. Erklärung auf die Rückseite setzen\n4. Karte speichern und lernen",
+                scenario: Scenario::DueTomorrow,
+                tags: vec!["LaTeX", "Arbeitsablauf", "Stapelweise"],
+                card_type: "ordering",
+                content: Some(r#"{"items":["Formel mit $...$ oder $$...$$ schreiben","Live-Vorschau prüfen","Erklärung auf die Rückseite setzen","Karte speichern und lernen"]}"#),
+                reasoning: Some("Bilder fügst du separat über die Bildschaltfläche, Einfügen oder Drag-and-drop ein; TikZ wird nicht ausgeführt."),
+            },
+        ];
+        if let Some(d) = Self::build_deck(
+            repo,
+            "LaTeX mit Stapelweise",
+            cards5,
+            today,
+            &existing_decks,
+        )? {
+            decks.push(d);
+        }
+
+        // ── Deck 5: Stapelweise entdecken (alle Kartentypen) ────────
+        let cards6 = vec![
+            SeedCard {
+                front: "Wo startest du deine faelligen Karten aus allen Stapeln?",
+                back: "Im Modul **Heute lernen** auf der Uebersicht. Dort startet eine gemeinsame Lernsitzung fuer alle faelligen Karten.",
+                scenario: Scenario::New,
+                tags: vec!["Stapelweise", "Lernen", "Dashboard"],
+                card_type: "basic",
+                content: None,
+                reasoning: Some("Wenn nichts faellig ist, kannst du dort direkt in die freie Uebung wechseln."),
+            },
+            SeedCard {
+                front: "Wie erreichst du einen einzelnen Stapel zum Bearbeiten?",
+                back: "Waehle auf der Uebersicht **Stapel oeffnen**. Dort bearbeitest du Karten, Tags, Statistiken und das Studentenlernblatt.",
+                scenario: Scenario::DueTodayFirst,
+                tags: vec!["Stapelweise", "Stapel", "Bearbeiten"],
+                card_type: "basic",
+                content: None,
+                reasoning: Some("Frei lernen startet dagegen eine Uebungsrunde mit allen Karten dieses Stapels."),
+            },
+            SeedCard {
+                front: "Wie fuegst du eine Formel oder ein Bild zu einer Karte hinzu?",
+                back: "Formeln schreibst du mit `$...$` oder `$$...$$`. Bilder fuegst du ueber **Bild einfuegen**, Einfuegen oder Drag-and-drop hinzu.",
+                scenario: Scenario::New,
+                tags: vec!["Stapelweise", "LaTeX", "Bilder"],
+                card_type: "basic",
+                content: None,
+                reasoning: Some("Die Live-Vorschau im Karteneditor zeigt Formeln und Bilder vor dem Speichern."),
+            },
+            SeedCard {
+                front: "Wie passt du die Uebersicht an deinen Lernalltag an?",
+                back: "Waehle **Dashboard anordnen**. Dort kannst du Module verschieben, entfernen und ausgeblendete Module wieder hinzufuegen.",
+                scenario: Scenario::DueTomorrow,
+                tags: vec!["Stapelweise", "Dashboard", "Module"],
+                card_type: "basic",
+                content: None,
+                reasoning: Some("Einstellungen bleiben immer erreichbar, andere Module sind frei anpassbar."),
+            },
+            SeedCard {
+                front: "Wo stellst du Design, Lernanimationen und die Oberflaechensprache ein?",
+                back: "Im **Einstellungen**-Modul. Dort findest du auch Integrationen, Beispieldaten und die SM-2-Parameter.",
+                scenario: Scenario::DueIn7Days,
+                tags: vec!["Stapelweise", "Einstellungen"],
+                card_type: "basic",
+                content: None,
+                reasoning: Some("Die Oberflaechensprache kann zwischen Deutsch, Englisch, Spanisch, Franzoesisch und Portugiesisch wechseln."),
+            },
+            SeedCard {
+                front: "Nach dem Aufdecken einer Antwort kannst du vor der Bewertung immer noch einmal die ==Vorderseite ansehen==.",
+                back: "Nutze die Schaltflaeche direkt ueber den vier Bewertungsoptionen.",
+                scenario: Scenario::DueTodayStruggling,
+                tags: vec!["Stapelweise", "Lernmodus", "Cloze"],
+                card_type: "cloze",
+                content: None,
+                reasoning: Some("So kannst du Frage und Antwort in Ruhe vergleichen, bevor du dich einschaetzt."),
+            },
+            SeedCard {
+                front: "Welche Funktion hilft dir, einen Karteikartenstapel auf Papier zu lernen?",
+                back: "[x] Studentenlernblatt drucken\n[ ] Bildschirmfoto speichern\n[ ] Karten als Bild exportieren\n[ ] Pruefung simulieren",
+                scenario: Scenario::New,
+                tags: vec!["Stapelweise", "Drucken", "Export"],
+                card_type: "multiple_choice",
+                content: Some(r#"{"options":[{"text":"Studentenlernblatt drucken","correct":true},{"text":"Bildschirmfoto speichern","correct":false},{"text":"Karten als Bild exportieren","correct":false},{"text":"Pruefung simulieren","correct":false}]}"#),
+                reasoning: Some("Das Studentenlernblatt ordnet Vorder- und Rueckseite nebeneinander auf A4 an."),
+            },
+            SeedCard {
+                front: "Ordne den Ablauf, um eine neue Karte schnell festzuhalten:",
+                back: "1. Schnellerfassung auf der Uebersicht oeffnen\n2. Zielstapel auswaehlen\n3. Vorder- und Rueckseite eintragen\n4. Karte anlegen\n5. Spaeter im Stapel bei Bedarf ausbauen",
+                scenario: Scenario::Graduated,
+                tags: vec!["Stapelweise", "Schnellerfassung", "Arbeitsablauf"],
+                card_type: "ordering",
+                content: Some(r#"{"items":["Schnellerfassung auf der Uebersicht oeffnen","Zielstapel auswaehlen","Vorder- und Rueckseite eintragen","Karte anlegen","Spaeter im Stapel bei Bedarf ausbauen"]}"#),
+                reasoning: Some("Die Schnellerfassung ist fuer Ideen gedacht, die du nicht verlieren moechtest."),
+            },
+        ];
+        if let Some(d) = Self::build_deck(
+            repo,
+            "Stapelweise entdecken",
+            cards6,
+            today,
+            &existing_decks,
+        )? {
+            decks.push(d);
+        }
+
+        // ── Deck 6: Formale Logik & Mengenlehre (alle Kartentypen) ────────
         let cards4 = vec![
             // 1. MC De Morgan
             SeedCard {
@@ -402,12 +658,142 @@ impl SeedGenerator {
                 content: None,
                 reasoning: Some("Im Gegensatz zur gewohnten Arithmetik verteilt sich in der Booleschen Logik sowohl die Konjunktion über die Disjunktion als auch die Disjunktion über die Konjunktion!"),
             },
+            SeedCard {
+                front: "Wie viele Elemente besitzt die Potenzmenge $\\mathcal{P}(A)$ einer Menge $A$ mit drei Elementen?",
+                back: "[x] 8\n[ ] 3\n[ ] 6\n[ ] 9",
+                scenario: Scenario::New,
+                tags: vec!["Mengenlehre", "Potenzmenge"],
+                card_type: "multiple_choice",
+                content: Some(r#"{"options":[{"text":"8","correct":true},{"text":"3","correct":false},{"text":"6","correct":false},{"text":"9","correct":false}]}"#),
+                reasoning: Some("Eine $n$-elementige Menge besitzt genau $2^n$ Teilmengen. Für $n=3$ gilt $2^3=8$."),
+            },
+            SeedCard {
+                front: "Bringe die Schritte eines Beweises von $A \\subseteq B$ in die richtige Reihenfolge:",
+                back: "1. Wähle ein beliebiges Element x aus A\n2. Nutze die definierenden Eigenschaften von A\n3. Zeige, dass x die Eigenschaften von B erfüllt\n4. Folgere x ∈ B und damit A ⊆ B",
+                scenario: Scenario::DueTodayFirst,
+                tags: vec!["Mengenlehre", "Beweise"],
+                card_type: "ordering",
+                content: Some(r#"{"items":["Wähle ein beliebiges Element x aus A","Nutze die definierenden Eigenschaften von A","Zeige, dass x die Eigenschaften von B erfüllt","Folgere x ∈ B und damit A ⊆ B"]}"#),
+                reasoning: Some("Eine Teilmengenbeziehung wird elementweise bewiesen: Jedes beliebige Element von A muss auch Element von B sein."),
+            },
+            SeedCard {
+                front: "Die symmetrische Differenz $A \\triangle B$ enthält alle Elemente, die ==in genau einer der beiden Mengen== liegen.",
+                back: "$A \\triangle B = (A \\setminus B) \\cup (B \\setminus A)$",
+                scenario: Scenario::DueIn7Days,
+                tags: vec!["Mengenlehre", "Mengenoperationen"],
+                card_type: "cloze",
+                content: None,
+                reasoning: Some("Elemente aus der Schnittmenge werden ausgeschlossen; übrig bleiben die Elemente, die nur A oder nur B angehören."),
+            },
         ];
 
-        if let Some(d) = Self::build_deck(repo, "Formale Logik & Problemlösen", cards4, today, &existing_names)? {
+        if let Some(d) = Self::build_deck(repo, current_logic_name, cards4, today, &existing_decks)?
+        {
             decks.push(d);
         }
 
         Ok(decks)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::db::migrations;
+    use rusqlite::Connection;
+    use std::collections::HashSet;
+
+    #[test]
+    fn sample_decks_cover_every_interactive_card_type() {
+        let conn = Connection::open_in_memory().unwrap();
+        migrations::run_migrations(&conn).unwrap();
+        let repo = Repository::new(conn);
+
+        let decks = SeedGenerator::generate(&repo).unwrap();
+        assert_eq!(decks.len(), 6);
+        assert!(decks
+            .iter()
+            .any(|deck| deck.name == "Formale Logik & Mengenlehre"));
+
+        let expected_types: HashSet<&str> = ["basic", "cloze", "multiple_choice", "ordering"]
+            .into_iter()
+            .collect();
+
+        for deck in decks {
+            let cards = repo.list_cards(&deck.id).unwrap();
+            let actual_types: HashSet<&str> =
+                cards.iter().map(|card| card.card_type.as_str()).collect();
+            assert_eq!(
+                actual_types, expected_types,
+                "Kartentypen fehlen in {}",
+                deck.name
+            );
+
+            for card in cards
+                .iter()
+                .filter(|card| card.card_type == "multiple_choice" || card.card_type == "ordering")
+            {
+                let content = card
+                    .content
+                    .as_deref()
+                    .expect("Interaktive Karte ohne Inhalt");
+                let parsed: serde_json::Value =
+                    serde_json::from_str(content).unwrap_or_else(|error| {
+                        panic!("Ungültiger Karteninhalt in '{}': {error}", card.front)
+                    });
+                let field = if card.card_type == "multiple_choice" {
+                    "options"
+                } else {
+                    "items"
+                };
+                assert!(
+                    parsed[field]
+                        .as_array()
+                        .is_some_and(|items| items.len() >= 2),
+                    "Interaktive Karte '{}' benötigt mindestens zwei Einträge",
+                    card.front
+                );
+            }
+        }
+
+        let card_count_before: usize = repo
+            .list_decks()
+            .unwrap()
+            .iter()
+            .map(|deck| repo.list_cards(&deck.id).unwrap().len())
+            .sum();
+        assert!(SeedGenerator::generate(&repo).unwrap().is_empty());
+        let card_count_after: usize = repo
+            .list_decks()
+            .unwrap()
+            .iter()
+            .map(|deck| repo.list_cards(&deck.id).unwrap().len())
+            .sum();
+        assert_eq!(card_count_after, card_count_before);
+    }
+
+    #[test]
+    fn legacy_logic_deck_is_renamed_and_completed() {
+        let conn = Connection::open_in_memory().unwrap();
+        migrations::run_migrations(&conn).unwrap();
+        let repo = Repository::new(conn);
+        repo.create_deck("Formale Logik & Problemlösen").unwrap();
+
+        let created_decks = SeedGenerator::generate(&repo).unwrap();
+        assert_eq!(created_decks.len(), 5);
+
+        let decks = repo.list_decks().unwrap();
+        assert!(decks
+            .iter()
+            .any(|deck| deck.name == "Formale Logik & Mengenlehre"));
+        assert!(!decks
+            .iter()
+            .any(|deck| deck.name == "Formale Logik & Problemlösen"));
+
+        let logic_deck = decks
+            .iter()
+            .find(|deck| deck.name == "Formale Logik & Mengenlehre")
+            .unwrap();
+        assert_eq!(repo.list_cards(&logic_deck.id).unwrap().len(), 23);
     }
 }

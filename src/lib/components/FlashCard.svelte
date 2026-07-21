@@ -1,24 +1,31 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, tick } from "svelte";
   import { settingsStore } from "$lib/stores/settings.svelte";
   import { renderMarkdown } from "$lib/markdown";
+  import { languageLabel } from "$lib/languages";
 
   let {
     front = "",
     back = "",
+    frontLanguage = null,
+    backLanguage = null,
     reasoning = null,
     tags = [],
     flipped = false,
     cardType = "basic",
     content = null,
+    onTurnComplete = () => {},
   } = $props<{
     front?: string;
     back?: string;
+    frontLanguage?: string | null;
+    backLanguage?: string | null;
     reasoning?: string | null;
     tags?: string[];
     flipped?: boolean;
     cardType?: string;
     content?: string | null;
+    onTurnComplete?: (flipped: boolean) => void;
   }>();
 
   let zoomedImageSrc = $state<string | null>(null);
@@ -142,23 +149,91 @@
 
   let sizeClass = $derived(settingsStore.fontSizeClass(settingsStore.current.card_font_size, shortCard));
   let familyClass = $derived(settingsStore.fontFamilyClass(settingsStore.current.card_font_family));
+  let displayedFlipped = $state(false);
+  let rotation = $state(0);
+  let turnTransition = $state("none");
+  let animationToken = 0;
+  let requestedFlipped = false;
+
+  const wait = (duration: number) => new Promise<void>((resolve) => setTimeout(resolve, duration));
+
+  async function animateFlip(target: boolean) {
+    const token = ++animationToken;
+    const direction = target ? 1 : -1;
+
+    turnTransition = "transform 170ms cubic-bezier(0.4, 0, 1, 1)";
+    rotation = direction * 90;
+    await wait(170);
+    if (token !== animationToken) return;
+
+    turnTransition = "none";
+    displayedFlipped = target;
+    rotation = direction * -90;
+    await tick();
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    if (token !== animationToken) return;
+
+    turnTransition = "transform 220ms cubic-bezier(0, 0, 0.2, 1)";
+    rotation = 0;
+    await wait(220);
+    if (token === animationToken) onTurnComplete(target);
+  }
+
+  $effect(() => {
+    const target = flipped;
+    const animationsEnabled = settingsStore.cardFlipAnimationEnabled();
+
+    if (!animationsEnabled) {
+      animationToken += 1;
+      requestedFlipped = target;
+      displayedFlipped = target;
+      turnTransition = "none";
+      rotation = 0;
+      onTurnComplete(target);
+      return;
+    }
+
+    if (target === requestedFlipped) return;
+
+    requestedFlipped = target;
+    if (target === displayedFlipped) {
+      animationToken += 1;
+      turnTransition = "transform 160ms cubic-bezier(0, 0, 0.2, 1)";
+      rotation = 0;
+      return;
+    }
+
+    void animateFlip(target);
+  });
 </script>
 
-<div class="card-flip w-full max-w-2xl mx-auto h-80">
-  <div class="card-flip-inner relative w-full h-full {flipped ? 'flipped' : ''}">
+<div class="relative mx-auto h-80 w-full max-w-2xl [perspective:1400px]" aria-live="polite">
+  {#if !displayedFlipped}
     <!-- Front -->
-    <div class="card-front absolute inset-0 glass-card rounded-card p-6 flex flex-col items-center justify-between shadow-elevation-mid overflow-y-auto">
-      {#if tags.length > 0}
-        <div class="w-full flex flex-wrap gap-1 justify-center shrink-0 mb-2">
+    <div
+      class="glass-card flex h-full w-full flex-col items-center justify-between overflow-y-auto rounded-card p-6 shadow-elevation-mid [backface-visibility:hidden] [will-change:transform]"
+      style:transform="rotateY({rotation}deg)"
+      style:transition={turnTransition}
+    >
+      <div class="mb-2 flex w-full shrink-0 items-start justify-between gap-3">
+        <div class="flex items-center gap-2">
+          <span class="section-kicker pt-0.5">Frage</span>
+          {#if frontLanguage}
+            <span class="rounded border border-accent-correct/30 bg-accent-correct/10 px-1.5 py-0.5 text-[10px] font-medium text-accent-correct">{languageLabel(frontLanguage)}</span>
+          {/if}
+        </div>
+        {#if tags.length > 0}
+          <div class="flex flex-wrap justify-end gap-1">
           {#each tags as tag}
             <span class="inline-flex items-center bg-white/10 text-secondary px-2 py-0.5 rounded text-[10px] font-medium tracking-wide">#{tag}</span>
           {/each}
-        </div>
-      {/if}
+          </div>
+        {/if}
+      </div>
 
       <!-- Front Prompt -->
       <div class="flex-1 flex items-center justify-center w-full my-auto">
-        <div class="{familyClass} {sizeClass} text-primary dark:text-primary-dark text-center text-balance">
+        <div data-user-content class="{familyClass} {sizeClass} text-primary dark:text-primary-dark text-center text-balance">
           {@html renderedFront}
         </div>
       </div>
@@ -172,7 +247,7 @@
               onclick={(e) => toggleMcOption(idx, e)}
               class="w-full p-2.5 rounded-xl border text-xs font-medium text-left transition-all flex items-center justify-between {isSelected ? 'bg-accent-correct/20 border-accent-correct text-primary dark:text-primary-dark shadow-sm' : 'glass border-white/10 hover:bg-white/10 text-secondary'}"
             >
-              <span>{opt.text}</span>
+              <span data-user-content>{opt.text}</span>
               <span class="w-5 h-5 rounded-md border flex items-center justify-center text-xs {isSelected ? 'bg-accent-correct border-accent-correct text-white' : 'border-white/20'}">
                 {isSelected ? '✓' : ''}
               </span>
@@ -186,7 +261,7 @@
         <div class="w-full space-y-1.5 mt-3 shrink-0">
           {#each userOrderingItems as item, idx}
             <div class="flex items-center justify-between p-2 rounded-lg glass border border-white/10 text-xs text-primary dark:text-primary-dark">
-              <span>{idx + 1}. {item}</span>
+              <span data-user-content>{idx + 1}. {item}</span>
               <div class="flex items-center gap-1">
                 <button
                   disabled={idx === 0}
@@ -208,16 +283,28 @@
         </div>
       {/if}
     </div>
-
+  {:else}
     <!-- Back -->
-    <div class="card-back absolute inset-0 glass-card rounded-card p-6 flex flex-col items-center justify-between shadow-elevation-mid overflow-y-auto">
-      {#if tags.length > 0}
-        <div class="w-full flex flex-wrap gap-1 justify-center shrink-0 mb-2">
+    <div
+      class="glass-card flex h-full w-full flex-col items-center justify-between overflow-y-auto rounded-card p-6 shadow-elevation-mid [backface-visibility:hidden] [will-change:transform]"
+      style:transform="rotateY({rotation}deg)"
+      style:transition={turnTransition}
+    >
+      <div class="mb-2 flex w-full shrink-0 items-start justify-between gap-3">
+        <div class="flex items-center gap-2">
+          <span class="section-kicker pt-0.5">{isMultipleChoice || isOrdering ? "Lösung" : "Antwort"}</span>
+          {#if backLanguage}
+            <span class="rounded border border-accent-correct/30 bg-accent-correct/10 px-1.5 py-0.5 text-[10px] font-medium text-accent-correct">{languageLabel(backLanguage)}</span>
+          {/if}
+        </div>
+        {#if tags.length > 0}
+          <div class="flex flex-wrap justify-end gap-1">
           {#each tags as tag}
             <span class="inline-flex items-center bg-white/10 text-secondary px-2 py-0.5 rounded text-[10px] font-medium tracking-wide">#{tag}</span>
           {/each}
-        </div>
-      {/if}
+          </div>
+        {/if}
+      </div>
 
       <!-- Multiple Choice Feedback (Back View) -->
       {#if isMultipleChoice && mcOptions.length > 0}
@@ -230,9 +317,9 @@
             {@const isMissed = !isSelected && isCorrect}
             {@const isWrongSelect = isSelected && !isCorrect}
 
-            <div class="w-full p-2.5 rounded-xl border text-xs font-medium flex items-center justify-between {isSuccess ? 'bg-emerald-500/20 border-emerald-500 text-emerald-400' : isMissed ? 'bg-amber-500/20 border-amber-500 text-amber-400' : isWrongSelect ? 'bg-red-500/20 border-red-500 text-red-400' : 'glass border-white/5 opacity-50 text-secondary'}">
-              <span>{opt.text}</span>
-              <span class="text-xs font-bold px-2 py-0.5 rounded {isSuccess ? 'bg-emerald-500/20 text-emerald-400' : isMissed ? 'bg-amber-500/20 text-amber-400' : isWrongSelect ? 'bg-red-500/20 text-red-400' : ''}">
+            <div class="w-full p-2.5 rounded-xl border text-xs font-medium flex items-center justify-between {isSuccess ? 'bg-accent-easy/20 border-accent-easy text-accent-easy' : isMissed ? 'bg-accent-hard/20 border-accent-hard text-accent-hard' : isWrongSelect ? 'bg-accent-incorrect/20 border-accent-incorrect text-accent-incorrect' : 'glass border-white/5 opacity-50 text-secondary'}">
+              <span data-user-content>{opt.text}</span>
+              <span class="text-xs font-bold px-2 py-0.5 rounded {isSuccess ? 'bg-accent-easy/20 text-accent-easy' : isMissed ? 'bg-accent-hard/20 text-accent-hard' : isWrongSelect ? 'bg-accent-incorrect/20 text-accent-incorrect' : ''}">
                 {isSuccess ? 'Richtig ausgewählt ✓' : isMissed ? 'Fehlend (Wäre richtiggewesen)' : isWrongSelect ? 'Falsch ausgewählt ✗' : 'Nicht zutreffend'}
               </span>
             </div>
@@ -244,9 +331,9 @@
           <p class="text-xs font-bold uppercase text-secondary tracking-wider text-center mb-3">Korrekte Reihenfolge:</p>
           {#each originalOrderingItems as item, idx}
             {@const userMatch = userOrderingItems[idx] === item}
-            <div class="flex items-center justify-between p-2.5 rounded-xl border text-xs font-medium {userMatch ? 'bg-emerald-500/20 border-emerald-500 text-emerald-400' : 'bg-red-500/20 border-red-500 text-red-400'}">
-              <span>{idx + 1}. {item}</span>
-              <span class="text-xs font-bold px-2 py-0.5 rounded {userMatch ? 'bg-emerald-500/20' : 'bg-red-500/20'}">
+            <div class="flex items-center justify-between p-2.5 rounded-xl border text-xs font-medium {userMatch ? 'bg-accent-easy/20 border-accent-easy text-accent-easy' : 'bg-accent-incorrect/20 border-accent-incorrect text-accent-incorrect'}">
+              <span data-user-content>{idx + 1}. {item}</span>
+              <span class="text-xs font-bold px-2 py-0.5 rounded {userMatch ? 'bg-accent-easy/20' : 'bg-accent-incorrect/20'}">
                 {userMatch ? '✓ Richtig platziert' : `Deine Wahl: ${userOrderingItems[idx] || '-'}`}
               </span>
             </div>
@@ -255,7 +342,7 @@
       {:else}
         <!-- Standard / Cloze Back Content -->
         <div class="flex-1 flex items-center justify-center w-full mt-4">
-          <div class="{familyClass} {sizeClass} text-primary dark:text-primary-dark text-center text-balance w-full">
+          <div data-user-content class="{familyClass} {sizeClass} text-primary dark:text-primary-dark text-center text-balance w-full">
             {@html renderedBack}
           </div>
         </div>
@@ -264,13 +351,13 @@
       {#if renderedReasoning}
         <div class="mt-4 pt-4 border-t border-white/10 w-full text-center shrink-0">
           <span class="text-[10px] uppercase text-secondary/70 font-semibold tracking-wider">Warum?</span>
-          <div class="{familyClass} text-sm mt-1 text-primary/80 dark:text-primary-dark/80 text-balance opacity-90">
+          <div data-user-content class="{familyClass} text-sm mt-1 text-primary/80 dark:text-primary-dark/80 text-balance opacity-90">
             {@html renderedReasoning}
           </div>
         </div>
       {/if}
     </div>
-  </div>
+  {/if}
 </div>
 
 <!-- Image Zoom Modal -->
@@ -282,7 +369,13 @@
     onclick={(e) => { e.stopPropagation(); zoomedImageSrc = null; }}
     onkeydown={(e) => { e.stopPropagation(); (e.key === "Escape" || e.key === " ") && (zoomedImageSrc = null); }}
   >
-    <div class="relative max-w-5xl max-h-[90vh] flex flex-col items-center justify-center" onclick={(e) => e.stopPropagation()} role="dialog" tabindex="-1">
+    <div
+      class="relative max-w-5xl max-h-[90vh] flex flex-col items-center justify-center"
+      onclick={(e) => e.stopPropagation()}
+      onkeydown={(e) => e.stopPropagation()}
+      role="dialog"
+      tabindex="-1"
+    >
       <button
         onclick={(e) => { e.stopPropagation(); zoomedImageSrc = null; }}
         class="absolute -top-12 right-0 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"

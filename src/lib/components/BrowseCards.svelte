@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Card } from "$lib/types";
   import FlashCard from "./FlashCard.svelte";
+  import { settingsStore } from "$lib/stores/settings.svelte";
 
   let { cards, deckName = "", onClose = () => {} } = $props<{
     cards: Card[];
@@ -10,6 +11,7 @@
 
   let currentIndex = $state(0);
   let isFlipped = $state(false);
+  let cardFontClass = $derived(settingsStore.fontFamilyClass(settingsStore.current.card_font_family));
 
   let selectedFilterTag = $state<string | null>(null);
 
@@ -22,6 +24,7 @@
   );
 
   $effect(() => {
+    settingsStore.load();
     selectedFilterTag;
     currentIndex = 0;
     isFlipped = false;
@@ -72,7 +75,7 @@
           <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
         </svg>
       </button>
-      <h1 class="text-xl font-bold text-primary dark:text-primary-dark truncate">
+      <h1 class="{cardFontClass} text-xl font-normal text-primary dark:text-primary-dark truncate">
         {deckName}
       </h1>
       <span class="text-secondary text-sm ml-auto">{activeCards.length > 0 ? currentIndex + 1 : 0} / {activeCards.length}</span>
@@ -114,6 +117,8 @@
         <FlashCard
           front={currentCard.front}
           back={currentCard.back}
+          frontLanguage={currentCard.front_language}
+          backLanguage={currentCard.back_language}
           reasoning={currentCard.reasoning}
           tags={currentCard.tags}
           flipped={isFlipped}

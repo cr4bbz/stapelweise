@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "$lib/i18n";
   let { visible = false, onClose = () => {} } = $props<{
     visible: boolean;
     onClose?: () => void;
@@ -52,9 +53,16 @@
 
 {#if visible}
   <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onclick={onClose} onkeydown={(e) => e.key === "Escape" && onClose()} tabindex="-1" role="presentation">
-    <div class="glass rounded-card p-6 max-w-lg mx-4 shadow-elevation-high max-h-[80vh] overflow-y-auto" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex="-1">
+    <div
+      class="glass rounded-card p-6 max-w-lg mx-4 shadow-elevation-high max-h-[80vh] overflow-y-auto"
+      onclick={(e) => e.stopPropagation()}
+      onkeydown={(e) => e.stopPropagation()}
+      role="dialog"
+      aria-modal="true"
+      tabindex="-1"
+    >
       <div class="flex items-center justify-between mb-4">
-        <h2 class="text-lg font-bold text-primary dark:text-primary-dark">Tastenkürzel</h2>
+        <h2 class="text-lg font-bold text-primary dark:text-primary-dark">{t("Tastenkürzel")}</h2>
         <button
           onclick={onClose}
           class="p-1 rounded-lg hover:bg-white/30 dark:hover:bg-white/10 text-secondary transition-colors"
@@ -67,12 +75,12 @@
       </div>
 
       {#each sections as section}
-        <h3 class="font-semibold text-primary dark:text-primary-dark text-xs uppercase tracking-wide mt-4 mb-2">{section.title}</h3>
+        <h3 class="font-semibold text-primary dark:text-primary-dark text-xs uppercase tracking-wide mt-4 mb-2">{t(section.title)}</h3>
         <div class="grid grid-cols-2 gap-2 text-sm">
           {#each section.shortcuts as [keys, desc]}
             <div class="flex items-center gap-2">
               <kbd class="inline-flex items-center justify-center min-w-[1.75rem] h-6 px-1.5 rounded bg-white/50 dark:bg-white/10 border border-white/20 text-xs font-mono text-primary dark:text-primary-dark">{keys}</kbd>
-              <span class="text-secondary">{desc}</span>
+              <span class="text-secondary">{t(desc)}</span>
             </div>
           {/each}
         </div>

@@ -3,6 +3,7 @@
   import { fade, slide } from "svelte/transition";
   import * as api from "$lib/api";
   import type { Card } from "$lib/types";
+  import { t } from "$lib/i18n";
   import FlashCard from "./FlashCard.svelte";
 
   let {
@@ -154,11 +155,11 @@
   let timeTakenSeconds = $derived(Math.max(1, Math.round((endTime - startTime) / 1000)));
 
   let gradeBadge = $derived(() => {
-    if (scorePercentage >= 90) return { label: "Sehr gut (1.0)", color: "text-emerald-500 bg-emerald-500/10 border-emerald-500/20" };
-    if (scorePercentage >= 80) return { label: "Gut (2.0)", color: "text-green-500 bg-green-500/10 border-green-500/20" };
-    if (scorePercentage >= 65) return { label: "Befriedigend (3.0)", color: "text-amber-500 bg-amber-500/10 border-amber-500/20" };
-    if (scorePercentage >= 50) return { label: "Ausreichend (4.0)", color: "text-orange-500 bg-orange-500/10 border-orange-500/20" };
-    return { label: "Nicht bestanden (5.0)", color: "text-red-500 bg-red-500/10 border-red-500/20" };
+    if (scorePercentage >= 90) return { label: `${t("Sehr gut")} (1.0)`, color: "text-accent-easy bg-accent-easy/10 border-accent-easy/20" };
+    if (scorePercentage >= 80) return { label: `${t("Gut")} (2.0)`, color: "text-accent-correct bg-accent-correct/10 border-accent-correct/20" };
+    if (scorePercentage >= 65) return { label: `${t("Befriedigend")} (3.0)`, color: "text-accent-hard bg-accent-hard/10 border-accent-hard/20" };
+    if (scorePercentage >= 50) return { label: `${t("Ausreichend")} (4.0)`, color: "text-accent-hard bg-accent-hard/10 border-accent-hard/20" };
+    return { label: `${t("Nicht bestanden")} (5.0)`, color: "text-accent-incorrect bg-accent-incorrect/10 border-accent-incorrect/20" };
   });
 
   function formatTimer(seconds: number): string {
@@ -186,13 +187,13 @@
         </svg>
       </button>
       <div>
-        <h1 class="text-xl font-bold text-primary dark:text-primary-dark">🧪 Prüfungs-Simulator</h1>
+        <h1 class="text-xl font-bold text-primary dark:text-primary-dark">🧪 {t("Prüfungs-Simulator")}</h1>
         <p class="text-xs text-secondary">{testName}</p>
       </div>
     </div>
 
     {#if mode === "running" && timeLimitMinutes > 0}
-      <div class="flex items-center gap-2 font-mono text-sm px-3 py-1.5 rounded-lg border shadow-sm {timeRemaining < 120 ? 'bg-red-500/10 border-red-500/30 text-accent-incorrect animate-pulse' : 'glass border-white/10 text-primary dark:text-primary-dark'}">
+      <div class="flex items-center gap-2 font-mono text-sm px-3 py-1.5 rounded-lg border shadow-sm {timeRemaining < 120 ? 'bg-accent-incorrect/10 border-accent-incorrect/30 text-accent-incorrect animate-pulse' : 'glass border-white/10 text-primary dark:text-primary-dark'}">
         <span>⏱️</span>
         <span class="font-bold">{formatTimer(timeRemaining)}</span>
       </div>
@@ -204,20 +205,20 @@
     {#if mode === "config"}
       <!-- Configuration View -->
       <div in:fade class="max-w-xl mx-auto glass border border-white/10 rounded-2xl p-6 shadow-elevation-mid">
-        <h2 class="text-lg font-bold text-primary dark:text-primary-dark mb-1">Test-Parameter konfigurieren</h2>
-        <p class="text-xs text-secondary mb-6">Simuliere eine echte Prüfungssituation. Die Ergebnisse fließen nicht in dein automatisches SRS-Intervall ein.</p>
+        <h2 class="text-lg font-bold text-primary dark:text-primary-dark mb-1">{t("Test-Parameter konfigurieren")}</h2>
+        <p class="text-xs text-secondary mb-6">{t("Simuliere eine echte Prüfungssituation. Die Ergebnisse fließen nicht in dein automatisches SRS-Intervall ein.")}</p>
 
         <div class="space-y-6">
           <!-- Question Count -->
           <div>
-            <span class="block text-xs font-bold text-secondary uppercase tracking-wider mb-2">Anzahl der Fragen</span>
+            <span class="block text-xs font-bold text-secondary uppercase tracking-wider mb-2">{t("Anzahl der Fragen")}</span>
             <div class="grid grid-cols-4 gap-2">
               {#each [5, 10, 20, -1] as cnt}
                 <button
                   onclick={() => selectedCount = cnt}
                   class="py-2 text-sm font-medium rounded-xl border transition-all {selectedCount === cnt ? 'bg-accent-correct border-accent-correct text-white' : 'glass border-white/10 hover:bg-white/10 text-primary dark:text-primary-dark'}"
                 >
-                  {cnt === -1 ? `Alle (${allCards.length})` : cnt}
+                  {cnt === -1 ? `${t("Alle")} (${allCards.length})` : cnt}
                 </button>
               {/each}
             </div>
@@ -225,9 +226,9 @@
 
           <!-- Time Limit -->
           <div>
-            <span class="block text-xs font-bold text-secondary uppercase tracking-wider mb-2">Zeitlimit</span>
+            <span class="block text-xs font-bold text-secondary uppercase tracking-wider mb-2">{t("Zeitlimit")}</span>
             <div class="grid grid-cols-4 gap-2">
-              {#each [[0, "Ohne"], [5, "5 Min"], [15, "15 Min"], [30, "30 Min"]] as [min, label]}
+              {#each [[0, t("Ohne")], [5, `5 ${t("Min.")}`], [15, `15 ${t("Min.")}`], [30, `30 ${t("Min.")}`]] as [min, label]}
                 <button
                   onclick={() => timeLimitMinutes = Number(min)}
                   class="py-2 text-sm font-medium rounded-xl border transition-all {timeLimitMinutes === min ? 'bg-accent-correct border-accent-correct text-white' : 'glass border-white/10 hover:bg-white/10 text-primary dark:text-primary-dark'}"
@@ -241,8 +242,8 @@
           <!-- Shuffle Toggle -->
           <div class="flex items-center justify-between p-3 glass rounded-xl border border-white/10">
             <div>
-              <p class="text-sm font-medium text-primary dark:text-primary-dark">Fragen mischen</p>
-              <p class="text-xs text-secondary">Reihenfolge zufällig anordnen</p>
+              <p class="text-sm font-medium text-primary dark:text-primary-dark">{t("Fragen mischen")}</p>
+              <p class="text-xs text-secondary">{t("Reihenfolge zufällig anordnen")}</p>
             </div>
             <input
               type="checkbox"
@@ -258,7 +259,7 @@
             disabled={allCards.length === 0}
             class="w-full py-3 rounded-xl bg-accent-correct text-white font-bold text-sm hover:scale-[1.01] transition-transform shadow-elevation-low disabled:opacity-50"
           >
-            🚀 Simulation starten ({allCards.length} verfügbare Karten)
+            🚀 {t("Simulation starten")} ({allCards.length} {t("verfügbare Karten")})
           </button>
         </div>
       </div>
@@ -269,13 +270,13 @@
         <!-- Progress Indicator -->
         <div class="w-full flex items-center justify-between mb-4">
           <span class="text-xs font-bold text-secondary uppercase tracking-wider">
-            Frage {currentIndex + 1} von {testCards.length}
+            {t("Frage")} {currentIndex + 1} {t("von")} {testCards.length}
           </span>
           <button
             onclick={finishTest}
             class="text-xs font-medium text-secondary hover:text-accent-incorrect transition-colors"
           >
-            🏁 Test vorzeitig beenden
+            🏁 {t("Test vorzeitig beenden")}
           </button>
         </div>
 
@@ -285,6 +286,8 @@
             <FlashCard
               front={testCards[currentIndex].front}
               back={testCards[currentIndex].back}
+              frontLanguage={testCards[currentIndex].front_language}
+              backLanguage={testCards[currentIndex].back_language}
               reasoning={testCards[currentIndex].reasoning}
               tags={testCards[currentIndex].tags}
               flipped={isFlipped}
@@ -301,7 +304,7 @@
               onclick={() => isFlipped = true}
               class="w-full py-3 rounded-xl glass border border-white/20 text-primary dark:text-primary-dark font-semibold hover:bg-white/10 transition-all text-sm shadow-elevation-low"
             >
-              Antwort aufdecken (Leertaste)
+              {t("Antwort aufdecken (Leertaste)")}
             </button>
           {:else}
             <div class="grid grid-cols-2 gap-4">
@@ -309,13 +312,13 @@
                 onclick={() => handleAnswer(false)}
                 class="py-3 rounded-xl bg-accent-incorrect text-white font-bold text-sm hover:scale-[1.02] transition-transform shadow-elevation-low"
               >
-                ❌ Falsch / Nicht gewusst
+                ❌ {t("Falsch / Nicht gewusst")}
               </button>
               <button
                 onclick={() => handleAnswer(true)}
                 class="py-3 rounded-xl bg-accent-correct text-white font-bold text-sm hover:scale-[1.02] transition-transform shadow-elevation-low"
               >
-                ✅ Richtig / Gewusst
+                ✅ {t("Richtig / Gewusst")}
               </button>
             </div>
           {/if}
@@ -330,20 +333,20 @@
             {gradeBadge().label}
           </span>
           <h2 class="text-4xl font-black text-primary dark:text-primary-dark mb-1">{scorePercentage}%</h2>
-          <p class="text-xs text-secondary">Ergebnis der Prüfungssimulation</p>
+          <p class="text-xs text-secondary">{t("Ergebnis der Prüfungssimulation")}</p>
 
           <!-- Quick Metrics Grid -->
           <div class="grid grid-cols-3 gap-4 mt-6">
             <div class="glass p-3 rounded-xl text-center">
-              <span class="text-xs text-secondary block mb-0.5">Richtig</span>
-              <span class="text-lg font-bold text-emerald-500">{correctCount}</span>
+              <span class="text-xs text-secondary block mb-0.5">{t("Richtig")}</span>
+              <span class="text-lg font-bold text-accent-easy">{correctCount}</span>
             </div>
             <div class="glass p-3 rounded-xl text-center">
-              <span class="text-xs text-secondary block mb-0.5">Falsch</span>
-              <span class="text-lg font-bold text-red-500">{incorrectCount}</span>
+              <span class="text-xs text-secondary block mb-0.5">{t("Falsch")}</span>
+              <span class="text-lg font-bold text-accent-incorrect">{incorrectCount}</span>
             </div>
             <div class="glass p-3 rounded-xl text-center">
-              <span class="text-xs text-secondary block mb-0.5">Zeit</span>
+              <span class="text-xs text-secondary block mb-0.5">{t("Zeit")}</span>
               <span class="text-lg font-bold text-primary dark:text-primary-dark">{formatTimer(timeTakenSeconds)}</span>
             </div>
           </div>
@@ -351,7 +354,7 @@
 
         <!-- Question Detailed Breakdown -->
         <div class="mt-6 space-y-3 max-h-60 overflow-y-auto pr-2">
-          <h3 class="text-xs font-bold text-secondary uppercase tracking-wider mb-2">Detailübersicht</h3>
+          <h3 class="text-xs font-bold text-secondary uppercase tracking-wider mb-2">{t("Detailübersicht")}</h3>
           {#each testCards as card, idx}
             {@const isCorrect = userAnswers[card.id]}
             <div class="flex items-center justify-between p-3 rounded-xl glass border border-white/5 text-sm">
@@ -359,8 +362,8 @@
                 <span class="text-xs font-bold text-secondary">{idx + 1}.</span>
                 <span class="text-primary dark:text-primary-dark line-clamp-1">{card.front}</span>
               </div>
-              <span class="text-xs font-bold px-2 py-0.5 rounded {isCorrect ? 'text-emerald-500 bg-emerald-500/10' : 'text-red-500 bg-red-500/10'}">
-                {isCorrect ? 'Richtig' : 'Falsch'}
+              <span class="text-xs font-bold px-2 py-0.5 rounded {isCorrect ? 'text-accent-easy bg-accent-easy/10' : 'text-accent-incorrect bg-accent-incorrect/10'}">
+                {isCorrect ? t("Richtig") : t("Falsch")}
               </span>
             </div>
           {/each}
@@ -372,7 +375,7 @@
             onclick={onClose}
             class="px-4 py-2 text-xs font-medium text-secondary hover:text-primary dark:hover:text-primary-dark"
           >
-            Zurück zur Übersicht
+            {t("Zurück zur Übersicht")}
           </button>
 
           {#if failedCards.length > 0}
@@ -380,7 +383,7 @@
               onclick={() => onStudyFailed(failedCards)}
               class="px-5 py-2.5 rounded-xl bg-accent-correct text-white font-bold text-xs hover:scale-[1.02] transition-transform"
             >
-              {failedCards.length} falsche Karten vertiefen
+              {failedCards.length} {t("falsche Karten vertiefen")}
             </button>
           {/if}
         </div>

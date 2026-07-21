@@ -1,33 +1,64 @@
 <script lang="ts">
-  let { visible = false, onRate = (_quality: number) => {} } = $props();
+  import { t } from "$lib/i18n";
+  let {
+    enabled = false,
+    animate = true,
+    smooth = true,
+    passThreshold = 3,
+    onRate = (_quality: number) => {},
+  } = $props();
 
   const buttons = [
-    { quality: 1, label: "Wiederholen", key: "1", bg: "bg-accent-incorrect dark:bg-accent-incorrect-dark", shadow: "shadow-red-500/25" },
-    { quality: 2, label: "Schwer",       key: "2", bg: "bg-accent-hard dark:bg-accent-hard-dark",           shadow: "shadow-orange-500/25" },
-    { quality: 3, label: "Okay",         key: "3", bg: "bg-accent-correct dark:bg-accent-correct-dark",     shadow: "shadow-amber-500/25" },
-    { quality: 4, label: "Gut",          key: "4", bg: "bg-accent-easy dark:bg-accent-easy-dark",           shadow: "shadow-green-500/25" },
+    { quality: 1, label: "again", key: "1", bg: "bg-accent-incorrect dark:bg-accent-incorrect-dark" },
+    { quality: 2, label: "hard",  key: "2", bg: "bg-accent-hard dark:bg-accent-hard-dark" },
+    { quality: 3, label: "okay",  key: "3", bg: "bg-accent-correct dark:bg-accent-correct-dark" },
+    { quality: 4, label: "good",  key: "4", bg: "bg-accent-easy dark:bg-accent-easy-dark" },
   ];
 </script>
 
-{#if visible}
-  <div class="flex gap-3 justify-center animate-in fade-in slide-in-from-bottom-4 duration-200">
-    {#each buttons as btn}
-      <button
-        onclick={() => onRate(btn.quality)}
-        class="score-button {btn.bg} {btn.shadow} text-white px-5 py-3 font-semibold flex flex-col items-center gap-0.5 min-w-24"
-        title="Taste {btn.key}"
-      >
-        <span class="text-lg leading-none">{btn.key}</span>
-        <span class="text-xs opacity-90">{btn.label}</span>
-      </button>
-    {/each}
+<div class="w-full max-w-2xl">
+  <p class="mb-2 text-center text-xs text-secondary">
+    {t("scorePassesFrom")} {t(buttons.find((button) => button.quality === passThreshold)?.label ?? "okay")}
+  </p>
+  <div class="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
+  {#each buttons as btn, index}
+    <button
+      disabled={!enabled}
+      onclick={(event) => {
+        event.stopPropagation();
+        onRate(btn.quality);
+      }}
+      class="score-button {enabled && animate ? 'score-button-enter' : ''} {enabled ? `${btn.bg} text-white` : 'cursor-not-allowed border border-secondary/25 bg-secondary/20 text-secondary/85 shadow-none'} {smooth ? 'transition-colors duration-200' : ''} flex min-w-0 flex-col items-center gap-0.5 px-3 py-3 font-semibold sm:px-5"
+      style:animation-delay={enabled && animate ? `${index * 28}ms` : "0ms"}
+      aria-label={`${t(btn.label)} (${btn.quality >= passThreshold ? t("passed") : t("willRepeat")})`}
+      title={enabled ? `Taste ${btn.key}` : "Erst nach dem Aufdecken verfügbar"}
+    >
+      <span class="text-lg leading-none">{btn.key}</span>
+      <span class="text-xs opacity-90">{t(btn.label)}</span>
+    </button>
+  {/each}
   </div>
-{/if}
+</div>
 
-<!-- Hint -->
-{#if !visible}
-  <div class="flex items-center justify-center gap-2 text-sm text-secondary mt-6">
-    <kbd class="px-2 py-0.5 bg-white/10 rounded text-xs font-mono">Leertaste</kbd>
-    <span>oder klicken zum Umdrehen</span>
-  </div>
-{/if}
+<style>
+  .score-button-enter {
+    animation: score-button-enter 210ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    will-change: transform;
+  }
+
+  @keyframes score-button-enter {
+    0% {
+      transform: translateY(6px) scale(0.975);
+    }
+
+    100% {
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .score-button-enter {
+      animation: none;
+    }
+  }
+</style>
