@@ -13,18 +13,103 @@ let sessionSize = $state(0);
 let completedCount = $state(0);
 let sessionKey = $state<string | null>(null);
 
-let currentDeckId = $state<string | null>(null);
+const SESSION_STORAGE_KEY = "stapelweise.study-session.v1";
+
+interface UndoSnapshot {
+  dueCards: DueCard[];
+  currentIndex: number;
+  completedCount: number;
+  sessionActive: boolean;
+  card: DueCard;
+}
+
+interface PersistedStudySession {
+  version: 1;
+  dueCards: DueCard[];
+  currentIndex: number;
+  practiceMode: boolean;
+  sessionSize: number;
+  completedCount: number;
+  sessionKey: string;
+}
+
+let lastRating = $state<UndoSnapshot | null>(null);
+
+function clearPersistedSession() {
+  if (typeof localStorage !== "undefined") {
+    localStorage.removeItem(SESSION_STORAGE_KEY);
+  }
+}
+
+function persistSession() {
+  if (
+    typeof localStorage === "undefined" ||
+    !sessionActive ||
+    !sessionKey ||
+    dueCards.length === 0
+  ) {
+    return;
+  }
+
+  const session: PersistedStudySession = {
+    version: 1,
+    dueCards,
+    currentIndex,
+    practiceMode,
+    sessionSize,
+    completedCount,
+    sessionKey,
+  };
+  localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
+}
+
+function restorePersistedSession(key: string): boolean {
+  if (typeof localStorage === "undefined") return false;
+
+  try {
+    const stored = localStorage.getItem(SESSION_STORAGE_KEY);
+    if (!stored) return false;
+
+    const session = JSON.parse(stored) as Partial<PersistedStudySession>;
+    if (
+      session.version !== 1 ||
+      session.sessionKey !== key ||
+      !Array.isArray(session.dueCards) ||
+      session.dueCards.length === 0 ||
+      typeof session.currentIndex !== "number" ||
+      typeof session.sessionSize !== "number" ||
+      typeof session.completedCount !== "number"
+    ) {
+      return false;
+    }
+
+    dueCards = session.dueCards;
+    currentIndex = Math.min(Math.max(0, session.currentIndex), dueCards.length - 1);
+    isFlipped = false;
+    practiceMode = session.practiceMode === true;
+    sessionSize = session.sessionSize;
+    completedCount = session.completedCount;
+    sessionKey = session.sessionKey;
+    sessionActive = true;
+    lastRating = null;
+    return true;
+  } catch {
+    clearPersistedSession();
+    return false;
+  }
+}
 
 function reset() {
+  clearPersistedSession();
   dueCards = [];
   currentIndex = 0;
   isFlipped = false;
   sessionActive = false;
-  currentDeckId = null;
   practiceMode = false;
   sessionSize = 0;
   completedCount = 0;
   sessionKey = null;
+  lastRating = null;
 }
 
 function shuffleCards(cards: Card[]): Card[] {
@@ -97,6 +182,9 @@ export function getStudyStore() {
     canResumeSession(key: string) {
       return sessionActive && sessionKey === key && dueCards.length > 0;
     },
+    resumeSession(key: string) {
+      return this.canResumeSession(key) || restorePersistedSession(key);
+    },
     async startCustomSession(cards: Card[], key: string | null = null) {
       reset();
       if (cards.length === 0) return false;
@@ -104,6 +192,7 @@ export function getStudyStore() {
       sessionSize = dueCards.length;
       sessionKey = key;
       sessionActive = true;
+      persistSession();
       return true;
     },
 
@@ -116,12 +205,12 @@ export function getStudyStore() {
       sessionKey = key;
       practiceMode = true;
       sessionActive = true;
+      persistSession();
       return true;
     },
 
     async startSession(deckIds: string[], limit: number = 50, key: string | null = null) {
       reset();
-      currentDeckId = deckIds.length === 1 ? deckIds[0] : null;
       const cards = await api.getDueCards(deckIds, limit);
       if (cards.length === 0) return false;
       dueCards = cards;
@@ -130,12 +219,12 @@ export function getStudyStore() {
       currentIndex = 0;
       isFlipped = false;
       sessionActive = true;
+      persistSession();
       return true;
     },
 
     async startSessionByTags(tags: string[], limit: number = 50, key: string | null = null) {
       reset();
-      currentDeckId = null;
       const cards = await api.getDueCardsByTags(tags, limit);
       if (cards.length === 0) return false;
       dueCards = cards;
@@ -144,20 +233,31 @@ export function getStudyStore() {
       currentIndex = 0;
       isFlipped = false;
       sessionActive = true;
+      persistSession();
       return true;
     },
 
     flip() {
       isFlipped = true;
+      persistSession();
     },
 
     async rate(quality: number) {
       const card = this.currentCard;
       if (!card) return;
 
+      const ratingSnapshot: UndoSnapshot = {
+        dueCards: [...dueCards],
+        currentIndex,
+        completedCount,
+        sessionActive,
+        card,
+      };
+
       const newState: CardState = practiceMode
         ? card.state
         : await api.submitReview(card.card.id, quality);
+      lastRating = ratingSnapshot;
 
       // Update local state
       const idx = dueCards.findIndex((c) => c.card.id === card.card.id);
@@ -186,6 +286,9 @@ export function getStudyStore() {
       // Check if session is over
       if (dueCards.length === 0) {
         sessionActive = false;
+        clearPersistedSession();
+      } else {
+        persistSession();
       }
     },
 
@@ -197,23 +300,26 @@ export function getStudyStore() {
     },
 
     async undo() {
-      if (!currentDeckId) return;
-      const dueCard = await api.undoLastReview(currentDeckId);
-      if (dueCard) {
-        // Re-insert undone card at the current position
-        dueCards = [
-          ...dueCards.slice(0, currentIndex),
-          dueCard,
-          ...dueCards.slice(currentIndex),
-        ];
-        sessionActive = true;
-        isFlipped = false;
-        completedCount = Math.max(0, completedCount - 1);
+      if (!lastRating) return false;
+
+      if (!practiceMode) {
+        const dueCard = await api.undoLastReview(lastRating.card.card.deck_id);
+        if (!dueCard) return false;
       }
+
+      dueCards = lastRating.dueCards;
+      currentIndex = lastRating.currentIndex;
+      completedCount = lastRating.completedCount;
+      sessionActive = lastRating.sessionActive;
+      isFlipped = false;
+      lastRating = null;
+      persistSession();
+      return true;
     },
 
     pauseSession() {
       isFlipped = false;
+      persistSession();
     },
 
     endSession() {

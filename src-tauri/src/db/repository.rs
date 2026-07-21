@@ -24,50 +24,60 @@ impl Repository {
         let now = Utc::now().format("%Y-%m-%dT%H:%M:%S").to_string();
 
         self.conn.execute(
-            "INSERT INTO decks (id, name, created_at, updated_at) VALUES (?1, ?2, ?3, ?4)",
+            "INSERT INTO decks (id, name, archived, created_at, updated_at) VALUES (?1, ?2, 0, ?3, ?4)",
             params![id, name, now, now],
         )?;
 
         Ok(Deck {
             id,
             name: name.to_string(),
+            archived: false,
             created_at: now.clone(),
             updated_at: now,
         })
     }
 
     pub fn list_decks(&self) -> Result<Vec<Deck>> {
+        self.list_decks_by_archive_state(false)
+    }
+
+    pub fn list_all_decks(&self) -> Result<Vec<Deck>> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, name, created_at, updated_at FROM decks ORDER BY created_at DESC",
+            "SELECT id, name, archived, created_at, updated_at FROM decks ORDER BY archived ASC, created_at DESC",
         )?;
 
         let decks = stmt
-            .query_map([], |row| {
-                Ok(Deck {
-                    id: row.get(0)?,
-                    name: row.get(1)?,
-                    created_at: row.get(2)?,
-                    updated_at: row.get(3)?,
-                })
-            })?
+            .query_map([], Self::deck_from_row)?
             .collect::<Result<Vec<_>>>()?;
-
         Ok(decks)
+    }
+
+    fn list_decks_by_archive_state(&self, archived: bool) -> Result<Vec<Deck>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, name, archived, created_at, updated_at FROM decks WHERE archived = ?1 ORDER BY created_at DESC",
+        )?;
+        let decks = stmt
+            .query_map(params![archived], Self::deck_from_row)?
+            .collect::<Result<Vec<_>>>()?;
+        Ok(decks)
+    }
+
+    fn deck_from_row(row: &rusqlite::Row<'_>) -> Result<Deck, rusqlite::Error> {
+        Ok(Deck {
+            id: row.get(0)?,
+            name: row.get(1)?,
+            archived: row.get(2)?,
+            created_at: row.get(3)?,
+            updated_at: row.get(4)?,
+        })
     }
 
     pub fn get_deck(&self, deck_id: &str) -> Result<Option<Deck>> {
         let mut stmt = self
             .conn
-            .prepare("SELECT id, name, created_at, updated_at FROM decks WHERE id = ?1")?;
+            .prepare("SELECT id, name, archived, created_at, updated_at FROM decks WHERE id = ?1")?;
 
-        let mut rows = stmt.query_map(params![deck_id], |row| {
-            Ok(Deck {
-                id: row.get(0)?,
-                name: row.get(1)?,
-                created_at: row.get(2)?,
-                updated_at: row.get(3)?,
-            })
-        })?;
+        let mut rows = stmt.query_map(params![deck_id], Self::deck_from_row)?;
 
         match rows.next() {
             Some(deck) => Ok(Some(deck?)),
@@ -90,22 +100,38 @@ impl Repository {
         Ok(())
     }
 
+    pub fn set_deck_archived(&self, deck_id: &str, archived: bool) -> Result<()> {
+        let now = Utc::now().format("%Y-%m-%dT%H:%M:%S").to_string();
+        self.conn.execute(
+            "UPDATE decks SET archived = ?1, updated_at = ?2 WHERE id = ?3",
+            params![archived, now, deck_id],
+        )?;
+        Ok(())
+    }
+
     pub fn get_or_create_deck(&self, name: &str) -> Result<Deck> {
         let mut stmt = self
             .conn
-            .prepare("SELECT id, name, created_at, updated_at FROM decks WHERE name = ?1")?;
-        let mut rows = stmt.query_map(params![name], |row| {
-            Ok(Deck {
-                id: row.get(0)?,
-                name: row.get(1)?,
-                created_at: row.get(2)?,
-                updated_at: row.get(3)?,
-            })
-        })?;
+            .prepare("SELECT id, name, archived, created_at, updated_at FROM decks WHERE name = ?1")?;
+        let mut rows = stmt.query_map(params![name], Self::deck_from_row)?;
         if let Some(deck) = rows.next() {
-            return deck;
+            let mut deck = deck?;
+            if deck.archived {
+                self.set_deck_archived(&deck.id, false)?;
+                deck.archived = false;
+            }
+            return Ok(deck);
         }
         self.create_deck(name)
+    }
+
+    pub fn card_exists_with_content(&self, deck_id: &str, front: &str, back: &str) -> Result<bool> {
+        let exists: i64 = self.conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM cards WHERE deck_id = ?1 AND front = ?2 AND back = ?3)",
+            params![deck_id, front, back],
+            |row| row.get(0),
+        )?;
+        Ok(exists != 0)
     }
 
     // ── Obsidian ───────────────────────────────────────
@@ -147,29 +173,49 @@ impl Repository {
     // ── Cards ──────────────────────────────────────────
 
     pub fn set_card_tags(&self, card_id: &str, tags: &[String]) -> Result<()> {
-        self.conn
-            .execute("DELETE FROM card_tags WHERE card_id = ?1", params![card_id])?;
-        for tag in tags {
-            let tag_id = Uuid::new_v4().to_string();
-            self.conn.execute(
-                "INSERT OR IGNORE INTO tags (id, name) VALUES (?1, ?2)",
-                params![tag_id, tag],
-            )?;
-            let existing_tag_id: String = self.conn.query_row(
-                "SELECT id FROM tags WHERE name = ?1",
-                params![tag],
-                |row| row.get(0),
-            )?;
-            self.conn.execute(
-                "INSERT INTO card_tags (card_id, tag_id) VALUES (?1, ?2)",
-                params![card_id, existing_tag_id],
-            )?;
+        self.conn.execute_batch("SAVEPOINT set_card_tags;")?;
+        let result = (|| -> Result<()> {
+            self.conn
+                .execute("DELETE FROM card_tags WHERE card_id = ?1", params![card_id])?;
+            for tag in tags {
+                let tag_id = Uuid::new_v4().to_string();
+                self.conn.execute(
+                    "INSERT OR IGNORE INTO tags (id, name) VALUES (?1, ?2)",
+                    params![tag_id, tag],
+                )?;
+                let existing_tag_id: String = self.conn.query_row(
+                    "SELECT id FROM tags WHERE name = ?1",
+                    params![tag],
+                    |row| row.get(0),
+                )?;
+                self.conn.execute(
+                    "INSERT INTO card_tags (card_id, tag_id) VALUES (?1, ?2)",
+                    params![card_id, existing_tag_id],
+                )?;
+            }
+            Ok(())
+        })();
+
+        match result {
+            Ok(()) => self.conn.execute_batch("RELEASE SAVEPOINT set_card_tags;")?,
+            Err(error) => {
+                let _ = self.conn.execute_batch("ROLLBACK TO SAVEPOINT set_card_tags; RELEASE SAVEPOINT set_card_tags;");
+                return Err(error);
+            }
         }
         Ok(())
     }
 
     pub fn get_all_tags(&self) -> Result<Vec<String>> {
-        let mut stmt = self.conn.prepare("SELECT name FROM tags ORDER BY name")?;
+        let mut stmt = self.conn.prepare(
+            "SELECT DISTINCT t.name
+             FROM tags t
+             JOIN card_tags ct ON ct.tag_id = t.id
+             JOIN cards c ON c.id = ct.card_id
+             JOIN decks d ON d.id = c.deck_id
+             WHERE d.archived = 0
+             ORDER BY t.name",
+        )?;
         let tags = stmt
             .query_map([], |row| row.get(0))?
             .collect::<Result<Vec<_>>>()?;
@@ -676,9 +722,10 @@ impl Repository {
                     GROUP_CONCAT(t.name), c.front_language, c.back_language
              FROM cards c
              JOIN card_state cs ON cs.card_id = c.id
+             JOIN decks d ON d.id = c.deck_id
              LEFT JOIN card_tags ct ON ct.card_id = c.id
              LEFT JOIN tags t ON t.id = ct.tag_id
-             WHERE c.deck_id IN ({}) AND cs.next_review <= {}
+             WHERE c.deck_id IN ({}) AND d.archived = 0 AND cs.next_review <= {}
              GROUP BY c.id
              ORDER BY cs.next_review ASC
              LIMIT {}",
@@ -761,9 +808,10 @@ impl Repository {
                     GROUP_CONCAT(t.name), c.front_language, c.back_language
              FROM cards c
              JOIN card_state cs ON cs.card_id = c.id
+             JOIN decks d ON d.id = c.deck_id
              JOIN card_tags ct ON ct.card_id = c.id
              JOIN tags t ON t.id = ct.tag_id
-             WHERE t.name IN ({}) AND cs.next_review <= {}
+             WHERE t.name IN ({}) AND d.archived = 0 AND cs.next_review <= {}
              GROUP BY c.id
              ORDER BY cs.next_review ASC
              LIMIT {}",
@@ -982,7 +1030,7 @@ impl Repository {
              JOIN decks d ON d.id = c.deck_id
              LEFT JOIN card_tags ct ON ct.card_id = c.id
              LEFT JOIN tags t ON t.id = ct.tag_id
-             WHERE c.front LIKE ?1 OR c.back LIKE ?1 OR c.reasoning LIKE ?1
+             WHERE d.archived = 0 AND (c.front LIKE ?1 OR c.back LIKE ?1 OR c.reasoning LIKE ?1)
              GROUP BY c.id
              ORDER BY c.updated_at DESC
              LIMIT 50",
@@ -1025,7 +1073,9 @@ impl Repository {
                 COALESCE(SUM(CASE WHEN cs.next_review <= ?1 THEN 1 ELSE 0 END), 0),
                 COALESCE(AVG(cs.ease_factor), 0.0)
              FROM cards c
-             JOIN card_state cs ON c.id = cs.card_id",
+             JOIN card_state cs ON c.id = cs.card_id
+             JOIN decks d ON d.id = c.deck_id
+             WHERE d.archived = 0",
             params![today],
             |row| {
                 Ok((
@@ -1043,7 +1093,10 @@ impl Repository {
         let (utc_lower, utc_upper) = Self::day_utc_bounds(today_dt);
 
         let reviews_today: i64 = self.conn.query_row(
-            "SELECT COUNT(*) FROM reviews WHERE reviewed_at >= ?1 AND reviewed_at < ?2",
+            "SELECT COUNT(*) FROM reviews r
+             JOIN cards c ON c.id = r.card_id
+             JOIN decks d ON d.id = c.deck_id
+             WHERE d.archived = 0 AND r.reviewed_at >= ?1 AND r.reviewed_at < ?2",
             params![utc_lower, utc_upper],
             |row| row.get(0),
         )?;
@@ -1053,7 +1106,10 @@ impl Repository {
         let mut streak = 0u32;
         let mut streak_stmt = self
             .conn
-            .prepare("SELECT COUNT(*) FROM reviews WHERE reviewed_at >= ?1 AND reviewed_at < ?2")?;
+            .prepare("SELECT COUNT(*) FROM reviews r
+                      JOIN cards c ON c.id = r.card_id
+                      JOIN decks d ON d.id = c.deck_id
+                      WHERE d.archived = 0 AND r.reviewed_at >= ?1 AND r.reviewed_at < ?2")?;
 
         for i in 0i64..366 {
             let check_date = today_dt - Duration::days(i);
@@ -1111,15 +1167,18 @@ impl Repository {
             name: name.to_string(),
             exam_type: exam_type.to_string(),
             exam_date: exam_date.to_string(),
+            archived: false,
             created_at: now,
             deck_ids,
         })
     }
 
-    pub fn list_exams(&self) -> Result<Vec<crate::db::models::Exam>> {
-        let mut stmt = self.conn.prepare(
-            "SELECT id, name, exam_type, exam_date, created_at FROM exams ORDER BY exam_date ASC",
-        )?;
+    pub fn list_exams(&self, include_archived: bool) -> Result<Vec<crate::db::models::Exam>> {
+        let mut stmt = self.conn.prepare(if include_archived {
+            "SELECT id, name, exam_type, exam_date, archived, created_at FROM exams ORDER BY archived ASC, exam_date ASC"
+        } else {
+            "SELECT id, name, exam_type, exam_date, archived, created_at FROM exams WHERE archived = 0 ORDER BY exam_date ASC"
+        })?;
         let mut exams = Vec::new();
 
         let exam_rows = stmt.query_map([], |row| {
@@ -1128,12 +1187,13 @@ impl Repository {
                 row.get::<_, String>(1)?,
                 row.get::<_, String>(2)?,
                 row.get::<_, String>(3)?,
-                row.get::<_, String>(4)?,
+                row.get::<_, bool>(4)?,
+                row.get::<_, String>(5)?,
             ))
         })?;
 
         for row in exam_rows {
-            let (id, name, exam_type, exam_date, created_at) = row?;
+            let (id, name, exam_type, exam_date, archived, created_at) = row?;
             let mut deck_stmt = self
                 .conn
                 .prepare("SELECT deck_id FROM exam_decks WHERE exam_id = ?1")?;
@@ -1145,6 +1205,7 @@ impl Repository {
                 name,
                 exam_type,
                 exam_date,
+                archived,
                 created_at,
                 deck_ids: deck_ids?,
             });
@@ -1153,9 +1214,25 @@ impl Repository {
         Ok(exams)
     }
 
+    pub fn archive_expired_exams(&self) -> Result<()> {
+        self.conn.execute(
+            "UPDATE exams SET archived = 1 WHERE archived = 0 AND date(exam_date) < date('now', 'localtime')",
+            [],
+        )?;
+        Ok(())
+    }
+
     pub fn delete_exam(&self, id: &str) -> Result<()> {
         self.conn
             .execute("DELETE FROM exams WHERE id = ?1", params![id])?;
+        Ok(())
+    }
+
+    pub fn set_exam_archived(&self, id: &str, archived: bool) -> Result<()> {
+        self.conn.execute(
+            "UPDATE exams SET archived = ?1 WHERE id = ?2",
+            params![archived, id],
+        )?;
         Ok(())
     }
 
@@ -1191,11 +1268,18 @@ impl Repository {
             )
             .unwrap_or_default();
 
+        let archived: bool = self.conn.query_row(
+            "SELECT archived FROM exams WHERE id = ?1",
+            params![id],
+            |row| row.get(0),
+        )?;
+
         Ok(crate::db::models::Exam {
             id: id.to_string(),
             name: name.to_string(),
             exam_type: exam_type.to_string(),
             exam_date: exam_date.to_string(),
+            archived,
             created_at,
             deck_ids,
         })

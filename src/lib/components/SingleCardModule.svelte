@@ -3,6 +3,7 @@
   import { renderMarkdown } from "$lib/markdown";
   import { languageLabel } from "$lib/languages";
   import { settingsStore } from "$lib/stores/settings.svelte";
+  import { t } from "$lib/i18n";
   import type { Card, Deck } from "$lib/types";
 
   let {
@@ -45,23 +46,23 @@
   }
 </script>
 
-<div class="surface-panel flex h-full min-h-72 flex-col p-4 sm:p-5">
+<div class="dashboard-single-card surface-panel flex h-full flex-col p-4 sm:p-5">
   <div class="grid grid-cols-2 gap-2">
     <select
       value={selectedDeckId}
       onchange={(event) => selectDeck(event.currentTarget.value)}
-      aria-label="Stapel auswählen"
-      class="min-w-0 rounded-md border border-[#D8DEE8] bg-white px-3 py-2 text-sm text-primary outline-none focus:border-accent-correct dark:border-[#303744] dark:bg-[#151922] dark:text-primary-dark"
+      aria-label={t("Stapel auswählen")}
+      class="module-accent-input min-w-0 rounded-md px-3 py-2 text-sm outline-none"
     >
       {#each decks as deck}<option value={deck.id}>{deck.name}</option>{/each}
     </select>
     <select
       value={selectedCardId}
       onchange={(event) => onSelect(event.currentTarget.value)}
-      aria-label="Karte auswählen"
-      class="min-w-0 rounded-md border border-[#D8DEE8] bg-white px-3 py-2 text-sm text-primary outline-none focus:border-accent-correct dark:border-[#303744] dark:bg-[#151922] dark:text-primary-dark"
+      aria-label={t("Karte auswählen")}
+      class="module-accent-input min-w-0 rounded-md px-3 py-2 text-sm outline-none"
     >
-      <option value="">Karte auswählen</option>
+      <option value="">{t("Karte auswählen")}</option>
       {#each deckCards as card, index}
         <option value={card.id}>{index + 1}. {card.front.replace(/[#*_`]/g, "").slice(0, 48)}</option>
       {/each}
@@ -71,19 +72,19 @@
   {#if selectedCard}
     <button
       onclick={() => (showingBack = !showingBack)}
-      class="group relative mt-4 flex min-h-52 flex-1 items-center justify-center overflow-hidden rounded-lg border border-[#D8DEE8] bg-white p-6 text-center text-primary transition-colors hover:border-accent-correct dark:border-[#303744] dark:bg-[#151922] dark:text-primary-dark"
-      aria-label={showingBack ? "Vorderseite zeigen" : "Rückseite zeigen"}
+      class="module-accent-subpanel group relative mt-4 flex min-h-40 flex-1 items-center justify-center overflow-hidden rounded-lg p-4 text-center text-primary transition-colors hover:border-accent-correct dark:text-primary-dark sm:p-6"
+      aria-label={showingBack ? t("Vorderseite zeigen") : t("Rückseite zeigen")}
     >
       <span class="absolute left-3 top-3 text-[10px] font-semibold uppercase text-secondary">
-        {showingBack ? "Rückseite" : "Vorderseite"}
+        {showingBack ? t("Rückseite") : t("Vorderseite")}
         {selectedLanguage ? ` · ${languageLabel(selectedLanguage)}` : ""}
       </span>
       <span class="absolute right-3 top-3 text-secondary transition-colors group-hover:text-accent-correct"><Repeat2 size={18} /></span>
-      <div class="prose prose-sm max-w-full {cardFontClass}">
+      <div data-user-content class="prose prose-sm max-w-full {cardFontClass}">
         {@html renderMarkdown(showingBack ? selectedCard.back : selectedCard.front)}
       </div>
     </button>
   {:else}
-    <div class="mt-4 min-h-52 flex-1 rounded-lg border border-dashed border-[#D8DEE8] dark:border-[#303744]"></div>
+    <div class="module-accent-subpanel mt-4 min-h-40 flex-1 rounded-lg border-dashed"></div>
   {/if}
 </div>

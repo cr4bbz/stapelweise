@@ -2,6 +2,7 @@ pub mod backup;
 pub mod cards;
 pub mod decks;
 pub mod exams;
+pub mod integrations;
 pub mod obsidian;
 pub mod seed;
 pub mod settings;

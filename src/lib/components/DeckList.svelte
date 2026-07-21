@@ -5,6 +5,8 @@
   import ErrorBanner from "./ErrorBanner.svelte";
   import ConfirmDialog from "./ConfirmDialog.svelte";
   import * as api from "$lib/api";
+  import { parseAnkiText, toAnkiTsv } from "$lib/anki";
+  import { t } from "$lib/i18n";
   import type { Deck } from "$lib/types";
   import { tick } from "svelte";
   import { fade } from "svelte/transition";
@@ -84,9 +86,11 @@
   });
 
   $effect(() => {
-    const openNewDeck = () => {
+    const openNewDeck = (event: Event) => {
+      const detail = (event as CustomEvent<{ name?: string }>).detail;
       showNewDeck = true;
       editingDeckId = null;
+      newDeckName = detail?.name ?? "";
     };
     window.addEventListener("stapelweise:new-deck", openNewDeck);
     return () => window.removeEventListener("stapelweise:new-deck", openNewDeck);
@@ -103,7 +107,7 @@
       // Auto-open the new deck so user can add cards
       onSelectDeck(deck);
     } catch (e: any) {
-      error = e?.toString() || "Fehler beim Erstellen des Stapels";
+      error = t("Fehler beim Erstellen des Stapels");
     }
   }
 
@@ -120,7 +124,7 @@
       editingDeckId = null;
       editingName = "";
     } catch (e: any) {
-      error = e?.toString() || "Fehler beim Umbenennen";
+      error = t("Fehler beim Umbenennen");
     }
   }
 
@@ -139,7 +143,7 @@
         selectedDeckIds = next;
       }
     } catch (e: any) {
-      error = e?.toString() || "Fehler beim Löschen";
+      error = t("Fehler beim Löschen");
     }
   }
 
@@ -157,18 +161,27 @@
 
     try {
       const text = await file.text();
-      const data = JSON.parse(text);
+      if (file.name.toLowerCase().endsWith(".json")) {
+        const data = JSON.parse(text);
       if (!data.name || !Array.isArray(data.cards)) {
-        throw new Error("Ungültiges JSON Format für Deck");
+        throw new Error(t("Ungültiges JSON Format für Deck"));
       }
       
-      await api.importDeckFromJson(data.name, data.cards);
+        await api.importDeckFromJson(data.name, data.cards);
+      } else {
+        const cards = parseAnkiText(text);
+        if (cards.length === 0) {
+          throw new Error(t("Keine Karten in der Anki-Textdatei gefunden"));
+        }
+        const name = file.name.replace(/\.(txt|tsv|csv)$/i, "").trim() || "Anki-Import";
+        await api.importDeckFromJson(name, cards);
+      }
       
       await store.load();
       await loadCounts();
       onLibraryChanged();
     } catch (err: any) {
-      error = "Fehler beim Importieren: " + (err?.toString() || "");
+      error = t("Fehler beim Importieren:");
     }
     input.value = ""; // reset input
   }
@@ -184,7 +197,7 @@
       await loadCounts();
       onLibraryChanged();
     } catch (e: any) {
-      error = e?.toString() || "Fehler beim Laden der Beispieldaten";
+      error = t("Fehler beim Laden der Beispieldaten");
     }
   }
 
@@ -215,7 +228,24 @@
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch (e: any) {
-      error = "Fehler beim Exportieren: " + (e?.toString() || "");
+      error = t("Fehler beim Exportieren:");
+    }
+  }
+
+  async function handleAnkiExport(deck: Deck) {
+    try {
+      const cards = await api.listCards(deck.id);
+      const blob = new Blob([toAnkiTsv(cards)], { type: "text/tab-separated-values;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `${deck.name.replace(/[^a-z0-9\u00c0-\u024f]/gi, "_").toLowerCase()}.tsv`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+      URL.revokeObjectURL(url);
+    } catch (e: any) {
+      error = t("Fehler beim Anki-Export:");
     }
   }
 </script>
@@ -226,7 +256,7 @@
   <!-- Header -->
   <div class="section-header">
     <h2 class="section-heading">
-      Deine Stapel
+      {t("decks")}
     </h2>
     <div class="flex flex-wrap gap-2">
       {#if selectedDeckIds.size > 0}
@@ -238,19 +268,19 @@
           }}
           class="primary-action px-4 py-2 text-sm"
         >
-          {selectedDeckIds.size} lernen
+          {selectedDeckIds.size} {t("learn")}
         </button>
       {/if}
 
       <label class="secondary-action px-4 py-2 text-sm cursor-pointer">
-        Import JSON
-        <input bind:this={importInput} type="file" accept=".json" class="hidden" onchange={handleImport} />
+        {t("import")}
+        <input bind:this={importInput} type="file" accept=".json,.txt,.tsv,.csv" class="hidden" onchange={handleImport} />
       </label>
       <button
         onclick={() => (showNewDeck = true)}
         class="primary-action px-4 py-2 text-sm"
       >
-        + Neuer Stapel
+        {t("newDeck")}
       </button>
     </div>
   </div>
@@ -305,17 +335,17 @@
       />
       <div class="-mt-8 flex flex-wrap justify-center gap-2">
         <button class="secondary-action px-4 py-2 text-sm" onclick={handleSeedSamples}>Beispieldaten laden</button>
-        <button class="secondary-action px-4 py-2 text-sm" onclick={triggerImport}>JSON importieren</button>
+        <button class="secondary-action px-4 py-2 text-sm" onclick={triggerImport}>Karten importieren</button>
       </div>
       </div>
     {:else}
       <div in:fade={{ duration: 150 }} out:fade={{ duration: 100 }} class="col-start-1 row-start-1 pb-12 pt-1">
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div class="deck-grid grid gap-4">
         {#each store.decks as deck (deck.id)}
           {@const count = totalCounts[deck.id] ?? 0}
           {@const layers = count === 0 ? 0 : Math.min(Math.ceil(count / 5), 12)}
           
-          <div class="relative group isolate min-h-44">
+          <div class="deck-tile relative group isolate">
             <!-- Dynamic stack layers -->
             {#each Array(layers) as _, i}
               <div 
@@ -365,19 +395,19 @@
                     onclick={(e) => e.stopPropagation()}
                   />
                 {:else}
-                  <h3 class="{cardFontClass} text-lg text-primary dark:text-primary-dark line-clamp-2 w-[85%] leading-tight">
+                  <h3 data-user-content class="{cardFontClass} text-lg text-primary dark:text-primary-dark line-clamp-2 w-[85%] leading-tight">
                     {deck.name}
                   </h3>
                 {/if}
                 
                 <div class="mt-auto pt-5">
                   <p class="text-sm font-medium text-secondary">
-                    {totalCounts[deck.id] ?? "..."} Karten
+                    {totalCounts[deck.id] === undefined ? "..." : t("cards", { count: totalCounts[deck.id] })}
                   </p>
                   {#if (dueCounts[deck.id] ?? 0) > 0}
-                    <p class="text-accent-correct font-semibold text-sm">{dueCounts[deck.id]} fällig</p>
+                    <p class="text-accent-correct font-semibold text-sm">{t("due", { count: dueCounts[deck.id] })}</p>
                   {:else if (totalCounts[deck.id] ?? 0) > 0}
-                    <p class="text-green-600 dark:text-green-400 font-semibold text-sm">alles klar!</p>
+                    <p class="text-accent-easy dark:text-accent-easy-dark font-semibold text-sm">{t("allClear")}</p>
                   {/if}
                 </div>
               </button>
@@ -389,16 +419,16 @@
                     <button
                       class="primary-action px-3 py-1.5 text-xs"
                       onclick={handleRename}
-                    >Speichern</button>
+                    >{t("Speichern")}</button>
                     <button
                       class="px-3 py-1.5 text-xs text-secondary hover:text-primary dark:hover:text-primary-dark"
                       onclick={() => (editingDeckId = null)}
-                    >Abbrechen</button>
+                    >{t("Abbrechen")}</button>
                   </div>
                 {:else}
                   <div class="flex items-center justify-between gap-2">
                     <button class="secondary-action px-3 py-1.5 text-xs" onclick={() => onSelectDeck(deck)}>
-                      Stapel öffnen
+                      {t("openDeck")}
                     </button>
                     <div class="flex gap-0.5">
                       <button class="icon-button !h-8 !w-8" title="Stapel umbenennen" onclick={() => startEdit(deck)}>
@@ -406,6 +436,9 @@
                       </button>
                       <button class="icon-button !h-8 !w-8" title="Stapel exportieren (JSON)" onclick={() => handleExport(deck)}>
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
+                      </button>
+                      <button class="icon-button !h-8 !w-8" title="Für Anki exportieren (TSV)" onclick={() => handleAnkiExport(deck)}>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 2a1 1 0 011 1v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 111.414-1.414L9 10.586V3a1 1 0 011-1zM3 16a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd" /></svg>
                       </button>
                       <button class="icon-button !h-8 !w-8 hover:!text-accent-incorrect" title="Stapel löschen" onclick={() => (deleteConfirmDeck = deck)}>
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" /></svg>
@@ -416,14 +449,14 @@
                     <div class="grid grid-cols-2 gap-2">
                       {#if (dueCounts[deck.id] ?? 0) > 0}
                         <button class="primary-action px-3 py-1.5 text-xs" onclick={() => onStudyDeck(deck)}>
-                          Fällige lernen
+                          {t("dueLearn", { count: dueCounts[deck.id] })}
                         </button>
                       {/if}
                       <button
                         class="{(dueCounts[deck.id] ?? 0) > 0 ? 'secondary-action' : 'primary-action col-span-2'} px-3 py-1.5 text-xs"
                         onclick={() => onPracticeDeck(deck)}
                       >
-                        Frei lernen
+                        {t("practice")}
                       </button>
                     </div>
                   {/if}

@@ -29,6 +29,9 @@ impl Database {
         migrations::run_migrations(&conn)?;
 
         let repo = Repository::new(conn);
+        if let Err(error) = repo.archive_expired_exams() {
+            eprintln!("Could not archive expired exams at startup: {error}");
+        }
 
         // Load or initialize settings (cached in memory)
         let settings = AppSettings::load(&repo).unwrap_or_else(|_| {

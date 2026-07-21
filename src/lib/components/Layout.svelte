@@ -1,5 +1,6 @@
 <script lang="ts">
   import ShortcutHelp from "./ShortcutHelp.svelte";
+  import LocalizationBridge from "./LocalizationBridge.svelte";
   import { theme } from "$lib/stores/theme.svelte";
 
   let { children } = $props();
@@ -19,6 +20,7 @@
 </script>
 
 <svelte:window onkeydown={handleGlobalKeydown} />
+<LocalizationBridge />
 
 <div class="h-screen flex flex-col bg-atmosphere transition-colors">
   <main class="flex-1 overflow-hidden min-h-0">

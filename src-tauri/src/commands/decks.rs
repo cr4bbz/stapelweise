@@ -13,11 +13,18 @@ pub fn create_deck(state: State<DbState>, name: String) -> Result<Deck, CommandE
 }
 
 #[tauri::command(rename_all = "camelCase")]
-pub fn list_decks(state: State<DbState>) -> Result<Vec<Deck>, CommandError> {
+pub fn list_decks(
+    state: State<DbState>,
+    include_archived: Option<bool>,
+) -> Result<Vec<Deck>, CommandError> {
     let db = state
         .lock()
         .map_err(|e| CommandError::from(format!("Lock error: {}", e)))?;
-    let decks = db.repo.list_decks()?;
+    let decks = if include_archived.unwrap_or(false) {
+        db.repo.list_all_decks()?
+    } else {
+        db.repo.list_decks()?
+    };
     Ok(decks)
 }
 
@@ -49,6 +56,24 @@ pub fn delete_deck(state: State<DbState>, deck_id: String) -> Result<(), Command
         .lock()
         .map_err(|e| CommandError::from(format!("Lock error: {}", e)))?;
     db.repo.delete_deck(&deck_id)?;
+    Ok(())
+}
+
+#[tauri::command(rename_all = "camelCase")]
+pub fn archive_deck(state: State<DbState>, deck_id: String) -> Result<(), CommandError> {
+    let db = state
+        .lock()
+        .map_err(|e| CommandError::from(format!("Lock error: {}", e)))?;
+    db.repo.set_deck_archived(&deck_id, true)?;
+    Ok(())
+}
+
+#[tauri::command(rename_all = "camelCase")]
+pub fn restore_deck(state: State<DbState>, deck_id: String) -> Result<(), CommandError> {
+    let db = state
+        .lock()
+        .map_err(|e| CommandError::from(format!("Lock error: {}", e)))?;
+    db.repo.set_deck_archived(&deck_id, false)?;
     Ok(())
 }
 

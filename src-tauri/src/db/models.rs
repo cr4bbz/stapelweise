@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 pub struct Deck {
     pub id: String,
     pub name: String,
+    #[serde(default)]
+    pub archived: bool,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -14,6 +16,8 @@ pub struct Exam {
     pub name: String,
     pub exam_type: String,
     pub exam_date: String,
+    #[serde(default)]
+    pub archived: bool,
     pub created_at: String,
     pub deck_ids: Vec<String>,
 }

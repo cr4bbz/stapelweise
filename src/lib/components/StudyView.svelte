@@ -8,13 +8,15 @@
   import FlashCard from "./FlashCard.svelte";
   import ScoreButtons from "./ScoreButtons.svelte";
   import ProgressBar from "./ProgressBar.svelte";
+  import { t } from "$lib/i18n";
 
-  let { deckIds = [], tags = [], customCards = [], deckName = "", practiceMode = false, onReview = () => {}, onClose = () => {} } = $props<{
+  let { deckIds = [], tags = [], customCards = [], deckName = "", practiceMode = false, returnLabel = "", onReview = () => {}, onClose = () => {} } = $props<{
     deckIds?: string[];
     tags?: string[];
     customCards?: Card[];
     deckName?: string;
     practiceMode?: boolean;
+    returnLabel?: string;
     onReview?: () => void;
     onClose?: () => void;
   }>();
@@ -23,6 +25,7 @@
   let empty = $state(false);
   let ratingControlsReady = $state(false);
   let showingAnswer = $state(false);
+  let ratingMessage = $state<string | null>(null);
 
   const s = studyStore;
   let requestedSessionKey = $derived([
@@ -61,7 +64,7 @@
     loading = true;
     untrack(() => {
       settingsStore.load().then(() => {
-        if (s.canResumeSession(requestedSessionKey)) {
+        if (s.resumeSession(requestedSessionKey)) {
           empty = false;
           loading = false;
           return;
@@ -126,12 +129,24 @@
     }
   }
 
-  function handleRate(quality: number) {
+  async function handleRate(quality: number) {
     if (ratingControlsReady && s.isFlipped && s.sessionActive) {
       ratingControlsReady = false;
       showingAnswer = false;
-      onReview();
-      s.rate(quality);
+      try {
+        await s.rate(quality);
+        ratingMessage = quality < settingsStore.current.sm2_pass_threshold
+          ? t("Diese Karte kommt spÃ¤ter in dieser Runde wieder.")
+          : null;
+        if (quality < settingsStore.current.sm2_pass_threshold) {
+          ratingMessage = t("ratingWillRepeat");
+        }
+        onReview();
+      } catch {
+        ratingControlsReady = true;
+        showingAnswer = true;
+        ratingMessage = t("ratingSaveFailed");
+      }
     }
   }
 
@@ -160,7 +175,7 @@
 
 <div class="flex flex-col h-full overflow-y-auto">
   <!-- Top Bar -->
-  <div class="flex flex-wrap items-center gap-3 p-4 pb-2 sm:p-6 sm:pb-2">
+  <div class="mx-auto flex w-full max-w-5xl flex-wrap items-center gap-x-3 gap-y-1 p-4 pb-2 sm:p-6 sm:pb-2">
     <button
       onclick={() => {
         s.pauseSession();
@@ -176,13 +191,20 @@
     <h1 class="{cardFontClass} min-w-0 flex-1 truncate text-xl font-normal text-primary dark:text-primary-dark">
       {deckName}
     </h1>
-    <span class="ml-11 w-full text-xs text-secondary sm:ml-auto sm:w-auto sm:text-sm">
-      {s.isPractice ? `${s.dueCards.length} in freier Übung` : `${s.dueCards.length} fällig`}
+    <span class="text-xs text-secondary sm:text-sm">
+      {s.isPractice ? t("freePractice") : t("learningRound")}
+    </span>
+    <span class="hidden items-center gap-1 text-xs text-secondary lg:inline-flex" title={t("Tastenk\u00fcrzel anzeigen")}>
+      <kbd class="rounded border border-secondary/30 px-1 font-mono text-[10px]">?</kbd>
+      {t("Tastenk\u00fcrzel")}
+    </span>
+    <span class="w-full pl-11 text-xs font-medium text-secondary sm:w-auto sm:pl-0">
+      {s.completedCount} / {s.sessionSize} · {s.isPractice ? t("cards", { count: s.dueCards.length }) : t("due", { count: s.dueCards.length })}
     </span>
   </div>
 
   <!-- Progress -->
-  <div class="px-4 pb-4 sm:px-6">
+  <div class="mx-auto w-full max-w-5xl px-4 pb-4 sm:px-6">
     <ProgressBar current={s.completedCount} total={s.sessionSize} />
   </div>
 
@@ -196,13 +218,13 @@
       <div in:fade={{ duration: 150 }} out:fade={{ duration: 100 }} class="col-start-1 row-start-1 text-center flex flex-col items-center justify-center">
         <div class="text-6xl mb-4 opacity-20">🎉</div>
         <h2 class="text-2xl font-bold text-primary dark:text-primary-dark mb-2">
-          Alles geschafft!
+          {t("complete")}
         </h2>
-        <p class="text-secondary mb-6">Dein Lernpensum ist erledigt. Frei üben kannst du trotzdem jederzeit.</p>
+        <p class="text-secondary mb-6">{t("complete")} {t("freePractice")}.</p>
         <div class="flex flex-col gap-3 sm:flex-row">
-          <button onclick={onClose} class="secondary-action px-6 py-2.5 text-sm">Zurück zur Übersicht</button>
+          <button onclick={onClose} class="secondary-action px-6 py-2.5 text-sm">{returnLabel || t("returnToDashboard")}</button>
           {#if deckIds.length > 0}
-            <button onclick={startPractice} class="primary-action px-6 py-2.5 text-sm">Frei weiterlernen</button>
+            <button onclick={startPractice} class="primary-action px-6 py-2.5 text-sm">{t("continuePractice")}</button>
           {/if}
         </div>
       </div>
@@ -210,7 +232,7 @@
       <div in:fade={{ duration: 150 }} out:fade={{ duration: 100 }} class="col-start-1 row-start-1 text-center flex flex-col items-center justify-center">
         <div class="text-6xl mb-4 opacity-20">✅</div>
         <h2 class="text-2xl font-bold text-primary dark:text-primary-dark mb-2">
-          {s.isPractice ? "Übungsrunde beendet" : "Session beendet"}
+          {s.isPractice ? t("practiceComplete") : t("sessionComplete")}
         </h2>
         <p class="text-secondary mb-6">
           {s.isPractice ? "Die freie Übung hat deinen Lernplan nicht verändert." : "Gute Arbeit! Falsch beantwortete Karten kannst du jetzt wiederholen."}
@@ -220,13 +242,13 @@
             onclick={onClose}
             class="rounded-button bg-white/60 dark:bg-white/10 text-primary dark:text-primary-dark px-6 py-2.5 font-medium hover:scale-[1.02] transition-transform"
           >
-            Zurück
+            {returnLabel || t("returnToDashboard")}
           </button>
           <button
             onclick={continueSession}
             class="rounded-button bg-accent-correct text-white px-6 py-2.5 font-medium hover:scale-[1.02] transition-transform"
           >
-            {s.isPractice ? "Nochmal frei lernen" : "Weiterlernen"}
+            {s.isPractice ? t("continuePractice") : t("continueLearning")}
           </button>
         </div>
       </div>
@@ -274,16 +296,20 @@
           >
             {ratingControlsReady
               ? showingAnswer
-                ? "Vorderseite ansehen"
-                : "Antwort ansehen"
-              : "Antwort zeigen"}
+                ? t("showFront")
+                : t("showAnswer")
+              : t("showAnswer")}
           </button>
           <ScoreButtons
             enabled={ratingControlsReady}
             animate={settingsStore.ratingButtonsAnimationEnabled()}
             smooth={settingsStore.controlTransitionAnimationEnabled()}
+            passThreshold={settingsStore.current.sm2_pass_threshold}
             onRate={handleRate}
           />
+          <p aria-live="polite" class="h-4 text-center text-xs text-secondary">
+            {ratingMessage ?? ""}
+          </p>
         </div>
       </div>
     {/if}

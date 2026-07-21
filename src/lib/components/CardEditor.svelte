@@ -7,10 +7,13 @@
   import BrowseCards from "./BrowseCards.svelte";
   import ConfirmDialog from "./ConfirmDialog.svelte";
   import FlashCard from "./FlashCard.svelte";
+  import StudySheetPrint from "./StudySheetPrint.svelte";
+  import { Printer } from "@lucide/svelte";
   import { renderMarkdown } from "$lib/markdown";
   import { hasMath } from "$lib/math";
   import { mediaStore } from "$lib/stores/media";
   import { settingsStore } from "$lib/stores/settings.svelte";
+  import { t } from "$lib/i18n";
   import { languageLabel, languageOptions } from "$lib/languages";
   import { tick } from "svelte";
   import { fade, slide } from "svelte/transition";
@@ -35,6 +38,7 @@
   let dueCount = $state<number | null>(null);
   let showStats = $state(false);
   let showBrowse = $state(false);
+  let showPrintSheet = $state(false);
   let deleteConfirmCardId = $state<string | null>(null);
   let viewingCard = $state<Card | null>(null);
   let cardFlipped = $state(false);
@@ -74,7 +78,7 @@
     try {
       cards = await api.listCards(deck.id);
     } catch (e: any) {
-      error = e?.toString() || "Fehler beim Laden der Karten";
+      error = t("Fehler beim Laden der Karten");
     } finally {
       loading = false;
     }
@@ -118,7 +122,7 @@
 
   function processImageFile(file: File, targetField: 'front' | 'back' | 'reasoning', textareaEl?: HTMLTextAreaElement | null) {
     if (file.size > 5 * 1024 * 1024) {
-      error = "Das gewählte Bild ist zu groß (maximal 5 MB erlaubt).";
+      error = t("Das gewählte Bild ist zu groß (maximal 5 MB erlaubt).");
       return;
     }
     const reader = new FileReader();
@@ -291,6 +295,28 @@
     orderingItems = ["", ""];
   }
 
+  function startNewCard(prefill?: { front?: string; back?: string }) {
+    showNewCard = true;
+    editingCard = null;
+    front = prefill?.front ?? "";
+    back = prefill?.back ?? "";
+    frontLanguage = "";
+    backLanguage = "";
+    reasoning = "";
+    tags = [];
+    error = null;
+  }
+
+  $effect(() => {
+    const prefillCard = (event: Event) => {
+      const detail = (event as CustomEvent<{ deckId?: string; front?: string; back?: string }>).detail;
+      if (detail?.deckId !== deck.id) return;
+      startNewCard(detail);
+    };
+    window.addEventListener("stapelweise:prefill-card", prefillCard);
+    return () => window.removeEventListener("stapelweise:prefill-card", prefillCard);
+  });
+
   async function handleCreate() {
     if (!front.trim()) return;
     
@@ -301,7 +327,7 @@
     if (cType === "multiple_choice") {
       const validMc = mcOptions.filter(o => o.text.trim());
       if (validMc.length < 2 || !validMc.some(o => o.correct)) {
-        error = "Eine Multiple-Choice-Karte benötigt mindestens 2 Optionen und mindestens eine richtige Antwort.";
+        error = t("Eine Multiple-Choice-Karte benötigt mindestens 2 Optionen und mindestens eine richtige Antwort.");
         return;
       }
       contentJson = JSON.stringify({ options: validMc });
@@ -309,7 +335,7 @@
     } else if (cType === "ordering") {
       const validOrd = orderingItems.filter(i => i.trim());
       if (validOrd.length < 2) {
-        error = "Eine Reihenfolge-Karte benötigt mindestens 2 Schritte.";
+        error = t("Eine Reihenfolge-Karte benötigt mindestens 2 Schritte.");
         return;
       }
       contentJson = JSON.stringify({ items: validOrd });
@@ -329,7 +355,7 @@
       loadDueCount();
       loadTags();
     } catch (e: any) {
-      error = e?.toString() || "Fehler beim Erstellen der Karte";
+      error = t("Fehler beim Erstellen der Karte");
     }
   }
 
@@ -344,7 +370,7 @@
     if (cType === "multiple_choice") {
       const validMc = mcOptions.filter(o => o.text.trim());
       if (validMc.length < 2 || !validMc.some(o => o.correct)) {
-        error = "Eine Multiple-Choice-Karte benötigt mindestens 2 Optionen und mindestens eine richtige Antwort.";
+        error = t("Eine Multiple-Choice-Karte benötigt mindestens 2 Optionen und mindestens eine richtige Antwort.");
         return;
       }
       contentJson = JSON.stringify({ options: validMc });
@@ -352,7 +378,7 @@
     } else if (cType === "ordering") {
       const validOrd = orderingItems.filter(i => i.trim());
       if (validOrd.length < 2) {
-        error = "Eine Reihenfolge-Karte benötigt mindestens 2 Schritte.";
+        error = t("Eine Reihenfolge-Karte benötigt mindestens 2 Schritte.");
         return;
       }
       contentJson = JSON.stringify({ items: validOrd });
@@ -373,7 +399,7 @@
       cancelEdit();
       loadTags();
     } catch (e: any) {
-      error = e?.toString() || "Fehler beim Speichern der Karte";
+      error = t("Fehler beim Speichern der Karte");
     }
   }
 
@@ -402,7 +428,7 @@
       loadDueCount();
       loadTags();
     } catch (e: any) {
-      error = e?.toString() || "Fehler beim Löschen der Karte";
+      error = t("Fehler beim Löschen der Karte");
     }
   }
 
@@ -410,6 +436,10 @@
 
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === "Escape") {
+      if (showPrintSheet) {
+        showPrintSheet = false;
+        return;
+      }
       if (viewingCard) {
         viewingCard = null;
         cardFlipped = false;
@@ -446,6 +476,8 @@
     <div in:fade={{ duration: 150 }} out:fade={{ duration: 100 }} class="col-start-1 row-start-1 h-full w-full">
     <BrowseCards cards={cards} deckName={deck.name} onClose={() => (showBrowse = false)} />
     </div>
+  {:else if showPrintSheet}
+    <StudySheetPrint cards={filteredCards} deckName={deck.name} onClose={() => (showPrintSheet = false)} />
   {:else if viewingCard}
     <div in:fade={{ duration: 150 }} out:fade={{ duration: 100 }} class="col-start-1 row-start-1 flex flex-col h-full w-full">
     <div class="flex items-center gap-3 p-6 pb-2">
@@ -512,9 +544,9 @@
     <h1 class="{cardFontClass} min-w-0 text-2xl font-normal text-primary dark:text-primary-dark truncate">
       {deck.name}
     </h1>
-    <span class="text-secondary text-sm">{cards.length} Karten</span>
+    <span class="text-secondary text-sm">{t("cards", { count: cards.length })}</span>
     {#if dueCount != null && dueCount > 0}
-      <span class="text-accent-correct text-sm font-medium">{dueCount} fällig</span>
+      <span class="text-accent-correct text-sm font-medium">{t("due", { count: dueCount })}</span>
     {/if}
 
     <div class="ml-auto flex flex-wrap justify-end gap-2">
@@ -543,31 +575,31 @@
           onclick={onStudy}
           class="primary-action px-4 py-2 text-sm"
         >
-          Fällige lernen
+          {t("dueLearn", { count: dueCount })}
         </button>
       {/if}
       {#if cards.length > 0}
         <button
+          onclick={() => (showPrintSheet = true)}
+          class="p-2 rounded-lg hover:bg-white/30 dark:hover:bg-white/10 text-secondary transition-colors"
+          title="Studentenlernblatt drucken"
+        >
+          <Printer size={20} />
+        </button>
+        <button
           onclick={onPractice}
           class="{dueCount === 0 ? 'primary-action' : 'secondary-action'} px-4 py-2 text-sm"
         >
-          Frei lernen
+          {t("practice")}
         </button>
       {/if}
       <button
         onclick={() => {
-          showNewCard = true;
-          editingCard = null;
-          front = "";
-          back = "";
-          frontLanguage = "";
-          backLanguage = "";
-          reasoning = "";
-          error = null;
+          startNewCard();
         }}
         class="rounded-button bg-primary dark:bg-[#E0E0E0] dark:text-[#1A1A2E] text-white px-4 py-2 text-sm font-medium hover:scale-[1.02] transition-transform"
       >
-        + Neue Karte
+        {t("+ Neue Karte")}
       </button>
     </div>
   </div>
@@ -583,7 +615,7 @@
       <div class="glass rounded-card p-4 space-y-3">
         <div class="flex items-center justify-between border-b border-white/10 pb-3">
           <h3 class="text-sm font-medium text-secondary flex items-center gap-2">
-            {editingCard ? "Karte bearbeiten" : "Neue Karteikarte"}
+            {editingCard ? t("Karte bearbeiten") : t("Neue Karteikarte")}
           </h3>
           <!-- Card Type Selector -->
           <div class="flex items-center gap-1.5 glass p-1 rounded-xl border border-white/10">
@@ -613,28 +645,28 @@
 
         <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <label class="flex items-center gap-2 text-xs font-medium text-secondary">
-            <span class="shrink-0">Sprache vorn</span>
+            <span class="shrink-0">{t("Sprache vorn")}</span>
             <select
               bind:value={frontLanguage}
               aria-label="Sprache der Vorderseite"
               class="min-w-0 flex-1 rounded-md border border-white/15 bg-white/60 px-2.5 py-1.5 text-xs text-primary outline-none focus:border-accent-correct dark:bg-black/20 dark:text-primary-dark"
             >
-              <option value="">Nicht festgelegt</option>
+              <option value="">{t("Nicht festgelegt")}</option>
               {#each languageOptions as language}
-                <option value={language.code}>{language.label}</option>
+                <option value={language.code}>{languageLabel(language.code)}</option>
               {/each}
             </select>
           </label>
           <label class="flex items-center gap-2 text-xs font-medium text-secondary">
-            <span class="shrink-0">Sprache hinten</span>
+            <span class="shrink-0">{t("Sprache hinten")}</span>
             <select
               bind:value={backLanguage}
               aria-label="Sprache der Rückseite"
               class="min-w-0 flex-1 rounded-md border border-white/15 bg-white/60 px-2.5 py-1.5 text-xs text-primary outline-none focus:border-accent-correct dark:bg-black/20 dark:text-primary-dark"
             >
-              <option value="">Nicht festgelegt</option>
+              <option value="">{t("Nicht festgelegt")}</option>
               {#each languageOptions as language}
-                <option value={language.code}>{language.label}</option>
+                <option value={language.code}>{languageLabel(language.code)}</option>
               {/each}
             </select>
           </label>
@@ -643,13 +675,13 @@
         <div>
           <div class="flex items-center justify-between">
             <span class="text-xs font-medium text-secondary uppercase tracking-wide">
-              {cardType === 'ordering' ? 'Titel / Fragestellung' : cardType === 'multiple_choice' ? 'Frage / Aufgabenstellung' : 'Vorderseite'}
+              {cardType === 'ordering' ? t("Titel / Fragestellung") : cardType === 'multiple_choice' ? t("Frage / Aufgabenstellung") : t("Vorderseite")}
             </span>
             <button
               type="button"
               onclick={(e) => handleImageUpload('front', (e.currentTarget.parentElement?.nextElementSibling as HTMLTextAreaElement))}
               class="text-xs font-medium text-secondary hover:text-accent-correct transition-colors flex items-center gap-1"
-              title="Klicken zum Auswählen, oder Bild direkt im Textfeld einfügen / per Drag & Drop ablegen"
+              title="Bild auswählen, einfügen oder ablegen. LaTeX mit $...$ oder $$...$$ schreiben."
             >
               🖼️ Bild einfügen
             </button>
@@ -660,7 +692,7 @@
             onpaste={(e) => handlePaste(e, 'front')}
             ondrop={(e) => handleDrop(e, 'front')}
             ondragover={(e) => e.preventDefault()}
-            placeholder={cardType === 'ordering' ? 'z. B. Bringe die Schritte in die richtige Reihenfolge:' : cardType === 'multiple_choice' ? 'z. B. Welche der folgenden Aussagen treffen zu?' : 'Frage eingeben (Strg+V oder Drag&Drop für Bilder)...'}
+            placeholder={cardType === 'ordering' ? 'z. B. Bringe die Schritte in die richtige Reihenfolge:' : cardType === 'multiple_choice' ? 'z. B. Welche der folgenden Aussagen treffen zu?' : 'Frage eingeben, z. B. $E=mc^2$ ...'}
             class="{cardFontClass} w-full mt-1 bg-transparent border border-white/20 rounded-lg p-3 text-primary dark:text-primary-dark placeholder:text-secondary resize-none outline-none focus:border-accent-correct transition-colors text-lg"
             rows="2"
           ></textarea>
@@ -678,8 +710,8 @@
           <!-- Multiple Choice Options Editor -->
           <div class="space-y-2 pt-2 border-t border-white/10">
             <div class="text-xs font-medium text-secondary uppercase tracking-wide flex items-center justify-between">
-              <span>Antwortoptionen</span>
-              <span class="text-[10px] lowercase text-secondary/70">Checkmark [x] = Richtig</span>
+              <span>{t("Antwortoptionen")}</span>
+              <span class="text-[10px] lowercase text-secondary/70">{t("Checkmark [x] = Richtig")}</span>
             </div>
             <div class="space-y-2">
               {#each mcOptions as opt, idx}
@@ -693,14 +725,14 @@
                   <input
                     type="text"
                     bind:value={opt.text}
-                    placeholder={`Option ${idx + 1}`}
+                    placeholder={`${t("Option")} ${idx + 1}`}
                     class="{cardFontClass} flex-1 bg-white/5 dark:bg-black/20 border border-white/10 rounded-lg p-2 text-primary dark:text-primary-dark placeholder:text-secondary/50 outline-none focus:border-accent-correct text-sm"
                   />
                   {#if mcOptions.length > 2}
                     <button
                       type="button"
                       onclick={() => removeMcOption(idx)}
-                      class="p-1.5 rounded-lg text-secondary hover:text-red-400 transition-colors"
+                      class="p-1.5 rounded-lg text-secondary hover:text-accent-incorrect transition-colors"
                       title="Option entfernen"
                     >
                       ✕
@@ -714,7 +746,7 @@
               onclick={addMcOption}
               class="mt-2 text-xs font-semibold text-accent-correct hover:underline flex items-center gap-1"
             >
-              + Weitere Option hinzufügen
+              {t("+ Weitere Option hinzufügen")}
             </button>
           </div>
 
@@ -722,7 +754,7 @@
           <!-- Ordering Steps Editor -->
           <div class="space-y-2 pt-2 border-t border-white/10">
             <span class="text-xs font-medium text-secondary uppercase tracking-wide block">
-              Prozessschritte (in der KORREKTEN Reihenfolge eingeben)
+              {t("Prozessschritte (in der KORREKTEN Reihenfolge eingeben)")}
             </span>
             <div class="space-y-2">
               {#each orderingItems as item, idx}
@@ -731,14 +763,14 @@
                   <input
                     type="text"
                     bind:value={orderingItems[idx]}
-                    placeholder={`Schritt ${idx + 1}`}
+                    placeholder={`${t("Schritt")} ${idx + 1}`}
                     class="{cardFontClass} flex-1 bg-white/5 dark:bg-black/20 border border-white/10 rounded-lg p-2 text-primary dark:text-primary-dark placeholder:text-secondary/50 outline-none focus:border-accent-correct text-sm"
                   />
                   {#if orderingItems.length > 2}
                     <button
                       type="button"
                       onclick={() => removeOrderingItem(idx)}
-                      class="p-1.5 rounded-lg text-secondary hover:text-red-400 transition-colors"
+                      class="p-1.5 rounded-lg text-secondary hover:text-accent-incorrect transition-colors"
                       title="Schritt entfernen"
                     >
                       ✕
@@ -752,7 +784,7 @@
               onclick={addOrderingItem}
               class="mt-2 text-xs font-semibold text-accent-correct hover:underline flex items-center gap-1"
             >
-              + Weiteren Schritt hinzufügen
+              {t("+ Weiteren Schritt hinzufügen")}
             </button>
           </div>
 
@@ -765,7 +797,7 @@
                 type="button"
                 onclick={(e) => handleImageUpload('back', (e.currentTarget.parentElement?.nextElementSibling as HTMLTextAreaElement))}
                 class="text-xs font-medium text-secondary hover:text-accent-correct transition-colors flex items-center gap-1"
-                title="Klicken zum Auswählen, oder Bild direkt im Textfeld einfügen / per Drag & Drop ablegen"
+                title="Bild auswählen, einfügen oder ablegen. LaTeX mit $...$ oder $$...$$ schreiben."
               >
                 🖼️ Bild einfügen
               </button>
@@ -775,7 +807,7 @@
               onpaste={(e) => handlePaste(e, 'back')}
               ondrop={(e) => handleDrop(e, 'back')}
               ondragover={(e) => e.preventDefault()}
-              placeholder="Antwort eingeben (Strg+V oder Drag&Drop für Bilder)..."
+              placeholder="Antwort eingeben, z. B. $$x^2$$ ..."
               class="{cardFontClass} w-full mt-1 bg-transparent border border-white/20 rounded-lg p-3 text-primary dark:text-primary-dark placeholder:text-secondary resize-none outline-none focus:border-accent-correct transition-colors text-lg"
               rows="2"
             ></textarea>
@@ -792,7 +824,7 @@
         <div class="mt-4 pt-4 border-t border-white/10">
           <div class="flex items-center justify-between mb-1">
             <span class="text-xs font-medium text-secondary uppercase tracking-wide flex items-center gap-2">
-              Warum? <span class="text-[10px] lowercase opacity-70">(Optional, fördert Verstehen)</span>
+              {t("Warum?")} <span class="text-[10px] lowercase opacity-70">{t("(Optional, fördert Verstehen)")}</span>
             </span>
             <button
               type="button"
@@ -823,7 +855,7 @@
         </div>
         <div class="mt-2 pt-4 border-t border-white/10">
           <span class="text-xs font-medium text-secondary uppercase tracking-wide flex items-center gap-2 mb-2">
-            Tags <span class="text-[10px] lowercase opacity-70">(Mit Komma oder Enter trennen)</span>
+            Tags <span class="text-[10px] lowercase opacity-70">{t("(Mit Komma oder Enter trennen)")}</span>
           </span>
           <div class="flex flex-wrap gap-2 mb-2">
             {#each tags as tag}
@@ -951,11 +983,11 @@
                   <div class="flex items-center gap-2 mb-0.5">
                     <span class="text-xs font-medium text-secondary uppercase tracking-wide">Frage{card.front_language ? ` · ${languageLabel(card.front_language)}` : ""}</span>
                     {#if card.card_type === 'multiple_choice'}
-                      <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30">🔘 MC</span>
+                      <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-accent-correct/20 text-accent-correct border border-accent-correct/30">🔘 MC</span>
                     {:else if card.card_type === 'ordering'}
-                      <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400 border border-purple-500/30">🔢 Sequenz</span>
+                      <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-accent-easy/20 text-accent-easy border border-accent-easy/30">🔢 Sequenz</span>
                     {:else if card.card_type === 'cloze'}
-                      <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30">🧩 Cloze</span>
+                      <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-accent-hard/20 text-accent-hard border border-accent-hard/30">🧩 Cloze</span>
                     {/if}
                   </div>
                   <p class="{cardFontClass} text-primary dark:text-primary-dark mt-0.5 max-h-20 overflow-hidden">{@html renderMarkdown(card.front)}</p>
@@ -993,7 +1025,7 @@
                 </svg>
               </button>
               <button
-                class="p-1.5 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 text-accent-incorrect transition-colors"
+                class="p-1.5 rounded-lg hover:bg-accent-incorrect/10 text-accent-incorrect transition-colors"
                 title="Karte löschen"
                 onclick={() => (deleteConfirmCardId = card.id)}
               >

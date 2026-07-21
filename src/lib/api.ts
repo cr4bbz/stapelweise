@@ -16,6 +16,7 @@ import {
   type ExamStats,
   type ExamTemplate,
   type ImportInspection,
+  type IntegrationImportResult,
   type JsonCardInput,
   type SearchResult,
   type SerializedAppError,
@@ -65,8 +66,8 @@ export async function createDeck(name: string): Promise<Deck> {
   return cmd("create_deck", { name });
 }
 
-export async function listDecks(): Promise<Deck[]> {
-  return cmd("list_decks");
+export async function listDecks(includeArchived = false): Promise<Deck[]> {
+  return cmd("list_decks", includeArchived ? { includeArchived } : undefined);
 }
 
 export async function getDeck(deckId: string): Promise<Deck | null> {
@@ -81,6 +82,14 @@ export async function deleteDeck(deckId: string): Promise<void> {
   return cmd("delete_deck", { deckId });
 }
 
+export async function archiveDeck(deckId: string): Promise<void> {
+  return cmd("archive_deck", { deckId });
+}
+
+export async function restoreDeck(deckId: string): Promise<void> {
+  return cmd("restore_deck", { deckId });
+}
+
 export async function importDeckFromJson(name: string, cards: JsonCardInput[]): Promise<void> {
   return cmd("import_deck", { name, cards });
 }
@@ -91,6 +100,33 @@ export async function seedSampleData(): Promise<Deck[]> {
 
 export async function syncObsidianVault(vaultPath: string, deckName: string): Promise<Deck> {
   return cmd("sync_obsidian_vault", { vaultPath, deckName });
+}
+
+export async function importZoteroLocal(
+  deckName: string,
+  collectionKey: string | null = null,
+  limit = 100
+): Promise<IntegrationImportResult> {
+  return cmd("import_zotero_local", { deckName, collectionKey, limit });
+}
+
+export async function importNotionDataSource(
+  token: string,
+  dataSourceId: string,
+  deckName: string,
+  frontProperty: string,
+  backProperty: string
+): Promise<IntegrationImportResult> {
+  return cmd("import_notion_data_source", { token, dataSourceId, deckName, frontProperty, backProperty });
+}
+
+export async function importMoodleGlossary(
+  baseUrl: string,
+  token: string,
+  glossaryId: number,
+  deckName: string
+): Promise<IntegrationImportResult> {
+  return cmd("import_moodle_glossary", { baseUrl, token, glossaryId, deckName });
 }
 
 // ── Cards ────────────────────────────────────────────
@@ -211,12 +247,20 @@ export async function createExam(
   return cmd("create_exam", { name, examType, examDate, deckIds });
 }
 
-export async function listExams(): Promise<Exam[]> {
-  return cmd("list_exams");
+export async function listExams(includeArchived = false): Promise<Exam[]> {
+  return cmd("list_exams", { includeArchived });
 }
 
 export async function deleteExam(id: string): Promise<void> {
   return cmd("delete_exam", { id });
+}
+
+export async function archiveExam(id: string): Promise<void> {
+  return cmd("archive_exam", { id });
+}
+
+export async function restoreExam(id: string): Promise<void> {
+  return cmd("restore_exam", { id });
 }
 
 export async function updateExam(

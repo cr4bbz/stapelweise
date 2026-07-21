@@ -10,10 +10,23 @@ use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let mut builder = tauri::Builder::default();
+
+    #[cfg(desktop)]
+    {
+        builder = builder.plugin(tauri_plugin_single_instance::init(|_app, _argv, _cwd| {}));
+    }
+
+    builder
+        .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .setup(|app| {
+            #[cfg(any(target_os = "linux", all(debug_assertions, windows)))]
+            {
+                use tauri_plugin_deep_link::DeepLinkExt;
+                app.deep_link().register_all()?;
+            }
             let app_data_dir = app
                 .path()
                 .app_data_dir()
@@ -30,11 +43,15 @@ pub fn run() {
             commands::decks::get_deck,
             commands::decks::update_deck,
             commands::decks::delete_deck,
+            commands::decks::archive_deck,
+            commands::decks::restore_deck,
             commands::decks::import_deck,
             commands::exams::create_exam,
             commands::exams::list_exams,
             commands::exams::update_exam,
             commands::exams::delete_exam,
+            commands::exams::archive_exam,
+            commands::exams::restore_exam,
             commands::exams::get_exam_stats,
             commands::test_engine::create_exam_template,
             commands::test_engine::list_exam_templates,
@@ -67,6 +84,9 @@ pub fn run() {
             commands::stats::get_deck_stats,
             commands::stats::get_dashboard_stats,
             commands::obsidian::sync_obsidian_vault,
+            commands::integrations::import_zotero_local,
+            commands::integrations::import_notion_data_source,
+            commands::integrations::import_moodle_glossary,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

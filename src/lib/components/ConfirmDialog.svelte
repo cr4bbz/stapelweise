@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "$lib/i18n";
   let { title = "Bist du sicher?", message = "", confirmLabel = "Löschen", danger = true, onConfirm = () => {}, onCancel = () => {} } = $props<{
     title?: string;
     message?: string;
@@ -32,14 +33,12 @@
       <button
         onclick={onCancel}
         class="rounded-button bg-white/60 dark:bg-white/10 text-primary dark:text-primary-dark px-4 py-2 text-sm font-medium hover:scale-[1.02] transition-transform"
-      >
-        Abbrechen
-      </button>
+      >{t("Abbrechen")}</button>
       <button
         onclick={onConfirm}
-        class="rounded-button {danger ? 'bg-red-500 hover:bg-red-600' : 'bg-accent-correct'} text-white px-4 py-2 text-sm font-medium hover:scale-[1.02] transition-transform"
+        class="rounded-button {danger ? 'bg-accent-incorrect hover:bg-accent-incorrect/85' : 'bg-accent-correct'} text-white px-4 py-2 text-sm font-medium hover:scale-[1.02] transition-transform"
       >
-        {confirmLabel}
+        {t(confirmLabel)}
       </button>
     </div>
   </div>

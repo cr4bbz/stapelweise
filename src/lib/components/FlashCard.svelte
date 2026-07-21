@@ -233,7 +233,7 @@
 
       <!-- Front Prompt -->
       <div class="flex-1 flex items-center justify-center w-full my-auto">
-        <div class="{familyClass} {sizeClass} text-primary dark:text-primary-dark text-center text-balance">
+        <div data-user-content class="{familyClass} {sizeClass} text-primary dark:text-primary-dark text-center text-balance">
           {@html renderedFront}
         </div>
       </div>
@@ -247,7 +247,7 @@
               onclick={(e) => toggleMcOption(idx, e)}
               class="w-full p-2.5 rounded-xl border text-xs font-medium text-left transition-all flex items-center justify-between {isSelected ? 'bg-accent-correct/20 border-accent-correct text-primary dark:text-primary-dark shadow-sm' : 'glass border-white/10 hover:bg-white/10 text-secondary'}"
             >
-              <span>{opt.text}</span>
+              <span data-user-content>{opt.text}</span>
               <span class="w-5 h-5 rounded-md border flex items-center justify-center text-xs {isSelected ? 'bg-accent-correct border-accent-correct text-white' : 'border-white/20'}">
                 {isSelected ? '✓' : ''}
               </span>
@@ -261,7 +261,7 @@
         <div class="w-full space-y-1.5 mt-3 shrink-0">
           {#each userOrderingItems as item, idx}
             <div class="flex items-center justify-between p-2 rounded-lg glass border border-white/10 text-xs text-primary dark:text-primary-dark">
-              <span>{idx + 1}. {item}</span>
+              <span data-user-content>{idx + 1}. {item}</span>
               <div class="flex items-center gap-1">
                 <button
                   disabled={idx === 0}
@@ -317,9 +317,9 @@
             {@const isMissed = !isSelected && isCorrect}
             {@const isWrongSelect = isSelected && !isCorrect}
 
-            <div class="w-full p-2.5 rounded-xl border text-xs font-medium flex items-center justify-between {isSuccess ? 'bg-emerald-500/20 border-emerald-500 text-emerald-400' : isMissed ? 'bg-amber-500/20 border-amber-500 text-amber-400' : isWrongSelect ? 'bg-red-500/20 border-red-500 text-red-400' : 'glass border-white/5 opacity-50 text-secondary'}">
-              <span>{opt.text}</span>
-              <span class="text-xs font-bold px-2 py-0.5 rounded {isSuccess ? 'bg-emerald-500/20 text-emerald-400' : isMissed ? 'bg-amber-500/20 text-amber-400' : isWrongSelect ? 'bg-red-500/20 text-red-400' : ''}">
+            <div class="w-full p-2.5 rounded-xl border text-xs font-medium flex items-center justify-between {isSuccess ? 'bg-accent-easy/20 border-accent-easy text-accent-easy' : isMissed ? 'bg-accent-hard/20 border-accent-hard text-accent-hard' : isWrongSelect ? 'bg-accent-incorrect/20 border-accent-incorrect text-accent-incorrect' : 'glass border-white/5 opacity-50 text-secondary'}">
+              <span data-user-content>{opt.text}</span>
+              <span class="text-xs font-bold px-2 py-0.5 rounded {isSuccess ? 'bg-accent-easy/20 text-accent-easy' : isMissed ? 'bg-accent-hard/20 text-accent-hard' : isWrongSelect ? 'bg-accent-incorrect/20 text-accent-incorrect' : ''}">
                 {isSuccess ? 'Richtig ausgewählt ✓' : isMissed ? 'Fehlend (Wäre richtiggewesen)' : isWrongSelect ? 'Falsch ausgewählt ✗' : 'Nicht zutreffend'}
               </span>
             </div>
@@ -331,9 +331,9 @@
           <p class="text-xs font-bold uppercase text-secondary tracking-wider text-center mb-3">Korrekte Reihenfolge:</p>
           {#each originalOrderingItems as item, idx}
             {@const userMatch = userOrderingItems[idx] === item}
-            <div class="flex items-center justify-between p-2.5 rounded-xl border text-xs font-medium {userMatch ? 'bg-emerald-500/20 border-emerald-500 text-emerald-400' : 'bg-red-500/20 border-red-500 text-red-400'}">
-              <span>{idx + 1}. {item}</span>
-              <span class="text-xs font-bold px-2 py-0.5 rounded {userMatch ? 'bg-emerald-500/20' : 'bg-red-500/20'}">
+            <div class="flex items-center justify-between p-2.5 rounded-xl border text-xs font-medium {userMatch ? 'bg-accent-easy/20 border-accent-easy text-accent-easy' : 'bg-accent-incorrect/20 border-accent-incorrect text-accent-incorrect'}">
+              <span data-user-content>{idx + 1}. {item}</span>
+              <span class="text-xs font-bold px-2 py-0.5 rounded {userMatch ? 'bg-accent-easy/20' : 'bg-accent-incorrect/20'}">
                 {userMatch ? '✓ Richtig platziert' : `Deine Wahl: ${userOrderingItems[idx] || '-'}`}
               </span>
             </div>
@@ -342,7 +342,7 @@
       {:else}
         <!-- Standard / Cloze Back Content -->
         <div class="flex-1 flex items-center justify-center w-full mt-4">
-          <div class="{familyClass} {sizeClass} text-primary dark:text-primary-dark text-center text-balance w-full">
+          <div data-user-content class="{familyClass} {sizeClass} text-primary dark:text-primary-dark text-center text-balance w-full">
             {@html renderedBack}
           </div>
         </div>
@@ -351,7 +351,7 @@
       {#if renderedReasoning}
         <div class="mt-4 pt-4 border-t border-white/10 w-full text-center shrink-0">
           <span class="text-[10px] uppercase text-secondary/70 font-semibold tracking-wider">Warum?</span>
-          <div class="{familyClass} text-sm mt-1 text-primary/80 dark:text-primary-dark/80 text-balance opacity-90">
+          <div data-user-content class="{familyClass} text-sm mt-1 text-primary/80 dark:text-primary-dark/80 text-balance opacity-90">
             {@html renderedReasoning}
           </div>
         </div>

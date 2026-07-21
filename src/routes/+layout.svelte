@@ -6,5 +6,5 @@
 </script>
 
 <Layout>
-  {@render children()}
+{@render children()}
 </Layout>

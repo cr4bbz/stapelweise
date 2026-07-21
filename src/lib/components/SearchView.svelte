@@ -5,6 +5,7 @@
   import { renderMarkdown } from "$lib/markdown";
   import { fade } from "svelte/transition";
   import { settingsStore } from "$lib/stores/settings.svelte";
+  import { t } from "$lib/i18n";
 
   let { initialQuery = "", onClose = () => {}, onSelectCard = (_deckId: string) => {} } = $props<{
     initialQuery?: string;
@@ -92,7 +93,7 @@
         disabled={!query.trim()}
         class="rounded-button bg-accent-correct text-white px-4 py-2 text-sm font-medium hover:scale-[1.02] transition-transform disabled:opacity-50"
       >
-        Suchen
+        {t("Suchen")}
       </button>
     </div>
   </div>
@@ -101,7 +102,7 @@
   <div class="flex-1 grid overflow-hidden">
     {#if loading}
       <div in:fade={{ duration: 150 }} out:fade={{ duration: 100 }} class="col-start-1 row-start-1 flex-1 flex items-center justify-center">
-      <p class="text-secondary">Suche...</p>
+      <p class="text-secondary">{t("Suche...")}</p>
     </div>
     {:else if searched && results.length === 0}
       <div in:fade={{ duration: 150 }} out:fade={{ duration: 100 }} class="col-start-1 row-start-1 flex-1 flex items-center justify-center">
@@ -113,7 +114,7 @@
     </div>
     {:else if results.length > 0}
       <div in:fade={{ duration: 150 }} out:fade={{ duration: 100 }} class="col-start-1 row-start-1 flex-1 overflow-y-auto px-6 pb-6">
-      <p class="text-secondary text-sm mb-3">{results.length} Treffer</p>
+      <p class="text-secondary text-sm mb-3">{results.length} {t("Treffer")}</p>
       <div class="space-y-2">
         {#each results as result (result.card.id)}
           <button

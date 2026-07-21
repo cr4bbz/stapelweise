@@ -29,8 +29,8 @@
 </script>
 
 {#if tags.length > 0}
-  <div>
-    <div class="surface-panel p-4">
+  <div class="h-full">
+    <div class="surface-panel flex h-full flex-col p-4">
       <div class="flex items-center justify-between mb-3">
         <span class="section-kicker">
           Tags ({tags.length})
@@ -48,7 +48,7 @@
         {/if}
       </div>
       
-      <div class="flex flex-wrap gap-2 max-h-32 overflow-y-auto pr-2 custom-scrollbar">
+      <div class="custom-scrollbar flex flex-1 flex-wrap content-start gap-2 overflow-y-auto pr-2">
         {#each tags as tag}
           <button
             onclick={() => toggleTag(tag)}
@@ -63,7 +63,7 @@
     </div>
   </div>
 {:else}
-  <section class="surface-panel p-4">
+  <section class="surface-panel h-full p-4">
     <div class="mb-3 flex items-center justify-between">
       <h2 class="section-heading">Tags</h2>
       <span class="section-kicker">0</span>

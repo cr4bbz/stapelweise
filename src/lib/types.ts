@@ -66,6 +66,7 @@ export interface JsonCardInput {
 export interface Deck {
   id: string;
   name: string;
+  archived: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -113,7 +114,10 @@ export interface DashboardStats {
 }
 
 export interface AppSettings {
+  ui_language: "de" | "en" | "es" | "fr" | "pt";
   theme: "light" | "dark" | "auto";
+  color_theme: "academy" | "night-library" | "printwork" | "graphite";
+  pixel_font: "press-start" | "silkscreen" | "source-sans" | "source-serif";
   card_font_family: "serif" | "sans";
   card_font_size: "small" | "medium" | "large";
   learning_animations: boolean;
@@ -132,6 +136,7 @@ export interface Exam {
   name: string;
   exam_type: string;
   exam_date: string;
+  archived: boolean;
   created_at: string;
   deck_ids: string[];
 }
@@ -217,10 +222,17 @@ export interface ImportInspection {
   deck_count: number;
   card_count: number;
   review_count: number;
+  exam_count: number;
   template_count: number;
   existing_deck_conflicts: string[];
   existing_card_conflicts: number;
   warnings: string[];
+}
+
+export interface IntegrationImportResult {
+  deck: Deck;
+  imported: number;
+  skipped: number;
 }
 
 // Structured error payload from Rust backend

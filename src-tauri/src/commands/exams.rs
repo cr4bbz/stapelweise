@@ -21,12 +21,33 @@ pub fn create_exam(
 }
 
 #[tauri::command(rename_all = "camelCase")]
-pub fn list_exams(state: State<DbState>) -> Result<Vec<Exam>, CommandError> {
+pub fn list_exams(
+    state: State<DbState>,
+    include_archived: Option<bool>,
+) -> Result<Vec<Exam>, CommandError> {
     let db = state
         .lock()
         .map_err(|e| CommandError::from(format!("Lock error: {}", e)))?;
-    let exams = db.repo.list_exams()?;
+    let exams = db.repo.list_exams(include_archived.unwrap_or(false))?;
     Ok(exams)
+}
+
+#[tauri::command(rename_all = "camelCase")]
+pub fn archive_exam(state: State<DbState>, id: String) -> Result<(), CommandError> {
+    let db = state
+        .lock()
+        .map_err(|e| CommandError::from(format!("Lock error: {}", e)))?;
+    db.repo.set_exam_archived(&id, true)?;
+    Ok(())
+}
+
+#[tauri::command(rename_all = "camelCase")]
+pub fn restore_exam(state: State<DbState>, id: String) -> Result<(), CommandError> {
+    let db = state
+        .lock()
+        .map_err(|e| CommandError::from(format!("Lock error: {}", e)))?;
+    db.repo.set_exam_archived(&id, false)?;
+    Ok(())
 }
 
 #[tauri::command(rename_all = "camelCase")]

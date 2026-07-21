@@ -20,12 +20,12 @@ export const languageOptions = [
 
 export function languageLabel(code: string | null | undefined): string {
   if (!code) return "";
-  const preset = languageOptions.find((language) => language.code === code.toLowerCase());
-  if (preset) return preset.label;
+  const locale = settingsStore.current.ui_language || "de";
 
   try {
-    return new Intl.DisplayNames(["de"], { type: "language" }).of(code) ?? code.toUpperCase();
+    return new Intl.DisplayNames([locale], { type: "language" }).of(code) ?? code.toUpperCase();
   } catch {
     return code.toUpperCase();
   }
 }
+import { settingsStore } from "$lib/stores/settings.svelte";

@@ -1,6 +1,6 @@
 use rusqlite::Connection;
 
-const LATEST_VERSION: i32 = 8;
+const LATEST_VERSION: i32 = 10;
 
 /// Run all pending migrations to bring the database up to `LATEST_VERSION`.
 ///
@@ -42,6 +42,12 @@ pub fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
     }
     if version < 8 {
         apply_v8(conn)?;
+    }
+    if version < 9 {
+        apply_v9(conn)?;
+    }
+    if version < 10 {
+        apply_v10(conn)?;
     }
 
     Ok(())
@@ -123,6 +129,16 @@ fn detect_existing_schema_version(conn: &Connection) -> Result<i32, rusqlite::Er
         .is_ok();
     if !has_card_languages {
         return Ok(7);
+    }
+
+    let has_deck_archiving = conn.prepare("SELECT archived FROM decks LIMIT 0").is_ok();
+    if !has_deck_archiving {
+        return Ok(8);
+    }
+
+    let has_exam_archiving = conn.prepare("SELECT archived FROM exams LIMIT 0").is_ok();
+    if !has_exam_archiving {
+        return Ok(9);
     }
 
     conn.pragma_update(None, "user_version", LATEST_VERSION)?;
@@ -358,6 +374,36 @@ fn apply_v8(conn: &Connection) -> Result<(), rusqlite::Error> {
     Ok(())
 }
 
+fn apply_v9(conn: &Connection) -> Result<(), rusqlite::Error> {
+    if conn.prepare("SELECT archived FROM decks LIMIT 0").is_err() {
+        conn.execute(
+            "ALTER TABLE decks ADD COLUMN archived INTEGER NOT NULL DEFAULT 0;",
+            [],
+        )?;
+    }
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_decks_archived ON decks(archived);",
+        [],
+    )?;
+    conn.pragma_update(None, "user_version", 9)?;
+    Ok(())
+}
+
+fn apply_v10(conn: &Connection) -> Result<(), rusqlite::Error> {
+    if conn.prepare("SELECT archived FROM exams LIMIT 0").is_err() {
+        conn.execute(
+            "ALTER TABLE exams ADD COLUMN archived INTEGER NOT NULL DEFAULT 0;",
+            [],
+        )?;
+    }
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_exams_archived_date ON exams(archived, exam_date);",
+        [],
+    )?;
+    conn.pragma_update(None, "user_version", 10)?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -405,6 +451,7 @@ mod tests {
             )
             .unwrap();
         assert_eq!(languages, (None, None));
+        assert!(conn.prepare("SELECT archived FROM decks LIMIT 0").is_ok());
     }
 
     #[test]

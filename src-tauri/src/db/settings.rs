@@ -7,7 +7,13 @@ fn default_learning_animations() -> bool {
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct AppSettings {
+    #[serde(default = "default_ui_language")]
+    pub ui_language: String,
     pub theme: String,
+    #[serde(default = "default_color_theme")]
+    pub color_theme: String,
+    #[serde(default = "default_pixel_font")]
+    pub pixel_font: String,
     pub card_font_family: String,
     pub card_font_size: String,
     #[serde(default = "default_learning_animations")]
@@ -25,10 +31,25 @@ pub struct AppSettings {
     pub obsidian_flashcard_tag: String,
 }
 
+fn default_ui_language() -> String {
+    "de".into()
+}
+
+fn default_color_theme() -> String {
+    "academy".into()
+}
+
+fn default_pixel_font() -> String {
+    "press-start".into()
+}
+
 impl AppSettings {
     pub fn defaults() -> Self {
         Self {
+            ui_language: default_ui_language(),
             theme: "auto".into(),
+            color_theme: default_color_theme(),
+            pixel_font: default_pixel_font(),
             card_font_family: "serif".into(),
             card_font_size: "medium".into(),
             learning_animations: true,
@@ -49,7 +70,10 @@ impl AppSettings {
         let rows = repo.get_all_settings()?;
         for (key, value) in rows {
             match key.as_str() {
+                "ui_language" => s.ui_language = value,
                 "theme" => s.theme = value,
+                "color_theme" => s.color_theme = value,
+                "pixel_font" => s.pixel_font = value,
                 "card_font_family" => s.card_font_family = value,
                 "card_font_size" => s.card_font_size = value,
                 "learning_animations" => {
@@ -68,7 +92,10 @@ impl AppSettings {
                 "session_limit" => s.session_limit = value.parse().unwrap_or(s.session_limit),
                 "sm2_initial_ef" => s.sm2_initial_ef = value.parse().unwrap_or(s.sm2_initial_ef),
                 "sm2_pass_threshold" => {
-                    s.sm2_pass_threshold = value.parse().unwrap_or(s.sm2_pass_threshold)
+                    s.sm2_pass_threshold = value
+                        .parse()
+                        .map(|threshold: u8| threshold.clamp(1, 4))
+                        .unwrap_or(s.sm2_pass_threshold)
                 }
                 "obsidian_vault_path" => s.obsidian_vault_path = value,
                 "obsidian_flashcard_tag" => s.obsidian_flashcard_tag = value,
@@ -79,7 +106,10 @@ impl AppSettings {
     }
 
     pub fn save(&self, repo: &Repository) -> Result<(), rusqlite::Error> {
+        repo.set_setting("ui_language", &self.ui_language)?;
         repo.set_setting("theme", &self.theme)?;
+        repo.set_setting("color_theme", &self.color_theme)?;
+        repo.set_setting("pixel_font", &self.pixel_font)?;
         repo.set_setting("card_font_family", &self.card_font_family)?;
         repo.set_setting("card_font_size", &self.card_font_size)?;
         repo.set_setting("learning_animations", &self.learning_animations.to_string())?;

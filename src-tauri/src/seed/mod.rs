@@ -322,7 +322,141 @@ impl SeedGenerator {
             decks.push(d);
         }
 
-        // ── Deck 4: Formale Logik & Mengenlehre (alle Kartentypen) ────────
+        // ── Deck 4: LaTeX mit Stapelweise (alle Kartentypen) ────────
+        let cards5 = vec![
+            SeedCard {
+                front: "Berechne die Fläche unter $f(x) = x^2$ von 0 bis 1.",
+                back: "$$\\int_0^1 x^2\\,dx = \\frac{1}{3}$$",
+                scenario: Scenario::New,
+                tags: vec!["LaTeX", "Mathematik", "Formeln"],
+                card_type: "basic",
+                content: None,
+                reasoning: Some("Inline-Formeln stehen zwischen $...$, abgesetzte Formeln zwischen $$...$$."),
+            },
+            SeedCard {
+                front: "Die Ableitung von $x^n$ ist ==$n x^{n-1}$==.",
+                back: "$$\\frac{d}{dx}x^n = n x^{n-1}$$",
+                scenario: Scenario::DueTodayFirst,
+                tags: vec!["LaTeX", "Ableitungen", "Cloze"],
+                card_type: "cloze",
+                content: None,
+                reasoning: Some("Die Karte verbindet Lückentext mit gerendertem LaTeX."),
+            },
+            SeedCard {
+                front: "Welche Eingabe erzeugt den Bruch $\\frac{a}{b}$?",
+                back: "[x] $\\frac{a}{b}$\n[ ] $\\fraction{a}{b}$\n[ ] $a/b$\n[ ] $\\divide{a}{b}$",
+                scenario: Scenario::DueTodayStruggling,
+                tags: vec!["LaTeX", "Syntax", "Brüche"],
+                card_type: "multiple_choice",
+                content: Some(r#"{"options":[{"text":"\\frac{a}{b}","correct":true},{"text":"\\fraction{a}{b}","correct":false},{"text":"a/b","correct":false},{"text":"\\divide{a}{b}","correct":false}]}"#),
+                reasoning: Some("KaTeX verwendet den LaTeX-Befehl \\frac{Zähler}{Nenner}."),
+            },
+            SeedCard {
+                front: "Ordne einen guten Ablauf für eine Formelkarte in Stapelweise:",
+                back: "1. Formel mit $...$ oder $$...$$ schreiben\n2. Live-Vorschau prüfen\n3. Erklärung auf die Rückseite setzen\n4. Karte speichern und lernen",
+                scenario: Scenario::DueTomorrow,
+                tags: vec!["LaTeX", "Arbeitsablauf", "Stapelweise"],
+                card_type: "ordering",
+                content: Some(r#"{"items":["Formel mit $...$ oder $$...$$ schreiben","Live-Vorschau prüfen","Erklärung auf die Rückseite setzen","Karte speichern und lernen"]}"#),
+                reasoning: Some("Bilder fügst du separat über die Bildschaltfläche, Einfügen oder Drag-and-drop ein; TikZ wird nicht ausgeführt."),
+            },
+        ];
+        if let Some(d) = Self::build_deck(
+            repo,
+            "LaTeX mit Stapelweise",
+            cards5,
+            today,
+            &existing_decks,
+        )? {
+            decks.push(d);
+        }
+
+        // ── Deck 5: Stapelweise entdecken (alle Kartentypen) ────────
+        let cards6 = vec![
+            SeedCard {
+                front: "Wo startest du deine faelligen Karten aus allen Stapeln?",
+                back: "Im Modul **Heute lernen** auf der Uebersicht. Dort startet eine gemeinsame Lernsitzung fuer alle faelligen Karten.",
+                scenario: Scenario::New,
+                tags: vec!["Stapelweise", "Lernen", "Dashboard"],
+                card_type: "basic",
+                content: None,
+                reasoning: Some("Wenn nichts faellig ist, kannst du dort direkt in die freie Uebung wechseln."),
+            },
+            SeedCard {
+                front: "Wie erreichst du einen einzelnen Stapel zum Bearbeiten?",
+                back: "Waehle auf der Uebersicht **Stapel oeffnen**. Dort bearbeitest du Karten, Tags, Statistiken und das Studentenlernblatt.",
+                scenario: Scenario::DueTodayFirst,
+                tags: vec!["Stapelweise", "Stapel", "Bearbeiten"],
+                card_type: "basic",
+                content: None,
+                reasoning: Some("Frei lernen startet dagegen eine Uebungsrunde mit allen Karten dieses Stapels."),
+            },
+            SeedCard {
+                front: "Wie fuegst du eine Formel oder ein Bild zu einer Karte hinzu?",
+                back: "Formeln schreibst du mit `$...$` oder `$$...$$`. Bilder fuegst du ueber **Bild einfuegen**, Einfuegen oder Drag-and-drop hinzu.",
+                scenario: Scenario::New,
+                tags: vec!["Stapelweise", "LaTeX", "Bilder"],
+                card_type: "basic",
+                content: None,
+                reasoning: Some("Die Live-Vorschau im Karteneditor zeigt Formeln und Bilder vor dem Speichern."),
+            },
+            SeedCard {
+                front: "Wie passt du die Uebersicht an deinen Lernalltag an?",
+                back: "Waehle **Dashboard anordnen**. Dort kannst du Module verschieben, entfernen und ausgeblendete Module wieder hinzufuegen.",
+                scenario: Scenario::DueTomorrow,
+                tags: vec!["Stapelweise", "Dashboard", "Module"],
+                card_type: "basic",
+                content: None,
+                reasoning: Some("Einstellungen bleiben immer erreichbar, andere Module sind frei anpassbar."),
+            },
+            SeedCard {
+                front: "Wo stellst du Design, Lernanimationen und die Oberflaechensprache ein?",
+                back: "Im **Einstellungen**-Modul. Dort findest du auch Integrationen, Beispieldaten und die SM-2-Parameter.",
+                scenario: Scenario::DueIn7Days,
+                tags: vec!["Stapelweise", "Einstellungen"],
+                card_type: "basic",
+                content: None,
+                reasoning: Some("Die Oberflaechensprache kann zwischen Deutsch, Englisch, Spanisch, Franzoesisch und Portugiesisch wechseln."),
+            },
+            SeedCard {
+                front: "Nach dem Aufdecken einer Antwort kannst du vor der Bewertung immer noch einmal die ==Vorderseite ansehen==.",
+                back: "Nutze die Schaltflaeche direkt ueber den vier Bewertungsoptionen.",
+                scenario: Scenario::DueTodayStruggling,
+                tags: vec!["Stapelweise", "Lernmodus", "Cloze"],
+                card_type: "cloze",
+                content: None,
+                reasoning: Some("So kannst du Frage und Antwort in Ruhe vergleichen, bevor du dich einschaetzt."),
+            },
+            SeedCard {
+                front: "Welche Funktion hilft dir, einen Karteikartenstapel auf Papier zu lernen?",
+                back: "[x] Studentenlernblatt drucken\n[ ] Bildschirmfoto speichern\n[ ] Karten als Bild exportieren\n[ ] Pruefung simulieren",
+                scenario: Scenario::New,
+                tags: vec!["Stapelweise", "Drucken", "Export"],
+                card_type: "multiple_choice",
+                content: Some(r#"{"options":[{"text":"Studentenlernblatt drucken","correct":true},{"text":"Bildschirmfoto speichern","correct":false},{"text":"Karten als Bild exportieren","correct":false},{"text":"Pruefung simulieren","correct":false}]}"#),
+                reasoning: Some("Das Studentenlernblatt ordnet Vorder- und Rueckseite nebeneinander auf A4 an."),
+            },
+            SeedCard {
+                front: "Ordne den Ablauf, um eine neue Karte schnell festzuhalten:",
+                back: "1. Schnellerfassung auf der Uebersicht oeffnen\n2. Zielstapel auswaehlen\n3. Vorder- und Rueckseite eintragen\n4. Karte anlegen\n5. Spaeter im Stapel bei Bedarf ausbauen",
+                scenario: Scenario::Graduated,
+                tags: vec!["Stapelweise", "Schnellerfassung", "Arbeitsablauf"],
+                card_type: "ordering",
+                content: Some(r#"{"items":["Schnellerfassung auf der Uebersicht oeffnen","Zielstapel auswaehlen","Vorder- und Rueckseite eintragen","Karte anlegen","Spaeter im Stapel bei Bedarf ausbauen"]}"#),
+                reasoning: Some("Die Schnellerfassung ist fuer Ideen gedacht, die du nicht verlieren moechtest."),
+            },
+        ];
+        if let Some(d) = Self::build_deck(
+            repo,
+            "Stapelweise entdecken",
+            cards6,
+            today,
+            &existing_decks,
+        )? {
+            decks.push(d);
+        }
+
+        // ── Deck 6: Formale Logik & Mengenlehre (alle Kartentypen) ────────
         let cards4 = vec![
             // 1. MC De Morgan
             SeedCard {
@@ -576,7 +710,7 @@ mod tests {
         let repo = Repository::new(conn);
 
         let decks = SeedGenerator::generate(&repo).unwrap();
-        assert_eq!(decks.len(), 4);
+        assert_eq!(decks.len(), 6);
         assert!(decks
             .iter()
             .any(|deck| deck.name == "Formale Logik & Mengenlehre"));
@@ -646,7 +780,7 @@ mod tests {
         repo.create_deck("Formale Logik & Problemlösen").unwrap();
 
         let created_decks = SeedGenerator::generate(&repo).unwrap();
-        assert_eq!(created_decks.len(), 3);
+        assert_eq!(created_decks.len(), 5);
 
         let decks = repo.list_decks().unwrap();
         assert!(decks
