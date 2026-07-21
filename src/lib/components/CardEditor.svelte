@@ -10,7 +10,7 @@
   import StudySheetPrint from "./StudySheetPrint.svelte";
   import { Printer } from "@lucide/svelte";
   import { renderMarkdown } from "$lib/markdown";
-  import { hasMath } from "$lib/math";
+  import { hasMath, renderLatexExpression } from "$lib/math";
   import { parseFreeTextContent, serializeFreeTextContent } from "$lib/free-text";
   import { mediaStore } from "$lib/stores/media";
   import { settingsStore } from "$lib/stores/settings.svelte";
@@ -890,9 +890,9 @@
                 ></textarea>
               </label>
               <p class="text-xs text-secondary">{t("mathSymbolicHint")}</p>
-              {#if hasMath(expectedLatex)}
-                <div class="rounded-md border border-dashed border-accent-correct/40 bg-white/50 p-3 dark:bg-black/20">
-                  <div class="text-sm text-primary dark:text-primary-dark">{@html renderMarkdown(expectedLatex)}</div>
+              {#if expectedLatex.trim()}
+                <div role="math" aria-label={expectedLatex} class="rounded-md border border-dashed border-accent-correct/40 bg-white/50 p-3 dark:bg-black/20">
+                  <div class="text-sm text-primary dark:text-primary-dark">{@html renderLatexExpression(expectedLatex)}</div>
                 </div>
               {/if}
             {/if}
