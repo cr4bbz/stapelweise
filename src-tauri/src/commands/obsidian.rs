@@ -3,7 +3,6 @@ use crate::db::models::Deck;
 use crate::db::settings::AppSettings;
 use crate::db::DbState;
 use std::collections::hash_map::DefaultHasher;
-use std::collections::HashSet;
 use std::fs;
 use std::hash::{Hash, Hasher};
 use tauri::State;
@@ -43,8 +42,6 @@ pub fn sync_obsidian_vault(
     let deck = db.repo.get_or_create_deck(&deck_name)?;
     let deck_id = &deck.id;
 
-    let mut seen_paths = HashSet::new();
-
     for entry in WalkDir::new(&canonical_path)
         .into_iter()
         .filter_map(|e| e.ok())
@@ -55,7 +52,6 @@ pub fn sync_obsidian_vault(
                     let file_path = entry.path().to_string_lossy().into_owned();
                     if let Ok(content) = fs::read_to_string(entry.path()) {
                         if content.contains(&tag) {
-                            seen_paths.insert(file_path.clone());
                             let hash = calculate_hash(&content);
 
                             // Parse simple markdown cards
@@ -122,22 +118,8 @@ pub fn sync_obsidian_vault(
         }
     }
 
-    // Prune deleted cards
-    if let Ok(all_paths) = db.repo.get_all_obsidian_file_paths() {
-        for path in all_paths {
-            if !seen_paths.contains(&path) {
-                // Was deleted or tag removed
-                if let Ok(Some((card_id, _))) = db.repo.get_obsidian_card_hash(&path) {
-                    if let Err(e) = db.repo.delete_card(&card_id) {
-                        eprintln!(
-                            "Fehler beim Löschen der entfernten Obsidian-Karte {}: {}",
-                            card_id, e
-                        );
-                    }
-                }
-            }
-        }
-    }
+    // Never delete a local card merely because its source file was moved, removed, or untagged.
+    // Explicit deletion remains available in Stapelweise, preserving learning history by default.
 
     Ok(deck)
 }

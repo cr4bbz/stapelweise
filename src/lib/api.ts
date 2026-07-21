@@ -369,7 +369,7 @@ export async function inspectBackupData(jsonData: string): Promise<ImportInspect
 
 export async function restoreBackupData(
   jsonData: string,
-  conflictStrategy: "overwrite" | "skip" | "merge"
+  conflictStrategy: "overwrite" | "skip"
 ): Promise<void> {
   return cmd("restore_backup_data", { jsonData, conflictStrategy });
 }
