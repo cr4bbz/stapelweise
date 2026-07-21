@@ -1,130 +1,134 @@
-<p align="center">
-  <img src="" width="0" alt="">
-  <h1 align="center">Stapelweise</h1>
-  <p align="center">
-    Moderne Karteikarten-App mit Spaced Repetition — lokal, offline, kostenlos.<br/>
-    Die Open-Source-Alternative zu Anki.
-  </p>
-</p>
+# Stapelweise
 
-<p align="center">
-  <a href="https://github.com/cr4bbz/stapelweise/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
-  <a href="https://github.com/cr4bbz/stapelweise/blob/main/PRODUCT_MANIFEST.md"><img src="https://img.shields.io/badge/version-v1.0.0-green.svg" alt="v1.0 Release"></a>
-  <a href="https://tauri.app"><img src="https://img.shields.io/badge/Tauri-2-FFC131?logo=tauri&logoColor=white" alt="Tauri 2"></a>
-  <a href="https://svelte.dev"><img src="https://img.shields.io/badge/Svelte-5-FF3E00?logo=svelte&logoColor=white" alt="Svelte 5"></a>
-  <a href="https://www.rust-lang.org"><img src="https://img.shields.io/badge/Rust-1.80+-DEA584?logo=rust&logoColor=white" alt="Rust"></a>
-</p>
+Eine lokale Desktop-App zum Erstellen, Organisieren und Wiederholen von Karteikarten. Stapelweise verbindet einen anpassbaren Lernplan nach SM-2 mit einem modularen Dashboard, Rich-Content-Karten und Arbeitsablaeufen fuer Studium und Selbstlernen.
 
----
+Die App speichert ihre Daten lokal in SQLite. Es gibt keinen Account-Zwang und die Kernfunktionen arbeiten offline.
 
-## Inhaltsverzeichnis
+## Highlights
 
-- [Features](#features)
-- [Architektur](#architektur)
-- [Tech-Stack](#tech-stack)
-- [Entwicklung](#entwicklung)
-  - [Voraussetzungen](#voraussetzungen)
-  - [Setup](#setup)
-  - [Dev-Server](#dev-server)
-  - [Produktiv-Build](#produktiv-build)
-- [Mitwirken](#mitwirken)
-- [Lizenz](#lizenz)
+- **Lernen mit SM-2:** Konfigurierbare Sessions, Wiederholungslogik, Bestehensgrenze, Fortschritt und Rueckgaengig per `Ctrl/Cmd+Z`.
+- **Unterbrechungsfrei lernen:** Angefangene Lern- und freie Uebungsrunden bleiben beim Verlassen der Ansicht erhalten und koennen fortgesetzt werden.
+- **Mehr als Vorderseite/Rueckseite:** Basis-, Luecken-, Multiple-Choice-, Freitext- und Reihenfolge-Karten.
+- **Rich Content:** Markdown, LaTex mit KaTeX, Bilder, Begruendungen, Tags und optionale Sprachangaben fuer Vorder- und Rueckseite.
+- **Eigenes Dashboard:** Module lassen sich verschieben, in festen responsiven Groessen anordnen, ausblenden und wieder hinzufuegen. Dazu gehoeren einzelne Stapel, Pruefungen, Lernlage, Tags, Timer, Meilensteine, Suchfeld, Einstellungen, Einzelkarten und Spacer.
+- **Organisation:** Globale Suche, Archive fuer Stapel und Pruefungen, Tags, Kartenstatistiken und Beispielinhalte fuer alle Kartentypen.
+- **Pruefungen:** Pruefungen mit Datum und relevanten Stapeln planen, gezielt lernen oder eine Simulation starten.
+- **Druckansicht:** Karteikarten als A4-Studentenlernblatt ausgeben. Vorder- und Rueckseite stehen passend nebeneinander.
+- **Lokalisierung und Darstellung:** Deutsch, Englisch, Spanisch, Franzoesisch und Portugiesisch sowie Light-, Dark- und abgestimmte Farbthemen.
 
-## Features
+## Karten und Lernen
 
-### Lernen & Wiederholen
+### Kartentypen
 
-- **SM-2-Algorithmus** — bewährter Spaced-Repetition-Algorithmus mit konfigurierbaren Parametern (initialer Ease-Faktor, Bestehens-Schwelle)
-- **Multi-Deck-Lernen** — mehrere Stapel gleichzeitig in einer Sitzung lernen, Karten gemischt
-- **Session-Limit** — konfigurierbare maximale Kartenanzahl pro Lernsitzung
-- **Rückgängig** — letzte Bewertung per `Ctrl+Z` rückgängig machen
-- **Durchblättern** — Karten vor dem Lernen durchblättern und mit `Space` wenden
+| Typ | Einsatz |
+| --- | --- |
+| Basis | Klassische Frage und Antwort |
+| Luecke | Cloze-Karten fuer Begriffe in einem Text |
+| Multiple Choice | Auswahl mit einer oder mehreren Lernoptionen |
+| Freitext | Antwort selbst formulieren und anschliessend bewerten |
+| Reihenfolge | Schritte oder Begriffe in die richtige Reihenfolge bringen |
 
-### Inhalte
+Alle Kartentypen koennen Markdown und LaTex enthalten. Verwende `$...$` fuer Inline-Mathematik und `$$...$$` fuer abgesetzte Formeln. Bilder lassen sich direkt im Editor einfuegen; externe Medien werden lokal verwaltet.
 
-- **LaTeX-Formeln** — `$...$` für inline, `$$...$$` für abgesetzte Formeln, gerendert mit KaTeX
-- **Markdown** — **fett**, *kursiv*, Listen, Code-Blöcke und mehr
-- **Live-Vorschau** — LaTeX- und Markdown-Rendering direkt während der Eingabe
-- **XSS-Schutz** — rohes HTML wird entfernt, gefährliche URLs blockiert
+### Lernrunden
 
-### Organisation
+- Eine Lernrunde kann einen Stapel, mehrere Stapel, Tags oder eine Auswahl von Karten verwenden.
+- Freie Uebungen funktionieren auch dann, wenn keine Karte faellig ist und veraendern den Lernplan nicht.
+- Die Session-Groesse, die Bestehensgrenze und der initiale Ease-Faktor sind in den Einstellungen konfigurierbar.
+- Falsch bewertete Karten kehren innerhalb der Runde wieder. Die Bewertungsleiste zeigt sichtbar, welche Bewertung als bestanden gilt.
+- `Leertaste` deckt die Karte auf, `1` bis `4` bewertet sie, `Ctrl/Cmd+Z` nimmt die letzte Bewertung zurueck und `Esc` verlaesst die Ansicht. Mit `?` erscheint die vollstaendige Tastaturhilfe.
 
-- **Suche** — globale Volltextsuche über alle Karten und Stapel hinweg
-- **Import/Export** — Stapel als CSV exportieren und importieren (in Arbeit)
-- **Beispieldaten** — drei Beispiel-Stapel zum Ausprobieren auf Knopfdruck
+## Dashboard und Bibliothek
 
-### Statistiken
+Das Dashboard ist eine persoenliche Lernflaeche statt einer festen Startseite. Module koennen per Drag and Drop angeordnet werden; passende Modulgroessen erlauben kompakte Reihen, breite Uebersichten und gezielte Leerraeume.
 
-- **Dashboard** — fällige Karten, heutige Reviews, Tagesserie (Streak)
-- **Deck-Statistiken** — Karten nach Status (Neu, Lernend, Wiederholend, Gelernt), durchschnittlicher Ease-Faktor und Intervall
+Verfuegbare Module umfassen unter anderem:
 
-### Anpassung
+- Stapel und Pruefungen als einzelne Module
+- Lernlage, kleine Runde und Problemkarten
+- Lernzeit, Lerntimer, Wochenplan und Meilensteine
+- Tags, globale Suche und Einstellungen
+- Einzelne frei waehlbare Karte mit Vorder-/Rueckseitenwechsel
+- Archiv fuer archivierte oder ausgeblendete Stapel und Pruefungen
+- Dekorative Spacer als Leerraum, Trennlinie oder Notizflaeche
 
-- **Theme** — Hell, Dunkel oder automatisch nach System
-- **Schriftart** — Serif oder Sans-Serif für Karteninhalte
-- **Schriftgröße** — Klein, Mittel oder Groß für optimale Lesbarkeit
-- **Fenster-Persistenz** — Fenstergröße und -position bleiben über Neustarts erhalten
-- **Tastenkürzel** — alle Shortcuts via `?`-Taste einsehbar
+Stapel und Pruefungen lassen sich archivieren, ohne ihre Karten oder Daten zu verlieren. Das Archiv kann ihre Sichtbarkeit auf dem Dashboard wiederherstellen.
 
-### Plattform
+## Import, Export und Anbindungen
 
-- **Lokal & Offline** — alle Daten in lokalem SQLite, kein Account, kein Internet nötig
-- **Cross-Platform** — Windows, macOS, Linux aus einer Codebasis
+### Daten austauschen
+
+- **Anki-kompatibler Textimport/-export:** TSV, CSV oder Semikolon-getrennte Dateien mit Vorderseite, Rueckseite und optionalen Tags.
+- **JSON-Backup:** Exportiert Stapel, Karten, Lernzustaende, Reviews, Einstellungen, Pruefungen und Vorlagen. Beim Wiederherstellen stehen Konfliktstrategien zur Verfuegung.
+- **Obsidian:** Markdown-Dateien aus einem lokalen Vault anhand eines konfigurierbaren Tags importieren.
+
+### Kartenquellen
+
+In den Einstellungen stehen optionale Importer bereit:
+
+| Quelle | Import |
+| --- | --- |
+| Zotero | Titel und Zusammenfassung aus der lokal laufenden Zotero-API |
+| Notion | Zwei frei waehlbare Eigenschaften einer Notion-Datenquelle |
+| Moodle | Begriffe und Definitionen aus einem Moodle-Glossar |
+
+Zugangstokens werden nur fuer den jeweiligen Import verwendet und nicht gespeichert.
+
+### URL-Schema
+
+Andere Anwendungen oder Automationen koennen die Desktop-App ueber `stapelweise://` ansprechen:
+
+```text
+stapelweise://deck/new?name=Biologie
+stapelweise://deck/open?deck=Biologie
+stapelweise://card/new?deck=Biologie&front=Frage&back=Antwort
+```
+
+Parameter muessen URL-kodiert sein. Das Schema ist fuer die installierte Desktop-App registriert.
+
+## Anpassung
+
+- Theme: automatisch, hell oder dunkel
+- Farbwelten: abgestimmte Akzentfarben fuer beide Modi
+- Ueberschriften: Pixel- und normale Schriften zur Auswahl
+- Karten: Serif oder Sans-Serif sowie drei Schriftgroessen
+- Animationen: Kartenwechsel, Steuerung und Bewertungsleiste getrennt steuerbar
+- Sprache der Oberflaeche: Deutsch, Englisch, Spanisch, Franzoesisch, Portugiesisch
 
 ## Architektur
 
-```
-┌─────────────────────────────────────────┐
-│               Frontend                  │
-│    Svelte 5 + SvelteKit + Tailwind     │
-│                                         │
-│  ┌──────────┐ ┌──────────┐ ┌─────────┐ │
-│  │  Routes  │ │  Stores  │ │   Lib   │ │
-│  │  +page   │ │  decks   │ │  api.ts │ │
-│  │  Layout  │ │  study   │ │ math.ts │ │
-│  │          │ │settings  │ │markdown │ │
-│  └──────────┘ └──────────┘ └─────────┘ │
-├─────────────────────────────────────────┤
-│           Tauri IPC (invoke)            │
-├─────────────────────────────────────────┤
-│               Backend (Rust)            │
-│                                         │
-│  ┌──────────┐ ┌──────────┐ ┌─────────┐ │
-│  │ Commands │ │    DB    │ │   SRS   │ │
-│  │  decks   │ │ models   │ │   SM-2  │ │
-│  │  cards   │ │repository│ │         │ │
-│  │ settings │ │migrations│ │         │ │
-│  │  stats   │ │          │ │         │ │
-│  └──────────┘ └──────────┘ └─────────┘ │
-├─────────────────────────────────────────┤
-│           SQLite (rusqlite)             │
-└─────────────────────────────────────────┘
+```text
+Svelte 5 + SvelteKit + Tailwind
+            |
+        Tauri IPC
+            |
+Rust Commands + SM-2 + Integrationen
+            |
+    SQLite (lokale Datenbank)
 ```
 
-Die App folgt einem **Command-Muster**: Das Svelte-Frontend ruft Rust-Commands via Tauri IPC auf. Jeder Command wickelt eine fachliche Operation ab (z.B. `create_card`, `submit_review`) und kommuniziert über das `Repository` mit SQLite. Der SM-2-Algorithmus ist als reine Funktion implementiert und hat keine Datenbank-Abhängigkeit.
+Das Frontend nutzt Svelte 5 Runes und ruft fachliche Rust-Commands ueber Tauri auf. Das Rust-Backend kapselt Persistenz, Backups, Importer und den SM-2-Algorithmus. Der Algorithmus ist als reine Funktion testbar und von SQLite getrennt.
 
-## Tech-Stack
+## Technologie
 
-| Bereich | Technologie | Version |
-|---------|------------|---------|
-| Desktop-Framework | [Tauri](https://tauri.app) | 2.x |
-| Frontend | [Svelte](https://svelte.dev) (Runes) + [SvelteKit](https://kit.svelte.dev) | 5.x |
-| Styling | [Tailwind CSS](https://tailwindcss.com) | 3.x |
-| Backend | [Rust](https://www.rust-lang.org) | 1.80+ |
-| Datenbank | SQLite via [rusqlite](https://github.com/rusqlite/rusqlite) | 0.31 (bundled) |
-| Math-Rendering | [KaTeX](https://katex.org) | 0.17 |
-| Markdown | [marked](https://marked.js.org) | 18.x |
-| Datumslogik | [chrono](https://github.com/chronotope/chrono) | 0.4 |
+| Bereich | Technologie |
+| --- | --- |
+| Desktop-App | Tauri 2 |
+| Frontend | Svelte 5, SvelteKit, TypeScript |
+| Styling | Tailwind CSS |
+| Backend | Rust |
+| Daten | SQLite mit rusqlite |
+| Inhaltsrendering | marked und KaTeX |
 
 ## Entwicklung
 
 ### Voraussetzungen
 
-- [Node.js](https://nodejs.org) >= 20
-- [Rust](https://rustup.rs) >= 1.80
-- Windows: [Visual Studio Build Tools](https://visualstudio.microsoft.com/downloads/) mit C++-Workload
-- macOS: Xcode Command Line Tools (`xcode-select --install`)
-- Linux: `build-essential`, `libwebkit2gtk-4.1-dev`, `libgtk-3-dev`
+- Node.js 20 oder neuer
+- Rust stable mit Cargo
+- Windows: Visual Studio Build Tools mit C++-Workload
+- macOS: Xcode Command Line Tools
+- Linux: eine WebKitGTK-Entwicklungsumgebung, zum Beispiel `libwebkit2gtk-4.1-dev` und `libgtk-3-dev`
 
 ### Setup
 
@@ -134,44 +138,33 @@ cd stapelweise
 npm install
 ```
 
-### Dev-Server
+### Desktop-App starten
 
 ```bash
 npm run tauri dev
 ```
 
-Startet die App mit Hot-Reload für das Frontend. Der Rust-Backend wird bei Änderungen neu kompiliert.
-
-### Produktiv-Build
+Der Befehl startet die Tauri-App mit Frontend-Hot-Reload. Fuer einen Produktionsbuild:
 
 ```bash
 npm run tauri build
 ```
 
-Erzeugt die native App im `src-tauri/target/release/`-Verzeichnis.
-
-### Tests
+### Qualitaetssicherung
 
 ```bash
-# Rust-Tests
-cd src-tauri && cargo test
-
-# Frontend-Type-Check
+# Svelte- und TypeScript-Pruefung
 npm run check
+
+# Rust-Tests
+cd src-tauri
+cargo test
 ```
 
 ## Mitwirken
 
-Beiträge sind willkommen! Ob Bug-Reports, Feature-Vorschläge oder Pull Requests — schau dich um und mach mit.
-
-1. **Fork** das Repository
-2. **Branch** anlegen: `feature/coole-idee` oder `fix/bug-beschreibung`
-3. **Änderungen** umsetzen
-4. **Checks** ausführen: `npm run check && cd src-tauri && cargo test`
-5. **Pull Request** erstellen mit Beschreibung der Änderung
-
-Bei größeren Features bitte vorher ein Issue anlegen, damit wir den Ansatz besprechen können.
+Issues und Pull Requests sind willkommen. Bitte halte Aenderungen fokussiert, fuehre vor einem Pull Request mindestens `npm run check` und `cargo test` aus und beschreibe sichtbare Verhaltensaenderungen kurz in der PR.
 
 ## Lizenz
 
-MIT — siehe [LICENSE](LICENSE).
+MIT. Details stehen in [LICENSE](LICENSE).
