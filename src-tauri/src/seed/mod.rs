@@ -375,7 +375,7 @@ impl SeedGenerator {
         let cards6 = vec![
             SeedCard {
                 front: "Wo startest du deine faelligen Karten aus allen Stapeln?",
-                back: "Im Modul **Heute lernen** auf der Uebersicht. Dort startet eine gemeinsame Lernsitzung fuer alle faelligen Karten.",
+                back: "Im Wochenplan auf der Uebersicht. Dort startet eine gemeinsame Lernsitzung fuer alle faelligen Karten.",
                 scenario: Scenario::New,
                 tags: vec!["Stapelweise", "Lernen", "Dashboard"],
                 card_type: "basic",
@@ -456,7 +456,92 @@ impl SeedGenerator {
             decks.push(d);
         }
 
-        // ── Deck 6: Formale Logik & Mengenlehre (alle Kartentypen) ────────
+        // ── Deck 6: Compute Engine ausprobieren ─────────
+        let cards7 = vec![
+            SeedCard {
+                front: "Vereinfache $(x + 1)^2$.",
+                back: "$$x^2 + 2x + 1$$",
+                scenario: Scenario::New,
+                tags: vec!["Compute Engine", "Symbolisch", "Terme"],
+                card_type: "free_text",
+                content: Some(r#"{"version":1,"evaluationMode":"symbolic","expectedLatex":"x^2+2x+1"}"#),
+                reasoning: Some("Gib zum Beispiel (x+1)^2 oder x^2+2x+1 ein. Compute Engine vergleicht die mathematische Bedeutung."),
+            },
+            SeedCard {
+                front: "Fasse $\\frac{1}{2}x + \\frac{1}{2}x$ zusammen.",
+                back: "$$x$$",
+                scenario: Scenario::DueTodayFirst,
+                tags: vec!["Compute Engine", "Symbolisch", "Brueche"],
+                card_type: "free_text",
+                content: Some(r#"{"version":1,"evaluationMode":"symbolic","expectedLatex":"x"}"#),
+                reasoning: Some("Probiere sowohl x als auch \\frac{1}{2}x + \\frac{1}{2}x. Beide Formen sind gleichwertig."),
+            },
+            SeedCard {
+                front: "Berechne $\\sqrt{9}$.",
+                back: "$$3$$",
+                scenario: Scenario::DueTodayStruggling,
+                tags: vec!["Compute Engine", "Symbolisch", "Wurzeln"],
+                card_type: "free_text",
+                content: Some(r#"{"version":1,"evaluationMode":"symbolic","expectedLatex":"3"}"#),
+                reasoning: Some("Die symbolische Pruefung erkennt 3 als korrekt und -3 als anderes Ergebnis."),
+            },
+            SeedCard {
+                front: "Bestimme $\\int_0^1 x^2\\,dx$.",
+                back: "$$\\frac{1}{3}$$",
+                scenario: Scenario::DueTomorrow,
+                tags: vec!["Compute Engine", "Symbolisch", "Integrale"],
+                card_type: "free_text",
+                content: Some(r#"{"version":1,"evaluationMode":"symbolic","expectedLatex":"\\frac{1}{3}"}"#),
+                reasoning: Some("Teste 1/3 und \\frac{1}{3}. Beide Eingaben beschreiben denselben Wert."),
+            },
+            SeedCard {
+                front: "Was bewertet die symbolische Antwortpruefung?",
+                back: "Sie prueft, ob deine Eingabe mathematisch aeqivalent zur hinterlegten Loesung ist. Deine eigene SM-2-Einschaetzung bleibt trotzdem entscheidend.",
+                scenario: Scenario::New,
+                tags: vec!["Compute Engine", "Lernmodus"],
+                card_type: "basic",
+                content: None,
+                reasoning: Some("Die Rueckmeldung ist eine Lernhilfe und ersetzt nicht deine Selbsteinschaetzung."),
+            },
+            SeedCard {
+                front: "Eine symbolische Rueckmeldung ==ersetzt nicht== deine eigene Bewertung der Erinnerung.",
+                back: "Nach dem Aufdecken waehlst du weiterhin selbst, wie sicher du die Karte wusstest.",
+                scenario: Scenario::DueIn7Days,
+                tags: vec!["Compute Engine", "Lernmodus"],
+                card_type: "cloze",
+                content: None,
+                reasoning: Some("So bleibt der Spaced-Repetition-Algorithmus an deiner tatsaechlichen Erinnerung orientiert."),
+            },
+            SeedCard {
+                front: "Welche Eingabe ist eine gleichwertige Antwort zu $x^2 + 2x + 1$?",
+                back: "[x] $(x+1)^2$\n[ ] $x^2+1$\n[ ] $2x^2+1$\n[ ] $(x-1)^2$",
+                scenario: Scenario::New,
+                tags: vec!["Compute Engine", "Symbolisch", "Terme"],
+                card_type: "multiple_choice",
+                content: Some(r#"{"options":[{"text":"(x+1)^2","correct":true},{"text":"x^2+1","correct":false},{"text":"2x^2+1","correct":false},{"text":"(x-1)^2","correct":false}]}"#),
+                reasoning: Some("Beim Ausmultiplizieren von $(x+1)^2$ entstehen die Terme $x^2 + 2x + 1$."),
+            },
+            SeedCard {
+                front: "Ordne den Ablauf einer symbolischen Uebungsrunde:",
+                back: "1. Karte lesen\n2. Antwort als Ausdruck eingeben\n3. Vorschau pruefen\n4. Antwort aufdecken\n5. Rueckmeldung und eigene Bewertung nutzen",
+                scenario: Scenario::Graduated,
+                tags: vec!["Compute Engine", "Arbeitsablauf"],
+                card_type: "ordering",
+                content: Some(r#"{"items":["Karte lesen","Antwort als Ausdruck eingeben","Vorschau pruefen","Antwort aufdecken","Rueckmeldung und eigene Bewertung nutzen"]}"#),
+                reasoning: Some("Die Eingabe bleibt vor dem Aufdecken editierbar; danach kannst du Ergebnis und Herleitung vergleichen."),
+            },
+        ];
+        if let Some(d) = Self::build_deck(
+            repo,
+            "Compute Engine ausprobieren",
+            cards7,
+            today,
+            &existing_decks,
+        )? {
+            decks.push(d);
+        }
+
+        // ── Deck 7: Formale Logik & Mengenlehre (alle Kartentypen) ────────
         let cards4 = vec![
             // 1. MC De Morgan
             SeedCard {
@@ -710,12 +795,15 @@ mod tests {
         let repo = Repository::new(conn);
 
         let decks = SeedGenerator::generate(&repo).unwrap();
-        assert_eq!(decks.len(), 6);
+        assert_eq!(decks.len(), 7);
         assert!(decks
             .iter()
             .any(|deck| deck.name == "Formale Logik & Mengenlehre"));
+        assert!(decks
+            .iter()
+            .any(|deck| deck.name == "Compute Engine ausprobieren"));
 
-        let expected_types: HashSet<&str> = ["basic", "cloze", "multiple_choice", "ordering"]
+        let base_types: HashSet<&str> = ["basic", "cloze", "multiple_choice", "ordering"]
             .into_iter()
             .collect();
 
@@ -723,6 +811,10 @@ mod tests {
             let cards = repo.list_cards(&deck.id).unwrap();
             let actual_types: HashSet<&str> =
                 cards.iter().map(|card| card.card_type.as_str()).collect();
+            let mut expected_types = base_types.clone();
+            if deck.name == "Compute Engine ausprobieren" {
+                expected_types.insert("free_text");
+            }
             assert_eq!(
                 actual_types, expected_types,
                 "Kartentypen fehlen in {}",
@@ -756,6 +848,32 @@ mod tests {
             }
         }
 
+        let compute_deck = repo
+            .list_decks()
+            .unwrap()
+            .into_iter()
+            .find(|deck| deck.name == "Compute Engine ausprobieren")
+            .expect("Compute Engine example deck is missing");
+        let symbolic_cards = repo
+            .list_cards(&compute_deck.id)
+            .unwrap()
+            .into_iter()
+            .filter(|card| card.card_type == "free_text")
+            .collect::<Vec<_>>();
+        assert_eq!(symbolic_cards.len(), 4);
+        for card in symbolic_cards {
+            let content: serde_json::Value = serde_json::from_str(
+                card.content
+                    .as_deref()
+                    .expect("Symbolic card requires configuration"),
+            )
+            .unwrap();
+            assert_eq!(content["evaluationMode"], "symbolic");
+            assert!(content["expectedLatex"]
+                .as_str()
+                .is_some_and(|value| !value.is_empty()));
+        }
+
         let card_count_before: usize = repo
             .list_decks()
             .unwrap()
@@ -780,7 +898,7 @@ mod tests {
         repo.create_deck("Formale Logik & Problemlösen").unwrap();
 
         let created_decks = SeedGenerator::generate(&repo).unwrap();
-        assert_eq!(created_decks.len(), 5);
+        assert_eq!(created_decks.len(), 6);
 
         let decks = repo.list_decks().unwrap();
         assert!(decks

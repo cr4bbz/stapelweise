@@ -18,6 +18,9 @@
     { key: "control_transition_animation", label: "Bedienelemente wechseln" },
     { key: "rating_buttons_animation", label: "Bewertungstasten einblenden" },
   ];
+  let syncingObsidian = $state(false);
+  let obsidianSyncMessage = $state<string | null>(null);
+  let obsidianSyncFailed = $state(false);
 
   $effect(() => {
     s.load();
@@ -50,6 +53,22 @@
 
   function toggleAnimation(key: AnimationSetting) {
     s.save({ [key]: !s.current[key] } as Partial<AppSettings>);
+  }
+
+  async function syncObsidianVault() {
+    if (!s.current.obsidian_vault_path || syncingObsidian) return;
+    syncingObsidian = true;
+    obsidianSyncMessage = null;
+    try {
+      await api.syncObsidianVault(s.current.obsidian_vault_path, "Obsidian Import");
+      obsidianSyncFailed = false;
+      obsidianSyncMessage = t("Obsidian-Vault importiert.");
+    } catch {
+      obsidianSyncFailed = true;
+      obsidianSyncMessage = t("Obsidian-Synchronisierung fehlgeschlagen.");
+    } finally {
+      syncingObsidian = false;
+    }
   }
 </script>
 
@@ -133,6 +152,38 @@
               </button>
             {/each}
           </div>
+        </div>
+
+        <div>
+          <span class="text-sm font-medium text-primary dark:text-primary-dark">{t("Modulflächen")}</span>
+          <p class="text-xs text-secondary mb-2">{t("Wähle zwischen deckenden Flächen und transparentem Milchglas auf dem Dashboard.")}</p>
+          <div class="flex gap-2">
+            {#each ["solid", "glass"] as surface}
+              <button
+                onclick={() => s.save({ module_surface: surface as "solid" | "glass" })}
+                aria-pressed={s.current.module_surface === surface}
+                class="rounded-button px-4 py-1.5 text-sm font-medium transition-transform hover:scale-[1.02] {s.current.module_surface === surface
+                  ? 'bg-accent-correct text-white'
+                  : 'bg-white/40 dark:bg-white/10 text-secondary hover:text-primary dark:hover:text-primary-dark'}"
+              >
+                {surface === "solid" ? t("Deckend") : t("Milchglas")}
+              </button>
+            {/each}
+          </div>
+        </div>
+
+        <div>
+          <span class="text-sm font-medium text-primary dark:text-primary-dark">{t("Stapel-Vorschau")}</span>
+          <p class="text-xs text-secondary mb-2">{t("Zeige die ersten drei Karteikarten dekorativ hinter ihren Stapelmodulen an.")}</p>
+          <button
+            onclick={() => s.save({ show_deck_card_previews: !s.current.show_deck_card_previews })}
+            aria-pressed={s.current.show_deck_card_previews}
+            class="rounded-button px-4 py-1.5 text-sm font-medium transition-transform hover:scale-[1.02] {s.current.show_deck_card_previews
+              ? 'bg-accent-correct text-white'
+              : 'bg-white/40 dark:bg-white/10 text-secondary hover:text-primary dark:hover:text-primary-dark'}"
+          >
+            {s.current.show_deck_card_previews ? t("Anzeigen") : t("Ausblenden")}
+          </button>
         </div>
 
         <div>
@@ -381,21 +432,13 @@
             </div>
           </div>
           <div class="flex items-center justify-between">
-            <p class="text-[10px] text-secondary max-w-[70%]">Sucht nach Markdown-Dateien mit dem konfigurierten Tag. Dateiname = Vorderseite, Inhalt = Rückseite.</p>
+            <p class="text-[10px] max-w-[70%] {obsidianSyncFailed ? 'text-accent-incorrect' : 'text-secondary'}" aria-live="polite">{obsidianSyncMessage ?? t("Sucht nach Markdown-Dateien mit dem konfigurierten Tag. Dateiname = Vorderseite, Inhalt = Rückseite.")}</p>
             <button
-              onclick={async () => {
-                if (!s.current.obsidian_vault_path) return;
-                try {
-                  const deckName = "Obsidian Import";
-                  await api.syncObsidianVault(s.current.obsidian_vault_path, deckName);
-                  alert("Vault erfolgreich importiert!");
-                } catch (e) {
-                  alert("Fehler: " + e);
-                }
-              }}
-              class="rounded-button bg-accent-correct text-white px-4 py-1.5 text-sm font-medium hover:scale-[1.02] transition-transform"
+              onclick={() => void syncObsidianVault()}
+              disabled={!s.current.obsidian_vault_path || syncingObsidian}
+              class="rounded-button bg-accent-correct text-white px-4 py-1.5 text-sm font-medium hover:scale-[1.02] transition-transform disabled:cursor-not-allowed disabled:opacity-45"
             >
-              Sync starten
+              {syncingObsidian ? t("Synchronisiert...") : t("Sync starten")}
             </button>
           </div>
         </div>
@@ -440,7 +483,7 @@
         <!-- Beispieldaten -->
         <div>
           <span class="text-sm font-medium text-primary dark:text-primary-dark">Beispieldaten</span>
-          <p class="text-xs text-secondary mb-3">Lade 6 thematische Muster-Stapel (Grammatik, Geschichte, Biologie, LaTeX, Stapelweise-Tipps sowie Logik & Mengenlehre) mit verschiedenen Lernzuständen und Kartentypen in deine Bibliothek.</p>
+          <p class="text-xs text-secondary mb-3">{t("Lade 7 thematische Muster-Stapel (Grammatik, Geschichte, Biologie, LaTeX, Stapelweise-Tipps, Compute Engine sowie Logik & Mengenlehre) mit verschiedenen Lernzuständen und Kartentypen in deine Bibliothek.")}</p>
           <button
             onclick={async () => {
               try {

@@ -1,11 +1,15 @@
 <script lang="ts">
   import { untrack } from "svelte";
   import { fade } from "svelte/transition";
+  import { Undo2 } from "@lucide/svelte";
   import { studyStore } from "$lib/stores/study.svelte";
   import { settingsStore } from "$lib/stores/settings.svelte";
   import * as api from "$lib/api";
   import type { Card } from "$lib/types";
+  import { parseFreeTextContent } from "$lib/free-text";
+  import { evaluateSymbolicAnswer, type SymbolicEvaluationResult } from "$lib/math-evaluation";
   import FlashCard from "./FlashCard.svelte";
+  import FreeTextResponse from "./FreeTextResponse.svelte";
   import ScoreButtons from "./ScoreButtons.svelte";
   import ProgressBar from "./ProgressBar.svelte";
   import { t } from "$lib/i18n";
@@ -26,6 +30,8 @@
   let ratingControlsReady = $state(false);
   let showingAnswer = $state(false);
   let ratingMessage = $state<string | null>(null);
+  let freeTextAnswers = $state<Record<string, string>>({});
+  let symbolicResults = $state<Record<string, SymbolicEvaluationResult>>({});
 
   const s = studyStore;
   let requestedSessionKey = $derived([
@@ -38,6 +44,14 @@
   let controlTransitionClass = $derived(
     settingsStore.controlTransitionAnimationEnabled() ? "transition-colors duration-200" : "",
   );
+  let activeFreeTextContent = $derived.by(() => {
+    const card = s.currentCard?.card;
+    return card?.card_type === "free_text" ? parseFreeTextContent(card.content) : null;
+  });
+  let activeFreeTextAnswer = $derived.by(() => {
+    const cardId = s.currentCard?.card.id;
+    return cardId ? freeTextAnswers[cardId] ?? "" : "";
+  });
 
   async function loadPracticeCards(): Promise<boolean> {
     const cardsByDeck = await Promise.all(deckIds.map((deckId: string) => api.listCards(deckId)));
@@ -50,6 +64,7 @@
   function revealAnswer() {
     if (!s.isFlipped) s.flip();
     showingAnswer = true;
+    void checkActiveFreeTextAnswer();
   }
 
   function toggleCardSide() {
@@ -58,6 +73,29 @@
       return;
     }
     showingAnswer = !showingAnswer;
+  }
+
+  function updateFreeTextAnswer(value: string) {
+    const cardId = s.currentCard?.card.id;
+    if (!cardId) return;
+    freeTextAnswers = { ...freeTextAnswers, [cardId]: value };
+    const nextResults = { ...symbolicResults };
+    delete nextResults[cardId];
+    symbolicResults = nextResults;
+  }
+
+  async function checkActiveFreeTextAnswer() {
+    const card = s.currentCard?.card;
+    if (!card || activeFreeTextContent?.evaluationMode !== "symbolic") return;
+
+    const answer = freeTextAnswers[card.id] ?? "";
+    const expectedLatex = activeFreeTextContent.expectedLatex ?? "";
+    symbolicResults = { ...symbolicResults, [card.id]: { status: "checking" } };
+    const result = await evaluateSymbolicAnswer(answer, expectedLatex);
+
+    if (s.currentCard?.card.id === card.id) {
+      symbolicResults = { ...symbolicResults, [card.id]: result };
+    }
   }
 
   $effect(() => {
@@ -92,6 +130,12 @@
   });
 
   function handleKeydown(e: KeyboardEvent) {
+    const target = e.target as HTMLElement | null;
+    if (target?.matches("input, textarea, select")) {
+      if (e.key === "Escape") target.blur();
+      return;
+    }
+
     // Undo works even after session ends
     if (e.key === "z" && (e.ctrlKey || e.metaKey)) {
       e.preventDefault();
@@ -150,6 +194,19 @@
     }
   }
 
+  async function handleUndo() {
+    try {
+      const undone = await s.undo();
+      if (!undone) return;
+      ratingControlsReady = false;
+      showingAnswer = false;
+      ratingMessage = null;
+      onReview();
+    } catch {
+      ratingMessage = t("ratingSaveFailed");
+    }
+  }
+
   async function continueSession() {
     loading = true;
     const hasCards = s.isPractice
@@ -191,6 +248,16 @@
     <h1 class="{cardFontClass} min-w-0 flex-1 truncate text-xl font-normal text-primary dark:text-primary-dark">
       {deckName}
     </h1>
+    <button
+      onclick={handleUndo}
+      disabled={!s.canUndo}
+      class="flex h-8 items-center gap-1 border border-secondary/25 px-2 text-xs text-secondary transition-colors enabled:hover:border-accent-correct enabled:hover:text-accent-correct disabled:cursor-not-allowed disabled:opacity-40"
+      title={t("undoLastRating")}
+      aria-label={t("undoLastRating")}
+    >
+      <Undo2 size={14} />
+      <span class="hidden sm:inline">{t("undoLastRating")}</span>
+    </button>
     <span class="text-xs text-secondary sm:text-sm">
       {s.isPractice ? t("freePractice") : t("learningRound")}
     </span>
@@ -286,7 +353,16 @@
             />
           {/key}
         </div>
-        <div class="flex h-44 w-full shrink-0 flex-col items-center justify-start gap-3 sm:h-28">
+        <div class="flex h-80 w-full shrink-0 flex-col items-center justify-start gap-3 sm:h-56">
+          {#if activeFreeTextContent && s.currentCard}
+            <FreeTextResponse
+              value={activeFreeTextAnswer}
+              disabled={s.isFlipped}
+              evaluationMode={activeFreeTextContent.evaluationMode}
+              result={s.isFlipped ? symbolicResults[s.currentCard.card.id] ?? null : null}
+              onChange={updateFreeTextAnswer}
+            />
+          {/if}
           <button
             onclick={(event) => {
               event.stopPropagation();

@@ -5,6 +5,10 @@ fn default_learning_animations() -> bool {
     true
 }
 
+fn default_show_deck_card_previews() -> bool {
+    true
+}
+
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct AppSettings {
     #[serde(default = "default_ui_language")]
@@ -12,6 +16,10 @@ pub struct AppSettings {
     pub theme: String,
     #[serde(default = "default_color_theme")]
     pub color_theme: String,
+    #[serde(default = "default_module_surface")]
+    pub module_surface: String,
+    #[serde(default = "default_show_deck_card_previews")]
+    pub show_deck_card_previews: bool,
     #[serde(default = "default_pixel_font")]
     pub pixel_font: String,
     pub card_font_family: String,
@@ -39,6 +47,10 @@ fn default_color_theme() -> String {
     "academy".into()
 }
 
+fn default_module_surface() -> String {
+    "solid".into()
+}
+
 fn default_pixel_font() -> String {
     "press-start".into()
 }
@@ -49,6 +61,8 @@ impl AppSettings {
             ui_language: default_ui_language(),
             theme: "auto".into(),
             color_theme: default_color_theme(),
+            module_surface: default_module_surface(),
+            show_deck_card_previews: default_show_deck_card_previews(),
             pixel_font: default_pixel_font(),
             card_font_family: "serif".into(),
             card_font_size: "medium".into(),
@@ -73,6 +87,10 @@ impl AppSettings {
                 "ui_language" => s.ui_language = value,
                 "theme" => s.theme = value,
                 "color_theme" => s.color_theme = value,
+                "module_surface" => s.module_surface = value,
+                "show_deck_card_previews" => {
+                    s.show_deck_card_previews = value.parse().unwrap_or(s.show_deck_card_previews)
+                }
                 "pixel_font" => s.pixel_font = value,
                 "card_font_family" => s.card_font_family = value,
                 "card_font_size" => s.card_font_size = value,
@@ -109,6 +127,11 @@ impl AppSettings {
         repo.set_setting("ui_language", &self.ui_language)?;
         repo.set_setting("theme", &self.theme)?;
         repo.set_setting("color_theme", &self.color_theme)?;
+        repo.set_setting("module_surface", &self.module_surface)?;
+        repo.set_setting(
+            "show_deck_card_previews",
+            &self.show_deck_card_previews.to_string(),
+        )?;
         repo.set_setting("pixel_font", &self.pixel_font)?;
         repo.set_setting("card_font_family", &self.card_font_family)?;
         repo.set_setting("card_font_size", &self.card_font_size)?;
@@ -138,5 +161,29 @@ impl AppSettings {
             pass_threshold: self.sm2_pass_threshold,
             intervals: [1, 6],
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::AppSettings;
+    use crate::db::migrations;
+    use crate::db::repository::Repository;
+    use rusqlite::Connection;
+
+    #[test]
+    fn dashboard_appearance_settings_persist() {
+        let conn = Connection::open_in_memory().unwrap();
+        migrations::run_migrations(&conn).unwrap();
+        let repo = Repository::new(conn);
+        let mut settings = AppSettings::defaults();
+        settings.module_surface = "glass".to_string();
+        settings.show_deck_card_previews = false;
+
+        settings.save(&repo).unwrap();
+
+        let loaded = AppSettings::load(&repo).unwrap();
+        assert_eq!(loaded.module_surface, "glass");
+        assert!(!loaded.show_deck_card_previews);
     }
 }

@@ -162,14 +162,6 @@ impl Repository {
         Ok(())
     }
 
-    pub fn get_all_obsidian_file_paths(&self) -> Result<Vec<String>> {
-        let mut stmt = self.conn.prepare("SELECT file_path FROM obsidian_cards")?;
-        let paths = stmt
-            .query_map([], |row| row.get(0))?
-            .collect::<Result<Vec<_>>>()?;
-        Ok(paths)
-    }
-
     // ── Cards ──────────────────────────────────────────
 
     pub fn set_card_tags(&self, card_id: &str, tags: &[String]) -> Result<()> {

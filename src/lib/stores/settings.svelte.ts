@@ -6,6 +6,8 @@ const defaults: AppSettings = {
   ui_language: "de",
   theme: "auto",
   color_theme: "academy",
+  module_surface: "solid",
+  show_deck_card_previews: true,
   pixel_font: "press-start",
   card_font_family: "serif",
   card_font_size: "medium",
@@ -21,6 +23,7 @@ const defaults: AppSettings = {
 };
 
 const colorThemeStorageKey = "stapelweise.color-theme";
+const moduleSurfaceStorageKey = "stapelweise.module-surface";
 const pixelFontStorageKey = "stapelweise.pixel-font";
 
 function storedColorTheme(): AppSettings["color_theme"] {
@@ -37,9 +40,21 @@ function storedPixelFont(): AppSettings["pixel_font"] {
     : defaults.pixel_font;
 }
 
+function storedModuleSurface(): AppSettings["module_surface"] {
+  if (typeof localStorage === "undefined") return defaults.module_surface;
+  const savedSurface = localStorage.getItem(moduleSurfaceStorageKey);
+  return savedSurface === "glass" || savedSurface === "solid" ? savedSurface : defaults.module_surface;
+}
+
 const initialColorTheme = storedColorTheme();
+const initialModuleSurface = storedModuleSurface();
 const initialPixelFont = storedPixelFont();
-let current = $state<AppSettings>({ ...defaults, color_theme: initialColorTheme, pixel_font: initialPixelFont });
+let current = $state<AppSettings>({
+  ...defaults,
+  color_theme: initialColorTheme,
+  module_surface: initialModuleSurface,
+  pixel_font: initialPixelFont,
+});
 let loaded = $state(false);
 let loadPromise: Promise<void> | null = null;
 
@@ -64,6 +79,13 @@ function applyColorThemeToDom(colorTheme: AppSettings["color_theme"]) {
   localStorage.setItem(colorThemeStorageKey, resolvedTheme);
 }
 
+function applyModuleSurfaceToDom(moduleSurface: AppSettings["module_surface"]) {
+  if (typeof document === "undefined") return;
+  const resolvedSurface = moduleSurface === "glass" ? "glass" : "solid";
+  document.documentElement.dataset.moduleSurface = resolvedSurface;
+  localStorage.setItem(moduleSurfaceStorageKey, resolvedSurface);
+}
+
 function applyPixelFontToDom(pixelFont: AppSettings["pixel_font"]) {
   if (typeof document === "undefined") return;
   const resolvedFont = ["press-start", "silkscreen", "source-sans", "source-serif"].includes(pixelFont)
@@ -75,6 +97,7 @@ function applyPixelFontToDom(pixelFont: AppSettings["pixel_font"]) {
 
 if (typeof document !== "undefined") {
   applyColorThemeToDom(initialColorTheme);
+  applyModuleSurfaceToDom(initialModuleSurface);
   applyPixelFontToDom(initialPixelFont);
 }
 
@@ -97,6 +120,7 @@ async function load() {
       loadPromise = null;
       applyThemeToDom(current.theme);
       applyColorThemeToDom(current.color_theme);
+      applyModuleSurfaceToDom(current.module_surface);
       applyPixelFontToDom(current.pixel_font);
       applyLanguageToDom(current.ui_language);
     }
@@ -108,6 +132,7 @@ async function save(partial: Partial<AppSettings>) {
   current = { ...current, ...partial };
   if ("theme" in partial) applyThemeToDom(partial.theme!);
   if ("color_theme" in partial) applyColorThemeToDom(partial.color_theme!);
+  if ("module_surface" in partial) applyModuleSurfaceToDom(partial.module_surface!);
   if ("pixel_font" in partial) applyPixelFontToDom(partial.pixel_font!);
   if ("ui_language" in partial) applyLanguageToDom(partial.ui_language!);
   try {

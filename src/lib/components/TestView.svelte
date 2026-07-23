@@ -3,8 +3,12 @@
   import { fade, slide } from "svelte/transition";
   import * as api from "$lib/api";
   import type { Card } from "$lib/types";
+  import { parseFreeTextContent } from "$lib/free-text";
+  import { evaluateSymbolicAnswer, type SymbolicEvaluationResult } from "$lib/math-evaluation";
   import { t } from "$lib/i18n";
   import FlashCard from "./FlashCard.svelte";
+  import FreeTextResponse from "./FreeTextResponse.svelte";
+  import ConfirmDialog from "./ConfirmDialog.svelte";
 
   let {
     deckIds = [],
@@ -37,12 +41,24 @@
   
   // Answers tracking: card.id -> boolean (true = correct, false = incorrect)
   let userAnswers = $state<Record<string, boolean>>({});
+  let freeTextAnswers = $state<Record<string, string>>({});
+  let symbolicResults = $state<Record<string, SymbolicEvaluationResult>>({});
 
   // Timer State
   let timeRemaining = $state<number>(0);
   let timerInterval = $state<ReturnType<typeof setInterval> | null>(null);
   let startTime = $state<number>(0);
   let endTime = $state<number>(0);
+  let finishConfirmOpen = $state(false);
+
+  let activeFreeTextContent = $derived.by(() => {
+    const card = testCards[currentIndex];
+    return card?.card_type === "free_text" ? parseFreeTextContent(card.content) : null;
+  });
+  let activeFreeTextAnswer = $derived.by(() => {
+    const cardId = testCards[currentIndex]?.id;
+    return cardId ? freeTextAnswers[cardId] ?? "" : "";
+  });
 
   onMount(async () => {
     try {
@@ -80,6 +96,8 @@
     
     currentIndex = 0;
     userAnswers = {};
+    freeTextAnswers = {};
+    symbolicResults = {};
     isFlipped = false;
     isAnswering = false;
     startTime = Date.now();
@@ -116,6 +134,33 @@
     }, 50);
   }
 
+  function updateFreeTextAnswer(value: string) {
+    const cardId = testCards[currentIndex]?.id;
+    if (!cardId) return;
+    freeTextAnswers = { ...freeTextAnswers, [cardId]: value };
+    const nextResults = { ...symbolicResults };
+    delete nextResults[cardId];
+    symbolicResults = nextResults;
+  }
+
+  async function revealTestAnswer() {
+    if (isFlipped) return;
+    isFlipped = true;
+
+    const card = testCards[currentIndex];
+    if (!card || activeFreeTextContent?.evaluationMode !== "symbolic") return;
+
+    symbolicResults = { ...symbolicResults, [card.id]: { status: "checking" } };
+    const result = await evaluateSymbolicAnswer(
+      freeTextAnswers[card.id] ?? "",
+      activeFreeTextContent.expectedLatex ?? "",
+    );
+
+    if (testCards[currentIndex]?.id === card.id) {
+      symbolicResults = { ...symbolicResults, [card.id]: result };
+    }
+  }
+
   function finishTest() {
     if (timerInterval) clearInterval(timerInterval);
 
@@ -130,17 +175,32 @@
     mode = "result";
   }
 
+  function requestFinishTest() {
+    finishConfirmOpen = true;
+  }
+
   function handleKeydown(e: KeyboardEvent) {
+    const target = e.target as HTMLElement | null;
+    if (target?.matches("input, textarea, select")) {
+      if (e.key === "Escape") target.blur();
+      return;
+    }
+
     if (mode !== "running") return;
 
     if (e.key === " " || e.key === "Spacebar") {
       e.preventDefault();
-      isFlipped = !isFlipped;
+      if (testCards[currentIndex]?.card_type === "free_text") {
+        if (isFlipped) isFlipped = false;
+        else void revealTestAnswer();
+      } else {
+        isFlipped = !isFlipped;
+      }
     } else if (isFlipped) {
       if (e.key === "1" || e.key === "Enter") {
         e.preventDefault();
         handleAnswer(true);
-      } else if (e.key === "2" || e.key === "Backspace") {
+      } else if (e.key === "2") {
         e.preventDefault();
         handleAnswer(false);
       }
@@ -273,7 +333,7 @@
             {t("Frage")} {currentIndex + 1} {t("von")} {testCards.length}
           </span>
           <button
-            onclick={finishTest}
+            onclick={requestFinishTest}
             class="text-xs font-medium text-secondary hover:text-accent-incorrect transition-colors"
           >
             🏁 {t("Test vorzeitig beenden")}
@@ -297,11 +357,23 @@
           </div>
         {/if}
 
+        {#if activeFreeTextContent && testCards[currentIndex]}
+          <div class="mt-4 w-full">
+            <FreeTextResponse
+              value={activeFreeTextAnswer}
+              disabled={isFlipped}
+              evaluationMode={activeFreeTextContent.evaluationMode}
+              result={isFlipped ? symbolicResults[testCards[currentIndex].id] ?? null : null}
+              onChange={updateFreeTextAnswer}
+            />
+          </div>
+        {/if}
+
         <!-- Controls -->
         <div class="w-full mt-6">
           {#if !isFlipped}
             <button
-              onclick={() => isFlipped = true}
+              onclick={() => revealTestAnswer()}
               class="w-full py-3 rounded-xl glass border border-white/20 text-primary dark:text-primary-dark font-semibold hover:bg-white/10 transition-all text-sm shadow-elevation-low"
             >
               {t("Antwort aufdecken (Leertaste)")}
@@ -321,8 +393,9 @@
                 ✅ {t("Richtig / Gewusst")}
               </button>
             </div>
-          {/if}
-        </div>
+  {/if}
+
+          </div>
       </div>
 
     {:else if mode === "result"}
@@ -391,3 +464,17 @@
     {/if}
   </div>
 </div>
+
+{#if finishConfirmOpen}
+  <ConfirmDialog
+    title={t("endTestTitle")}
+    message={t("endTestMessage")}
+    confirmLabel="endTestConfirm"
+    danger={true}
+    onConfirm={() => {
+      finishConfirmOpen = false;
+      finishTest();
+    }}
+    onCancel={() => (finishConfirmOpen = false)}
+  />
+{/if}

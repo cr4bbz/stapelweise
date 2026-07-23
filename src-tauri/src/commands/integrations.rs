@@ -287,8 +287,8 @@ pub fn import_moodle_glossary(
         base_url.trim().trim_end_matches('/')
     );
     let response = http_client()?
-        .get(endpoint)
-        .query(&[
+        .post(endpoint)
+        .form(&[
             ("wstoken", token.trim()),
             ("wsfunction", "mod_glossary_get_entries_by_letter"),
             ("moodlewsrestformat", "json"),
