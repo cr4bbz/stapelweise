@@ -48,7 +48,8 @@
       "Bash(GIT_EDITOR=true git rebase:*)",
       "Bash(node:*)",
       "Bash(git pull:*)",
-      "Bash(git fetch:*)"
+      "Bash(git fetch:*)",
+      "mcp__bf7c680d-5fdc-5ef4-b4a0-abadb619bf0a__send_later"
     ]
   }
 }
