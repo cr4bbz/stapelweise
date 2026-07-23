@@ -226,7 +226,7 @@
 
   /* Button base — pill shape, depth, active press */
   .rounded-button {
-    border-radius: 0.625rem;
+    border-radius: 0.7rem;
     box-shadow: 0 1px 2px rgba(16, 24, 40, 0.08);
     transition: transform 0.15s ease, box-shadow 0.15s ease;
   }
@@ -246,7 +246,7 @@
 
   /* Score button — same base but subtle lift on hover */
   .score-button {
-    border-radius: 0.625rem;
+    border-radius: 0.7rem;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.1);
     transition: transform 0.15s ease, box-shadow 0.15s ease;
   }
@@ -310,8 +310,12 @@
   .surface-panel {
     background: var(--color-surface);
     border: 1px solid var(--color-line);
-    border-radius: 0.75rem;
-    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.06);
+    border-radius: 0.875rem;
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 4px 14px rgba(16, 24, 40, 0.05);
+  }
+
+  .dark .surface-panel {
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.34), 0 4px 16px rgba(0, 0, 0, 0.32);
   }
 
   .section-heading {
@@ -351,7 +355,7 @@
     justify-content: center;
     width: 2.25rem;
     height: 2.25rem;
-    border-radius: 0.625rem;
+    border-radius: 0.7rem;
     color: var(--color-text-secondary);
     transition: background-color 0.15s ease, color 0.15s ease, transform 0.15s ease;
   }
@@ -366,7 +370,7 @@
     align-items: center;
     justify-content: center;
     gap: 0.4rem;
-    border-radius: 0.625rem;
+    border-radius: 0.7rem;
     background: rgb(var(--color-accent-primary));
     color: white;
     font-weight: 700;
@@ -383,7 +387,7 @@
     align-items: center;
     justify-content: center;
     gap: 0.4rem;
-    border-radius: 0.625rem;
+    border-radius: 0.7rem;
     border: 1px solid var(--color-line);
     background: var(--color-surface);
     color: var(--color-text);
@@ -485,7 +489,24 @@
   .dashboard-module[data-dashboard-tone] .surface-panel {
     border-width: 2px;
     border-color: color-mix(in srgb, var(--color-line) 72%, rgb(var(--dashboard-module-accent)) 28%);
-    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.06);
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 4px 14px rgba(16, 24, 40, 0.05);
+  }
+
+  .dark .dashboard-module[data-dashboard-tone] .surface-panel {
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.34), 0 4px 16px rgba(0, 0, 0, 0.32);
+  }
+
+  /* Gentle interactive lift for module panels outside arrange mode. */
+  .dashboard-module:not(.dashboard-module-arranging) .surface-panel {
+    transition: box-shadow 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+  }
+
+  .dashboard-module:not(.dashboard-module-arranging) .surface-panel:hover {
+    box-shadow: 0 2px 6px rgba(16, 24, 40, 0.06), 0 12px 28px rgba(16, 24, 40, 0.09);
+  }
+
+  .dark .dashboard-module:not(.dashboard-module-arranging) .surface-panel:hover {
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4), 0 14px 32px rgba(0, 0, 0, 0.42);
   }
 
   .dashboard-module[data-dashboard-tone] .section-kicker,
@@ -694,7 +715,7 @@
     flex-direction: column;
     overflow: hidden;
     border: 2px dashed rgb(var(--color-accent-primary) / 0.45);
-    border-radius: 0.75rem;
+    border-radius: 0.875rem;
     background: color-mix(in srgb, var(--color-surface) 82%, transparent);
     cursor: default;
     touch-action: none;
