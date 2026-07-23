@@ -72,7 +72,8 @@
   {#if selectedCard}
     <button
       onclick={() => (showingBack = !showingBack)}
-      class="module-accent-subpanel group relative mt-4 flex min-h-40 flex-1 items-center justify-center overflow-hidden rounded-lg p-4 text-center text-primary transition-colors hover:border-accent-correct dark:text-primary-dark sm:p-6"
+      class="module-accent-subpanel group relative mt-4 flex w-full items-center justify-center overflow-hidden rounded-lg p-4 text-center text-primary transition-colors hover:border-accent-correct dark:text-primary-dark sm:p-6"
+      style="aspect-ratio: 5 / 3"
       aria-label={showingBack ? t("Vorderseite zeigen") : t("Rückseite zeigen")}
     >
       <span class="absolute left-3 top-3 text-[10px] font-semibold uppercase text-secondary">
@@ -85,6 +86,9 @@
       </div>
     </button>
   {:else}
-    <div class="module-accent-subpanel mt-4 min-h-40 flex-1 rounded-lg border-dashed"></div>
+    <div class="module-accent-subpanel mt-4 flex min-h-40 flex-1 flex-col items-center justify-center rounded-lg border-dashed px-4 text-center">
+      <p class="text-sm font-semibold text-primary dark:text-primary-dark">{t("Karte auswählen")}</p>
+      <p class="mt-1 text-xs text-secondary">{t("Wähle zuerst einen Stapel und dann eine Karte.")}</p>
+    </div>
   {/if}
 </div>

@@ -4,11 +4,10 @@
   import EmptyState from "./EmptyState.svelte";
   import ErrorBanner from "./ErrorBanner.svelte";
   import StatsDashboard from "./StatsDashboard.svelte";
-  import BrowseCards from "./BrowseCards.svelte";
   import ConfirmDialog from "./ConfirmDialog.svelte";
   import FlashCard from "./FlashCard.svelte";
   import StudySheetPrint from "./StudySheetPrint.svelte";
-  import { Printer } from "@lucide/svelte";
+  import { BarChart3, ClipboardCheck, FileText, ImageIcon, ListChecks, ListOrdered, Plus, Printer, X } from "@lucide/svelte";
   import { renderMarkdown } from "$lib/markdown";
   import { hasMath, renderLatexExpression } from "$lib/math";
   import { parseFreeTextContent, serializeFreeTextContent } from "$lib/free-text";
@@ -17,13 +16,15 @@
   import { t } from "$lib/i18n";
   import { languageLabel, languageOptions } from "$lib/languages";
   import { tick } from "svelte";
-  import { fade, slide } from "svelte/transition";
+  import { flip } from "svelte/animate";
+  import { fade, scale, slide } from "svelte/transition";
 
-  let { deck, onClose = () => {}, onStudy = () => {}, onPractice = () => {} } = $props<{
+  let { deck, onClose = () => {}, onStudy = () => {}, onPractice = () => {}, onTest = () => {} } = $props<{
     deck: Deck;
     onClose?: () => void;
     onStudy?: () => void;
     onPractice?: () => void;
+    onTest?: () => void;
   }>();
 
   let cards = $state<Card[]>([]);
@@ -38,7 +39,6 @@
   let error = $state<string | null>(null);
   let dueCount = $state<number | null>(null);
   let showStats = $state(false);
-  let showBrowse = $state(false);
   let showPrintSheet = $state(false);
   let deleteConfirmCardId = $state<string | null>(null);
   let viewingCard = $state<Card | null>(null);
@@ -49,7 +49,11 @@
   let tags = $state<string[]>([]);
   let tagInput = $state("");
   let availableTags = $state<string[]>([]);
-  let selectedFilterTag = $state<string | null>(null);
+  let selectedFilterTags = $state<string[]>([]);
+  let showMoreDeckTags = $state(false);
+  let moreDeckTagsQuery = $state("");
+  let moreDeckTagsInput = $state<HTMLInputElement | null>(null);
+  let pendingMoreDeckTags = $state<string[]>([]);
 
   let matchingTags = $derived(
     tagInput.trim()
@@ -60,10 +64,49 @@
   let allDeckTags = $derived(
     (Array.from(new Set(cards.flatMap((c) => c.tags || []))) as string[]).sort()
   );
+  const visibleDeckTagLimit = 8;
+  let visibleDeckTags = $derived(allDeckTags.slice(0, visibleDeckTagLimit));
+  let hiddenDeckTags = $derived(allDeckTags.filter((tag) => !visibleDeckTags.includes(tag) && !selectedFilterTags.includes(tag)));
+  let displayedDeckTags = $derived.by(() => [
+    ...selectedFilterTags.filter((tag) => allDeckTags.includes(tag)).map((tag) => ({ tag, selected: true })),
+    ...visibleDeckTags
+      .filter((tag) => !selectedFilterTags.includes(tag))
+      .map((tag) => ({ tag, selected: false })),
+  ]);
+  let matchingMoreDeckTags = $derived(
+    hiddenDeckTags.filter((tag) => tag.toLowerCase().includes(moreDeckTagsQuery.trim().toLowerCase()))
+  );
 
   let filteredCards = $derived(
-    selectedFilterTag ? cards.filter((c) => c.tags?.includes(selectedFilterTag!)) : cards
+    selectedFilterTags.length > 0
+      ? cards.filter((card) => selectedFilterTags.some((tag) => card.tags?.includes(tag)))
+      : cards
   );
+
+  function toggleMoreDeckTags() {
+    showMoreDeckTags = !showMoreDeckTags;
+    moreDeckTagsQuery = "";
+    pendingMoreDeckTags = [...selectedFilterTags];
+    if (showMoreDeckTags) void tick().then(() => moreDeckTagsInput?.focus());
+  }
+
+  function toggleDeckFilterTag(tag: string) {
+    selectedFilterTags = selectedFilterTags.includes(tag)
+      ? selectedFilterTags.filter((selectedTag) => selectedTag !== tag)
+      : [...selectedFilterTags, tag];
+  }
+
+  function togglePendingMoreDeckTag(tag: string) {
+    pendingMoreDeckTags = pendingMoreDeckTags.includes(tag)
+      ? pendingMoreDeckTags.filter((selectedTag) => selectedTag !== tag)
+      : [...pendingMoreDeckTags, tag];
+  }
+
+  function applyMoreDeckTags() {
+    selectedFilterTags = [...pendingMoreDeckTags];
+    showMoreDeckTags = false;
+    moreDeckTagsQuery = "";
+  }
 
   async function loadTags() {
     try {
@@ -338,6 +381,20 @@
     return serializeFreeTextContent(freeTextEvaluationMode, expectedLatex);
   }
 
+  function buildFreeTextPayload(backValue: string): { back: string; content: string } | null {
+    const content = serializeFreeTextSettings();
+    if (!content) return null;
+
+    const explicitBack = backValue.trim();
+    const generatedBack = freeTextEvaluationMode === "symbolic"
+      ? `$$${expectedLatex.trim()}$$`
+      : "";
+    const resolvedBack = explicitBack || generatedBack;
+    if (!resolvedBack) return null;
+
+    return { back: resolvedBack, content };
+  }
+
   async function handleCreate() {
     if (!front.trim()) return;
     
@@ -362,12 +419,13 @@
       contentJson = JSON.stringify({ items: validOrd });
       finalBack = validOrd.map((item, idx) => `${idx + 1}. ${item}`).join("\n");
     } else if (cType === "free_text") {
-      if (!finalBack) return;
-      contentJson = serializeFreeTextSettings();
-      if (!contentJson) return;
+      const freeTextPayload = buildFreeTextPayload(finalBack);
+      if (!freeTextPayload) return;
+      finalBack = freeTextPayload.back;
+      contentJson = freeTextPayload.content;
     } else {
       if (!finalBack) return;
-      if (front.includes("==") || front.includes("{{c1::")) {
+      if (front.includes("==") || /\{\{c\d+::/.test(front)) {
         cType = "cloze";
       }
     }
@@ -409,12 +467,13 @@
       contentJson = JSON.stringify({ items: validOrd });
       finalBack = validOrd.map((item, idx) => `${idx + 1}. ${item}`).join("\n");
     } else if (cType === "free_text") {
-      if (!finalBack) return;
-      contentJson = serializeFreeTextSettings();
-      if (!contentJson) return;
+      const freeTextPayload = buildFreeTextPayload(finalBack);
+      if (!freeTextPayload) return;
+      finalBack = freeTextPayload.back;
+      contentJson = freeTextPayload.content;
     } else {
       if (!finalBack) return;
-      if (front.includes("==") || front.includes("{{c1::")) {
+      if (front.includes("==") || /\{\{c\d+::/.test(front)) {
         cType = "cloze";
       }
     }
@@ -464,6 +523,12 @@
 
 
   function handleKeydown(e: KeyboardEvent) {
+    if (showMoreDeckTags && e.key === "Escape") {
+      showMoreDeckTags = false;
+      moreDeckTagsQuery = "";
+      pendingMoreDeckTags = [...selectedFilterTags];
+      return;
+    }
     if (e.key === "Escape") {
       if (showPrintSheet) {
         showPrintSheet = false;
@@ -500,10 +565,6 @@
   {#if showStats}
     <div in:fade={{ duration: 150 }} out:fade={{ duration: 100 }} class="col-start-1 row-start-1 h-full w-full">
     <StatsDashboard deckId={deck.id} deckName={deck.name} onClose={() => (showStats = false)} />
-    </div>
-  {:else if showBrowse}
-    <div in:fade={{ duration: 150 }} out:fade={{ duration: 100 }} class="col-start-1 row-start-1 h-full w-full">
-    <BrowseCards cards={cards} deckName={deck.name} onClose={() => (showBrowse = false)} />
     </div>
   {:else if showPrintSheet}
     <StudySheetPrint cards={filteredCards} deckName={deck.name} onClose={() => (showPrintSheet = false)} />
@@ -563,7 +624,7 @@
   <div class="flex flex-wrap items-center gap-3 p-6 pb-4">
     <button
       onclick={onClose}
-      class="p-2 rounded-lg hover:bg-white/30 dark:hover:bg-white/10 text-secondary transition-colors"
+      class="icon-button"
       title="Zurück zur Übersicht"
     >
       <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -578,21 +639,21 @@
       <span class="text-accent-correct text-sm font-medium">{t("due", { count: dueCount })}</span>
     {/if}
 
-    <div class="ml-auto flex flex-wrap justify-end gap-2">
+    <div class="ml-auto flex w-full flex-wrap justify-end gap-2 xl:w-auto">
       <button
         onclick={() => (showStats = true)}
-        class="p-2 rounded-lg hover:bg-white/30 dark:hover:bg-white/10 text-secondary transition-colors"
+        class="icon-button"
         title="Statistiken"
+        aria-label={t("Statistiken")}
       >
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-          <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zm6-4a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zm6-3a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
-        </svg>
+        <BarChart3 size={18} />
       </button>
       {#if cards.length > 0}
         <button
-          onclick={() => (showBrowse = true)}
-          class="p-2 rounded-lg hover:bg-white/30 dark:hover:bg-white/10 text-secondary transition-colors"
+          onclick={() => {}}
+          class="hidden"
           title="Durchblättern"
+          aria-label={t("Durchblättern")}
         >
           <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
             <path d="M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 015.5 14c1.669 0 3.218.51 4.5 1.385A7.962 7.962 0 0114.5 14c1.255 0 2.443.29 3.5.804v-10A7.968 7.968 0 0014.5 4c-1.255 0-2.443.29-3.5.804V12a1 1 0 11-2 0V4.804z" />
@@ -602,7 +663,7 @@
       {#if cards.length > 0 && dueCount != null && dueCount > 0}
         <button
           onclick={onStudy}
-          class="primary-action px-4 py-2 text-sm"
+          class="primary-action h-10 min-w-36 px-4 text-sm"
         >
           {t("dueLearn", { count: dueCount })}
         </button>
@@ -610,14 +671,26 @@
       {#if cards.length > 0}
         <button
           onclick={() => (showPrintSheet = true)}
-          class="p-2 rounded-lg hover:bg-white/30 dark:hover:bg-white/10 text-secondary transition-colors"
+          class="icon-button"
           title="Studentenlernblatt drucken"
+          aria-label={t("Studentenlernblatt drucken")}
         >
-          <Printer size={20} />
+          <Printer size={18} />
         </button>
+      {/if}
+      <button
+        onclick={onTest}
+        disabled={cards.length === 0}
+        class="secondary-action h-10 min-w-36 px-4 text-sm disabled:cursor-not-allowed disabled:opacity-45"
+        title={t("Stapel prüfen")}
+      >
+        <ClipboardCheck size={17} />
+        {t("Stapel prüfen")}
+      </button>
+      {#if cards.length > 0}
         <button
           onclick={onPractice}
-          class="{dueCount === 0 ? 'primary-action' : 'secondary-action'} px-4 py-2 text-sm"
+          class="{dueCount === 0 ? 'primary-action' : 'secondary-action'} h-10 min-w-36 px-4 text-sm"
         >
           {t("practice")}
         </button>
@@ -626,9 +699,10 @@
         onclick={() => {
           startNewCard();
         }}
-        class="rounded-button bg-primary dark:bg-[#E0E0E0] dark:text-[#1A1A2E] text-white px-4 py-2 text-sm font-medium hover:scale-[1.02] transition-transform"
+        class="rounded-button flex h-10 min-w-36 items-center justify-center gap-1.5 bg-primary px-4 text-sm font-medium text-white transition-transform hover:scale-[1.02] dark:bg-[#E0E0E0] dark:text-[#1A1A2E]"
       >
-        {t("+ Neue Karte")}
+        <Plus size={17} />
+        {t("Neue Karteikarte")}
       </button>
     </div>
   </div>
@@ -651,23 +725,23 @@
             <button
               type="button"
               onclick={() => cardType = "basic"}
-              class="px-2.5 py-1 text-xs font-semibold rounded-lg transition-all {cardType === 'basic' ? 'bg-accent-correct text-white shadow-sm' : 'text-secondary hover:text-primary dark:hover:text-primary-dark'}"
+              class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg transition-all {cardType === 'basic' ? 'bg-accent-correct text-white shadow-sm' : 'text-secondary hover:text-primary dark:hover:text-primary-dark'}"
             >
-              📝 Standard
+              <FileText size={14} /> Standard
             </button>
             <button
               type="button"
               onclick={() => cardType = "multiple_choice"}
-              class="px-2.5 py-1 text-xs font-semibold rounded-lg transition-all {cardType === 'multiple_choice' ? 'bg-accent-correct text-white shadow-sm' : 'text-secondary hover:text-primary dark:hover:text-primary-dark'}"
+              class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg transition-all {cardType === 'multiple_choice' ? 'bg-accent-correct text-white shadow-sm' : 'text-secondary hover:text-primary dark:hover:text-primary-dark'}"
             >
-              🔘 Multiple Choice
+              <ListChecks size={14} /> Multiple Choice
             </button>
             <button
               type="button"
               onclick={() => cardType = "ordering"}
-              class="px-2.5 py-1 text-xs font-semibold rounded-lg transition-all {cardType === 'ordering' ? 'bg-accent-correct text-white shadow-sm' : 'text-secondary hover:text-primary dark:hover:text-primary-dark'}"
+              class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg transition-all {cardType === 'ordering' ? 'bg-accent-correct text-white shadow-sm' : 'text-secondary hover:text-primary dark:hover:text-primary-dark'}"
             >
-              🔢 Reihenfolge
+              <ListOrdered size={14} /> Reihenfolge
             </button>
             <button
               type="button"
@@ -718,7 +792,7 @@
               class="text-xs font-medium text-secondary hover:text-accent-correct transition-colors flex items-center gap-1"
               title="Bild auswählen, einfügen oder ablegen. LaTeX mit $...$ oder $$...$$ schreiben."
             >
-              🖼️ Bild einfügen
+              <ImageIcon size={14} /> Bild einfügen
             </button>
           </div>
           <textarea
@@ -770,7 +844,7 @@
                       class="p-1.5 rounded-lg text-secondary hover:text-accent-incorrect transition-colors"
                       title="Option entfernen"
                     >
-                      ✕
+                      <X size={14} />
                     </button>
                   {/if}
                 </div>
@@ -808,7 +882,7 @@
                       class="p-1.5 rounded-lg text-secondary hover:text-accent-incorrect transition-colors"
                       title="Schritt entfernen"
                     >
-                      ✕
+                      <X size={14} />
                     </button>
                   {/if}
                 </div>
@@ -834,7 +908,7 @@
                 class="text-xs font-medium text-secondary hover:text-accent-correct transition-colors flex items-center gap-1"
                 title="Bild auswählen, einfügen oder ablegen. LaTeX mit $...$ oder $$...$$ schreiben."
               >
-                🖼️ Bild einfügen
+                <ImageIcon size={14} /> Bild einfügen
               </button>
             </div>
             <textarea
@@ -909,7 +983,7 @@
               class="text-xs font-medium text-secondary hover:text-accent-correct transition-colors flex items-center gap-1"
               title="Klicken zum Auswählen, oder Bild direkt im Textfeld einfügen / per Drag & Drop ablegen"
             >
-              🖼️ Bild einfügen
+              <ImageIcon size={14} /> Bild einfügen
             </button>
           </div>
           <textarea
@@ -1024,7 +1098,6 @@
           tags = [];
           tagInput = "";
         }}
-        icon={() => "🃏"}
       />
     </div>
   {:else}
@@ -1033,26 +1106,74 @@
         <div class="flex flex-wrap items-center gap-1.5 mb-3">
           <span class="text-xs text-secondary font-medium mr-1">Filter nach Tag:</span>
           <button
-            onclick={() => (selectedFilterTag = null)}
-            class="text-xs px-2.5 py-1 rounded-lg font-medium transition-all {selectedFilterTag === null ? 'bg-accent-correct text-white shadow-sm' : 'glass text-secondary hover:text-primary dark:hover:text-primary-dark'}"
+            onclick={() => (selectedFilterTags = [])}
+            class="text-xs px-2.5 py-1 rounded-lg font-medium transition-all {selectedFilterTags.length === 0 ? 'bg-accent-correct text-white shadow-sm' : 'glass text-secondary hover:text-primary dark:hover:text-primary-dark'}"
           >
             Alle ({cards.length})
           </button>
-          {#each allDeckTags as tag}
-            {@const count = cards.filter(c => c.tags?.includes(tag)).length}
+          {#each displayedDeckTags as item (item.tag)}
+            {@const count = cards.filter(c => c.tags?.includes(item.tag)).length}
             <button
-              onclick={() => (selectedFilterTag = selectedFilterTag === tag ? null : tag)}
-              class="text-xs px-2.5 py-1 rounded-lg font-medium transition-all flex items-center gap-1 {selectedFilterTag === tag ? 'bg-accent-correct text-white shadow-sm' : 'glass text-secondary hover:text-primary dark:hover:text-primary-dark'}"
+              animate:flip={{ duration: 180 }}
+              in:fade={{ duration: 180 }}
+              out:fade={{ duration: 120 }}
+              onclick={() => toggleDeckFilterTag(item.tag)}
+              class="inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-medium transition-colors {item.selected ? 'bg-accent-correct text-white shadow-sm' : 'glass text-secondary hover:text-primary dark:hover:text-primary-dark'}"
+              title={item.selected ? t("Tag entfernen") : undefined}
             >
-              <span>#{tag}</span>
-              <span class="text-[10px] opacity-70">({count})</span>
+              <span>#{item.tag}</span>
+              {#if item.selected}
+                <X size={12} />
+              {:else}
+                <span class="text-[10px] opacity-70">({count})</span>
+              {/if}
             </button>
           {/each}
+          {#if hiddenDeckTags.length > 0}
+            <div class="relative">
+              <button
+                onclick={toggleMoreDeckTags}
+                class="inline-flex items-center gap-1 rounded-lg border border-accent-correct/25 bg-accent-correct/10 px-2.5 py-1 text-xs font-semibold text-accent-correct shadow-sm transition-colors hover:border-accent-correct/50 hover:bg-accent-correct/15"
+                aria-expanded={showMoreDeckTags}
+                aria-haspopup="dialog"
+              >+{hiddenDeckTags.length} {t("weitere")}</button>
+              {#if showMoreDeckTags}
+                <div in:scale={{ duration: 160, start: 0.96 }} out:scale={{ duration: 120, start: 0.96 }} class="glass absolute left-0 top-full z-30 mt-2 w-64 origin-top-left rounded-card border border-white/20 p-2 shadow-elevation-high" role="dialog" aria-label={t("Weitere Tags auswählen")}>
+                  <input
+                    bind:this={moreDeckTagsInput}
+                    bind:value={moreDeckTagsQuery}
+                    class="module-accent-input w-full rounded-md px-3 py-2 text-sm outline-none"
+                    placeholder={t("Tags suchen...")}
+                    aria-label={t("Tags suchen...")}
+                  />
+                  <div class="mt-2 max-h-48 space-y-1 overflow-y-auto">
+                    {#each matchingMoreDeckTags as tag}
+                      {@const count = cards.filter((c) => c.tags?.includes(tag)).length}
+                      <button
+                        onclick={() => togglePendingMoreDeckTag(tag)}
+                        class="flex w-full items-center justify-between rounded-md px-2.5 py-2 text-left text-sm text-primary transition-colors hover:bg-white/10 dark:text-primary-dark"
+                        aria-pressed={pendingMoreDeckTags.includes(tag)}
+                      >
+                        <span class="flex min-w-0 items-center gap-2"><span class="flex h-4 w-4 shrink-0 items-center justify-center rounded border {pendingMoreDeckTags.includes(tag) ? 'border-accent-correct bg-accent-correct text-white' : 'border-secondary/40'}">{pendingMoreDeckTags.includes(tag) ? "✓" : ""}</span><span class="truncate">#{tag}</span></span>
+                        <span class="text-xs text-secondary">{count}</span>
+                      </button>
+                    {:else}
+                      <p class="px-2.5 py-2 text-sm text-secondary">{t("Keine passenden Tags.")}</p>
+                    {/each}
+                  </div>
+                  <button onclick={applyMoreDeckTags} class="primary-action mt-2 w-full px-3 py-2 text-sm">
+                    {pendingMoreDeckTags.length > 0 ? `${pendingMoreDeckTags.length} ${t("Tags übernehmen")}` : t("Tags übernehmen")}
+                  </button>
+                </div>
+              {/if}
+            </div>
+          {/if}
         </div>
       {/if}
 
       <div class="space-y-2">
         {#each filteredCards as card (card.id)}
+          <div animate:flip={{ duration: 200 }} in:fade={{ duration: 200 }} out:fade={{ duration: 160 }}>
           <div class="glass rounded-card p-4 flex items-start gap-4 group cursor-pointer hover:bg-white/5 dark:hover:bg-white/5 transition-colors" onclick={() => { viewingCard = card; cardFlipped = false; }} role="button" tabindex="0" onkeydown={(e) => (e.key === "Enter" || e.key === " ") && (viewingCard = card, cardFlipped = false)}>
             <div class="flex-1 min-w-0 flex flex-col gap-2">
               <div class="grid grid-cols-2 gap-4">
@@ -1060,20 +1181,20 @@
                   <div class="flex items-center gap-2 mb-0.5">
                     <span class="text-xs font-medium text-secondary uppercase tracking-wide">Frage{card.front_language ? ` · ${languageLabel(card.front_language)}` : ""}</span>
                     {#if card.card_type === 'multiple_choice'}
-                      <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-accent-correct/20 text-accent-correct border border-accent-correct/30">🔘 MC</span>
+                      <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-accent-correct/20 text-accent-correct border border-accent-correct/30">MC</span>
                     {:else if card.card_type === 'ordering'}
-                      <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-accent-easy/20 text-accent-easy border border-accent-easy/30">🔢 Sequenz</span>
+                      <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-accent-easy/20 text-accent-easy border border-accent-easy/30">Sequenz</span>
                     {:else if card.card_type === 'cloze'}
-                      <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-accent-hard/20 text-accent-hard border border-accent-hard/30">🧩 Cloze</span>
+                      <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-accent-hard/20 text-accent-hard border border-accent-hard/30">Cloze</span>
                     {:else if card.card_type === 'free_text'}
                       <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-secondary/15 text-secondary border border-secondary/30">{t("freeTextCard")}</span>
                     {/if}
                   </div>
-                  <p class="{cardFontClass} text-primary dark:text-primary-dark mt-0.5 max-h-20 overflow-hidden">{@html renderMarkdown(card.front)}</p>
+                  <p class="{cardFontClass} text-primary dark:text-primary-dark mt-0.5 max-h-28 overflow-hidden">{@html renderMarkdown(card.front)}</p>
                 </div>
                 <div>
                   <span class="text-xs font-medium text-secondary uppercase tracking-wide">Antwort{card.back_language ? ` · ${languageLabel(card.back_language)}` : ""}</span>
-                  <p class="{cardFontClass} text-primary dark:text-primary-dark mt-0.5 max-h-20 overflow-hidden">{@html renderMarkdown(card.back)}</p>
+                  <p class="{cardFontClass} text-primary dark:text-primary-dark mt-0.5 max-h-28 overflow-hidden">{@html renderMarkdown(card.back)}</p>
                 </div>
               </div>
               {#if card.tags && card.tags.length > 0}
@@ -1142,6 +1263,7 @@
               </div>
             </div>
           {/if}
+          </div>
         {/each}
       </div>
     </div>

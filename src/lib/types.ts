@@ -125,6 +125,8 @@ export interface AppSettings {
   ui_language: "de" | "en" | "es" | "fr" | "pt";
   theme: "light" | "dark" | "auto";
   color_theme: "academy" | "night-library" | "printwork" | "graphite";
+  module_surface: "solid" | "glass";
+  show_deck_card_previews: boolean;
   pixel_font: "press-start" | "silkscreen" | "source-sans" | "source-serif";
   card_font_family: "serif" | "sans";
   card_font_size: "small" | "medium" | "large";
