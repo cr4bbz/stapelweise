@@ -587,30 +587,6 @@
     white-space: nowrap;
   }
 
-  .single-card-main {
-    font-size: clamp(0.78125rem, 3.6cqw + 0.22rem, 1.25rem);
-    line-height: 1.35;
-  }
-
-  .single-card-main :global(p),
-  .single-card-main :global(li) {
-    font-size: inherit;
-    line-height: inherit;
-  }
-
-  .single-card-reasoning {
-    font-size: clamp(0.6875rem, 2.8cqw + 0.18rem, 1.05rem);
-    line-height: 1.3;
-  }
-
-  .single-card-reasoning :global(p),
-  .single-card-reasoning :global(li),
-  .single-card-reasoning-measurement :global(p),
-  .single-card-reasoning-measurement :global(li) {
-    font-size: inherit;
-    line-height: inherit;
-  }
-
   @container (max-width: 18rem) {
     .single-card-body {
       padding-top: 1.4rem;
@@ -618,8 +594,14 @@
     }
 
     .single-card-main {
-      font-size: clamp(0.72rem, 3.2cqw + 0.2rem, 0.95rem);
+      font-size: 0.75rem;
       line-height: 1.28;
+    }
+
+    .single-card-main :global(p),
+    .single-card-main :global(li) {
+      font-size: inherit;
+      line-height: inherit;
     }
 
     .single-card-main :global(h1),
@@ -632,14 +614,22 @@
     .single-card-reasoning {
       margin-top: 0.5rem;
       padding-top: 0.5rem;
-      font-size: clamp(0.65rem, 2.5cqw + 0.15rem, 0.85rem);
+      font-size: 0.6875rem;
       line-height: 1.25;
+    }
+
+    .single-card-reasoning :global(p),
+    .single-card-reasoning :global(li),
+    .single-card-reasoning-measurement :global(p),
+    .single-card-reasoning-measurement :global(li) {
+      font-size: inherit;
+      line-height: inherit;
     }
 
     .single-card-reasoning-measurement {
       margin-top: 0.5rem;
       padding-top: 0.5rem;
-      font-size: clamp(0.65rem, 2.5cqw + 0.15rem, 0.85rem);
+      font-size: 0.6875rem;
       line-height: 1.25;
     }
   }
