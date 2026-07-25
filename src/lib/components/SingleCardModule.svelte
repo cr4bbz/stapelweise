@@ -443,7 +443,19 @@
   {/if}
 
   {#if showReasoningDetail && renderedReasoning}
-    <div class="why-detail-overlay module-accent-subpanel absolute inset-4 z-30 flex min-h-0 flex-col rounded-xl p-3.5 shadow-lg sm:inset-5 sm:p-4">
+    <div
+      onclick={() => (showReasoningDetail = false)}
+      onkeydown={(event) => {
+        if (event.key === "Enter" || event.key === " " || event.key === "Escape") {
+          event.preventDefault();
+          showReasoningDetail = false;
+        }
+      }}
+      role="button"
+      tabindex="0"
+      aria-label={t("Schließen")}
+      class="why-detail-overlay module-accent-subpanel absolute inset-4 z-30 flex cursor-pointer min-h-0 flex-col rounded-xl p-3.5 shadow-lg sm:inset-5 sm:p-4"
+    >
       <div class="mb-3 flex items-center justify-between gap-3">
         <p class="section-kicker">{t("Warum?")}</p>
         <button onclick={() => (showReasoningDetail = false)} class="icon-button !h-8 !w-8" aria-label={t("Schließen")}>
