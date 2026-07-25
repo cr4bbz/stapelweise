@@ -65,6 +65,17 @@
     { width: 3, label: "Klein" },
     { width: 4, label: "Mittel" },
   ];
+  const tagModuleSizes: { width: ModuleWidth; label: string }[] = [
+    { width: 3, label: "Klein" },
+    { width: 4, label: "Mittel" },
+    { width: 6, label: "Groß" },
+  ];
+  const archiveModuleSizes: { width: ModuleWidth; label: string }[] = [
+    { width: 3, label: "Klein" },
+    { width: 4, label: "Mittel" },
+    { width: 6, label: "Groß" },
+  ];
+  const genericModuleSizeStorageKey = "stapelweise.dashboard.genericSizes.v1";
   const defaultModuleWidths: Record<DashboardModuleId, ModuleWidth> = {
     brand: 3,
     settings: 2,
@@ -113,7 +124,8 @@
   let moduleOrder = $state<DashboardModuleKey[]>([...defaultModuleOrder]);
   let deckModuleWidths = $state<Record<string, DeckModuleSize>>({});
   let singleCardModuleWidths = $state<Record<string, SingleCardModuleSize>>({});
-  let expandedModuleSizeId = $state<DeckModuleId | SingleCardModuleId | null>(null);
+  let genericModuleWidths = $state<Record<string, ModuleWidth>>({});
+  let expandedModuleSizeId = $state<DashboardModuleKey | null>(null);
   let arrangingModules = $state(false);
   let showModulePicker = $state(false);
   let draggedModule = $state<DashboardModuleKey | null>(null);
@@ -143,9 +155,23 @@
   let studyStartedAt = $state<number | null>(null);
   let studyReviews = $state(0);
 
+  function saveGenericModuleWidths(widths: Record<string, ModuleWidth>) {
+    genericModuleWidths = widths;
+    localStorage.setItem(genericModuleSizeStorageKey, JSON.stringify(widths));
+  }
+
+  function getModuleSizeOptions(moduleId: DashboardModuleKey): { width: ModuleWidth; label: string }[] | null {
+    if (isDeckModule(moduleId)) return deckModuleSizes;
+    if (isSingleCardModule(moduleId)) return singleCardModuleSizes;
+    if (moduleId === "tags") return tagModuleSizes;
+    if (moduleId === "archive") return archiveModuleSizes;
+    return null;
+  }
+
   function moduleWidth(moduleId: DashboardModuleKey): ModuleWidth {
     if (isDeckModule(moduleId)) return deckModuleWidths[moduleId] ?? 4;
-    if (isSingleCardModule(moduleId)) return singleCardModuleWidths[moduleId] ?? 4;
+    if (isSingleCardModule(moduleId)) return singleCardModuleWidths[moduleId] ?? 3;
+    if (genericModuleWidths[moduleId]) return genericModuleWidths[moduleId];
     return isExamModule(moduleId) || isSpacerModule(moduleId) ? 4 : defaultModuleWidths[moduleId];
   }
 
@@ -186,15 +212,17 @@
     return currentRects;
   }
 
-  function setModuleSize(moduleId: DeckModuleId | SingleCardModuleId, width: DeckModuleSize | SingleCardModuleSize) {
+  function setModuleSize(moduleId: DashboardModuleKey, width: ModuleWidth) {
     if (moduleWidth(moduleId) === width) return;
     const previousRects = new Map(
       Array.from(document.querySelectorAll<HTMLElement>("[data-dashboard-module]")).map((element) => [element, element.getBoundingClientRect()])
     );
     if (isDeckModule(moduleId)) {
       saveDeckModuleWidths({ ...deckModuleWidths, [moduleId]: width as DeckModuleSize });
-    } else {
+    } else if (isSingleCardModule(moduleId)) {
       saveSingleCardModuleWidths({ ...singleCardModuleWidths, [moduleId]: width as SingleCardModuleSize });
+    } else {
+      saveGenericModuleWidths({ ...genericModuleWidths, [moduleId]: width });
     }
     void tick().then(() => {
       if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
@@ -221,7 +249,7 @@
     });
   }
 
-  function selectModuleSize(moduleId: DeckModuleId | SingleCardModuleId, width: DeckModuleSize | SingleCardModuleSize) {
+  function selectModuleSize(moduleId: DashboardModuleKey, width: ModuleWidth) {
     setModuleSize(moduleId, width);
     expandedModuleSizeId = null;
   }
@@ -277,6 +305,12 @@
           isSingleCardModule(moduleId) && singleCardModuleSizes.some((size) => size.width === width)
         )
       ) as Record<string, SingleCardModuleSize>;
+      const savedGenericWidths = JSON.parse(localStorage.getItem(genericModuleSizeStorageKey) ?? "{}") as Record<string, unknown>;
+      genericModuleWidths = Object.fromEntries(
+        Object.entries(savedGenericWidths).filter(([moduleId, width]) =>
+          isDashboardModuleKey(moduleId) && [2, 3, 4, 5, 6, 8, 12].includes(width as number)
+        )
+      ) as Record<string, ModuleWidth>;
       localStorage.removeItem("stapelweise.dashboard.grid.v1");
       const savedLayout = localStorage.getItem(dashboardLayoutStorageKey);
       if (savedLayout !== null) {

@@ -26,10 +26,9 @@
   let cardAngle = $state(0);
   let cardTransition = $state("none");
   let isFlipping = $state(false);
-  let pickerRotation = $state(0);
+  let pickerAngleX = $state(0);
   let pickerTransition = $state("none");
-  let pickerCardRotation = $state(0);
-  let pickerCardTransition = $state("none");
+  let isPickerActive = $state(false);
   let isPickerFlipping = $state(false);
   let pickerHadCard = $state(false);
   let dragStartX = $state<number | null>(null);
@@ -64,10 +63,9 @@
       cardAngle = 0;
       cardTransition = "none";
       isFlipping = false;
-      pickerRotation = 0;
+      pickerAngleX = 0;
       pickerTransition = "none";
-      pickerCardRotation = 0;
-      pickerCardTransition = "none";
+      isPickerActive = false;
       isPickerFlipping = false;
       pickerHadCard = false;
       showReasoningDetail = false;
@@ -79,11 +77,11 @@
     displayedBack && !!renderedReasoning && (!compact || reasoningFitsInline)
   );
   let cardFaceTransform = $derived(
-    (showCardPicker || isPickerFlipping)
-      ? `translateZ(0.01px) rotateX(${pickerCardRotation}deg)`
+    (isPickerActive || isPickerFlipping)
+      ? `translateZ(0.01px) rotateX(${pickerAngleX}deg)`
       : `translateZ(0.01px) rotateY(${cardAngle}deg) scale(${1 - Math.abs(Math.sin(cardAngle * Math.PI / 180)) * 0.1})`
   );
-  let cardFaceTransition = $derived((showCardPicker || isPickerFlipping) ? pickerCardTransition : cardTransition);
+  let cardFaceTransition = $derived((isPickerActive || isPickerFlipping) ? pickerTransition : cardTransition);
 
   function updateReasoningLayout() {
     if (!compact || !displayedBack || !renderedReasoning) {
@@ -218,51 +216,50 @@
   }
 
   async function openCardPicker() {
-    if (showCardPicker || isFlipping || isPickerFlipping) return;
+    if (isFlipping || isPickerFlipping) return;
+    if (isPickerActive) {
+      await closeCardPicker();
+      return;
+    }
     pickerHadCard = !!selectedCard;
     if (!selectedCard) {
       showCardPicker = true;
+      isPickerActive = true;
+      pickerAngleX = -180;
       return;
     }
 
-    isPickerFlipping = true;
-    pickerCardTransition = "transform 170ms cubic-bezier(0.4, 0, 1, 1)";
-    pickerCardRotation = -90;
-    await wait(170);
+    displayedBack = false;
+    cardAngle = 0;
 
     showCardPicker = true;
-    pickerTransition = "none";
-    pickerRotation = 90;
-    await tick();
-    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    isPickerFlipping = true;
+    pickerTransition = "transform 320ms cubic-bezier(0.2, 0.8, 0.2, 1)";
+    pickerAngleX = -180;
+    await wait(320);
 
-    pickerTransition = "transform 220ms cubic-bezier(0, 0, 0.2, 1)";
-    pickerRotation = 0;
-    await wait(220);
+    pickerTransition = "none";
+    isPickerActive = true;
     isPickerFlipping = false;
   }
 
   async function closeCardPicker() {
-    if (!showCardPicker || isPickerFlipping) return;
+    if (isPickerFlipping || (!isPickerActive && !isPickerFlipping)) return;
     if (!pickerHadCard) {
       showCardPicker = false;
+      isPickerActive = false;
+      pickerAngleX = 0;
       return;
     }
 
     isPickerFlipping = true;
-    pickerTransition = "transform 170ms cubic-bezier(0.4, 0, 1, 1)";
-    pickerRotation = 90;
-    await wait(170);
+    pickerTransition = "transform 320ms cubic-bezier(0.2, 0.8, 0.2, 1)";
+    pickerAngleX = 0;
+    await wait(320);
 
+    pickerTransition = "none";
     showCardPicker = false;
-    pickerCardTransition = "none";
-    pickerCardRotation = -90;
-    await tick();
-    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-
-    pickerCardTransition = "transform 220ms cubic-bezier(0, 0, 0.2, 1)";
-    pickerCardRotation = 0;
-    await wait(220);
+    isPickerActive = false;
     isPickerFlipping = false;
     pickerHadCard = false;
   }
@@ -372,6 +369,60 @@
           <ListFilter size={16} />
         </button>
       </div>
+
+      {#if showCardPicker}
+        <div
+          class:card-picker-compact={compact}
+          class:pointer-events-none={!isPickerActive && !isPickerFlipping}
+          class="single-card-face single-card-face-picker card-picker-panel module-accent-subpanel z-20 flex flex-col rounded-xl p-3.5 shadow-lg sm:p-4"
+          role="dialog"
+          tabindex="-1"
+          aria-label={t("Karte auswählen")}
+          onpointerdown={stopCardDrag}
+          onclick={(event) => event.stopPropagation()}
+          onkeydown={(event) => event.stopPropagation()}
+        >
+          <div class="mb-3 text-center">
+            <p class="section-kicker">{t("Karte auswählen")}</p>
+            <button onclick={() => void closeCardPicker()} class="icon-button absolute right-3 top-3 !h-8 !w-8" aria-label={t("Schließen")}>
+              <X size={16} />
+            </button>
+          </div>
+          <div class="card-picker-fields space-y-3">
+            <label class="card-picker-field block space-y-1.5">
+              <span class="text-[10px] font-semibold uppercase tracking-wider text-secondary">{t("Stapel")}</span>
+              <div class="card-picker-select-wrap">
+                <select
+                  value={selectedDeckId}
+                  onchange={(event) => selectDeck(event.currentTarget.value)}
+                  aria-label={t("Stapel auswählen")}
+                  class="module-accent-input block w-full min-w-0 appearance-none truncate rounded-md py-2 pl-3 pr-10 text-sm outline-none"
+                >
+                  {#each decks as deck}<option value={deck.id}>{deck.name}</option>{/each}
+                </select>
+                <ChevronDown class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-secondary" size={15} />
+              </div>
+            </label>
+            <label class="card-picker-field block space-y-1.5">
+              <span class="text-[10px] font-semibold uppercase tracking-wider text-secondary">{t("Karte")}</span>
+              <div class="card-picker-select-wrap">
+                <select
+                  value={selectedCardId}
+                  onchange={(event) => selectCard(event.currentTarget.value)}
+                  aria-label={t("Karte auswählen")}
+                  class="module-accent-input block w-full min-w-0 appearance-none truncate rounded-md py-2 pl-3 pr-10 text-sm outline-none"
+                >
+                  <option value="">{t("Karte auswählen")}</option>
+                  {#each deckCards as card, index}
+                    <option value={card.id}>{index + 1}. {card.front.replace(/[#*_`]/g, "").slice(0, 48)}</option>
+                  {/each}
+                </select>
+                <ChevronDown class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-secondary" size={15} />
+              </div>
+            </label>
+          </div>
+        </div>
+      {/if}
     </div>
   {:else}
     <div class="module-accent-subpanel flex h-full w-full flex-col items-center justify-center rounded-lg border-dashed px-4 text-center">
@@ -387,55 +438,6 @@
       <span class="text-[10px] font-semibold uppercase tracking-wider text-secondary/80">{t("Warum?")}</span>
       <div data-user-content class="prose prose-xs mt-1 max-w-full text-primary/80 dark:text-primary-dark/80 {cardFontClass}">
         {@html renderedReasoning}
-      </div>
-    </div>
-  {/if}
-
-  {#if showCardPicker}
-      <div
-        class:card-picker-compact={compact}
-        class="card-picker-panel module-accent-subpanel absolute inset-4 z-20 flex flex-col rounded-xl p-3.5 shadow-lg [backface-visibility:hidden] [will-change:transform] sm:inset-5 sm:p-4"
-        style:transform={`rotateX(${pickerRotation}deg)`}
-        style:transition={pickerTransition}
-      >
-      <div class="mb-3 text-center">
-        <p class="section-kicker">{t("Karte auswählen")}</p>
-        <button onclick={() => void closeCardPicker()} class="icon-button absolute right-3 top-3 !h-8 !w-8" aria-label={t("Schließen")}>
-          <X size={16} />
-        </button>
-      </div>
-      <div class="card-picker-fields space-y-3">
-        <label class="card-picker-field block space-y-1.5">
-          <span class="text-[10px] font-semibold uppercase tracking-wider text-secondary">{t("Stapel")}</span>
-          <div class="card-picker-select-wrap">
-            <select
-              value={selectedDeckId}
-              onchange={(event) => selectDeck(event.currentTarget.value)}
-              aria-label={t("Stapel auswählen")}
-              class="module-accent-input block w-full min-w-0 appearance-none truncate rounded-md py-2 pl-3 pr-10 text-sm outline-none"
-            >
-              {#each decks as deck}<option value={deck.id}>{deck.name}</option>{/each}
-            </select>
-            <ChevronDown class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-secondary" size={15} />
-          </div>
-        </label>
-        <label class="card-picker-field block space-y-1.5">
-          <span class="text-[10px] font-semibold uppercase tracking-wider text-secondary">{t("Karte")}</span>
-          <div class="card-picker-select-wrap">
-            <select
-              value={selectedCardId}
-              onchange={(event) => selectCard(event.currentTarget.value)}
-              aria-label={t("Karte auswählen")}
-              class="module-accent-input block w-full min-w-0 appearance-none truncate rounded-md py-2 pl-3 pr-10 text-sm outline-none"
-            >
-              <option value="">{t("Karte auswählen")}</option>
-              {#each deckCards as card, index}
-                <option value={card.id}>{index + 1}. {card.front.replace(/[#*_`]/g, "").slice(0, 48)}</option>
-              {/each}
-            </select>
-            <ChevronDown class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-secondary" size={15} />
-          </div>
-        </label>
       </div>
     </div>
   {/if}
@@ -481,6 +483,10 @@
 
   .single-card-face-back {
     transform: rotateY(180deg);
+  }
+
+  .single-card-face-picker {
+    transform: rotateX(180deg);
   }
 
   .single-card-main-scroll {

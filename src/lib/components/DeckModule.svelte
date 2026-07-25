@@ -60,13 +60,13 @@
   });
 </script>
 
-<div class="relative w-full" style="aspect-ratio: 5 / 3" role="group" aria-label={t("Stapel")}>
+<div class="relative h-full w-full min-h-[14.5rem]" style="aspect-ratio: 5 / 3" role="group" aria-label={t("Stapel")}>
   {#each Array(stackLayers - 1) as _, index}
     {@const card = previewCards[index]}
-    {@const collapsedOffset = (index + 1) * stackOffset}
+    {@const offsetPx = Math.min(22, (index + 1) * 3.2)}
     <div
-      class="glass-card pointer-events-none absolute left-0 top-0 h-[calc(100%-1.5rem)] w-[calc(100%-1.5rem)] overflow-hidden rounded-card border border-current/10 p-4 shadow-sm"
-      style={`z-index: ${stackLayers - index}; transform: translate(${collapsedOffset}px, ${collapsedOffset}px);`}
+      class="glass-card pointer-events-none absolute left-0 top-0 h-[calc(100%-1.6rem)] w-[calc(100%-1.6rem)] overflow-hidden rounded-card border border-current/10 p-4 shadow-sm"
+      style={`z-index: ${stackLayers - index}; transform: translate(${offsetPx}px, ${offsetPx}px);`}
       aria-hidden="true"
     >
       {#if card}
@@ -93,7 +93,7 @@
   {/each}
 
   <div
-    class="surface-panel relative z-10 flex h-[calc(100%-1.5rem)] w-[calc(100%-1.5rem)] cursor-pointer flex-col overflow-hidden p-4 transition-colors hover:border-accent-correct/45"
+    class="surface-panel relative z-10 flex h-[calc(100%-1.6rem)] w-[calc(100%-1.6rem)] cursor-pointer flex-col overflow-hidden p-4 transition-colors hover:border-accent-correct/45"
     role="button"
     tabindex="0"
     aria-label={`${t("Stapel öffnen")}: ${deck.name}`}

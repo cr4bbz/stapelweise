@@ -409,9 +409,7 @@
 
   .dashboard-grid {
     display: grid;
-    /* The 12-column desktop grid has 8.083rem-wide cells at the current
-       window size. The grid may use fewer columns, but never smaller cells. */
-    grid-template-columns: repeat(auto-fit, minmax(8.083333rem, 1fr));
+    grid-template-columns: repeat(12, 1fr);
     grid-auto-flow: row;
     align-items: start;
     gap: 1rem;
@@ -428,7 +426,6 @@
     transition: opacity 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
   }
 
-
   .dashboard-module[data-dashboard-width="2"] { --dashboard-module-span: 2; }
   .dashboard-module[data-dashboard-width="3"] { --dashboard-module-span: 3; }
   .dashboard-module[data-dashboard-width="4"] { --dashboard-module-span: 4; }
@@ -437,17 +434,37 @@
   .dashboard-module[data-dashboard-width="8"] { --dashboard-module-span: 8; }
   .dashboard-module[data-dashboard-width="12"] { --dashboard-module-span: 12; }
 
-  .dashboard-timer-module:not(.dashboard-module-arranging) {
+  /* Nur bei sehr schmalen mobilen Bildschirmen füllen Module die volle Breite aus */
+  @container (max-width: 32rem) {
+    .dashboard-module[data-dashboard-width] {
+      --dashboard-module-span: 12;
+    }
+  }
+
+  /* Stapel, Einzelkarten, Tag, Archiv, Stoppuhr/Lerntimer nutzen Ratio 5:3 */
+  .dashboard-module:not(.dashboard-icon-module):not([data-dashboard-module="brand"]):not([data-dashboard-module^="spacer:"]) {
     aspect-ratio: 5 / 3;
+    min-height: 12.5rem;
   }
 
   .dashboard-timer-module:not(.dashboard-module-arranging) .dashboard-module-content,
-  .dashboard-timer-module:not(.dashboard-module-arranging) .surface-panel {
+  .dashboard-timer-module:not(.dashboard-module-arranging) .surface-panel,
+  .dashboard-module[data-dashboard-module^="singleCard:"]:not(.dashboard-module-arranging) .dashboard-module-content,
+  .dashboard-module[data-dashboard-module^="singleCard:"]:not(.dashboard-module-arranging) .surface-panel,
+  .dashboard-module[data-dashboard-module="archive"]:not(.dashboard-module-arranging) .dashboard-module-content,
+  .dashboard-module[data-dashboard-module="archive"]:not(.dashboard-module-arranging) .surface-panel,
+  .dashboard-module[data-dashboard-module="tags"]:not(.dashboard-module-arranging) .dashboard-module-content,
+  .dashboard-module[data-dashboard-module="tags"]:not(.dashboard-module-arranging) .dashboard-module-content > *,
+  .dashboard-module[data-dashboard-module="tags"]:not(.dashboard-module-arranging) .surface-panel {
     height: 100%;
   }
 
-  .dashboard-timer-module:not(.dashboard-module-arranging) .surface-panel {
+  .dashboard-timer-module:not(.dashboard-module-arranging) .surface-panel,
+  .dashboard-module[data-dashboard-module^="singleCard:"]:not(.dashboard-module-arranging) .surface-panel,
+  .dashboard-module[data-dashboard-module="archive"]:not(.dashboard-module-arranging) .surface-panel,
+  .dashboard-module[data-dashboard-module="tags"]:not(.dashboard-module-arranging) .surface-panel {
     min-height: 0 !important;
+    max-height: none !important;
   }
 
   .timer-time-display {
@@ -455,53 +472,15 @@
     animation: none !important;
   }
 
-  .dashboard-module[data-dashboard-module^="singleCard:"]:not(.dashboard-module-arranging) {
-    aspect-ratio: 5 / 3;
-  }
-
-  .dashboard-module[data-dashboard-module^="singleCard:"]:not(.dashboard-module-arranging) .dashboard-module-content,
-  .dashboard-module[data-dashboard-module^="singleCard:"]:not(.dashboard-module-arranging) .surface-panel {
-    height: 100%;
-  }
-
-  .dashboard-module[data-dashboard-module^="singleCard:"]:not(.dashboard-module-arranging) .surface-panel {
-    min-height: 0 !important;
-  }
-
-  .dashboard-module[data-dashboard-module="archive"]:not(.dashboard-module-arranging) {
-    aspect-ratio: 5 / 3;
-  }
-
-  .dashboard-module[data-dashboard-module="archive"]:not(.dashboard-module-arranging) .dashboard-module-content,
-  .dashboard-module[data-dashboard-module="archive"]:not(.dashboard-module-arranging) .surface-panel {
-    height: 100%;
-  }
-
-  .dashboard-module[data-dashboard-module="archive"]:not(.dashboard-module-arranging) .surface-panel {
-    min-height: 0 !important;
-    max-height: none !important;
-  }
-
-  .dashboard-module[data-dashboard-module="tags"]:not(.dashboard-module-arranging) {
-    aspect-ratio: 5 / 3;
-  }
-
-  .dashboard-module[data-dashboard-module="tags"]:not(.dashboard-module-arranging) .dashboard-module-content,
-  .dashboard-module[data-dashboard-module="tags"]:not(.dashboard-module-arranging) .dashboard-module-content > *,
-  .dashboard-module[data-dashboard-module="tags"]:not(.dashboard-module-arranging) .surface-panel {
-    height: 100%;
-  }
-
-  .dashboard-module[data-dashboard-module="tags"]:not(.dashboard-module-arranging) .surface-panel {
-    min-height: 0 !important;
-  }
-
+  /* Brand-Banner nutzt gleiche Höhe wie Einstellungen-Kachel */
   .dashboard-module[data-dashboard-module="brand"]:not(.dashboard-module-arranging) {
-    height: calc(7.5cqw - 0.225rem);
+    height: 6.5rem;
+    min-height: 6.5rem;
   }
 
   .dashboard-module[data-dashboard-module="settings"]:not(.dashboard-module-arranging) {
-    height: calc(15cqw - 0.45rem);
+    height: 6.5rem;
+    min-height: 6.5rem;
   }
 
   .dashboard-module[data-dashboard-module="brand"]:not(.dashboard-module-arranging) .dashboard-module-content,
@@ -516,10 +495,6 @@
     min-height: 0 !important;
   }
 
-  .dashboard-module[data-dashboard-module="settings"]:not(.dashboard-module-arranging) {
-    aspect-ratio: auto;
-  }
-
   .dashboard-module-content {
     min-width: 0;
     flex: 1 1 auto;
@@ -527,6 +502,7 @@
 
   .dashboard-module:not(.dashboard-icon-module) .dashboard-module-content > :is(.surface-panel, aside, section) {
     min-height: 12rem;
+    height: 100%;
   }
 
   .dashboard-module[data-dashboard-module="brand"] .surface-panel {
@@ -534,7 +510,6 @@
   }
 
   .dashboard-icon-module {
-    aspect-ratio: 1;
     align-self: start;
   }
 
