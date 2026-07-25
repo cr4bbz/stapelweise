@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
   import { fade, scale } from "svelte/transition";
+  import { flip } from "svelte/animate";
   import { ArrowDown, ArrowUp, ChevronDown, GripVertical, Maximize2, Plus, Settings as SettingsIcon, X } from "@lucide/svelte";
   import DeckModule from "$lib/components/DeckModule.svelte";
   import ArchiveModule from "$lib/components/ArchiveModule.svelte";
@@ -430,13 +431,8 @@
     if (!target || !dragTargetModule) return;
 
     const rect = target.getBoundingClientRect();
-    const sourceWidth = moduleWidth(draggedModule);
-    const targetWidth = moduleWidth(dragTargetModule);
-    const columns = window.matchMedia("(min-width: 1024px)").matches ? 12 : window.matchMedia("(min-width: 640px)").matches ? 6 : 2;
-    dragAxis = columns > 2 && sourceWidth + targetWidth <= columns ? "inline" : "block";
-    dragPlacement = dragAxis === "inline"
-      ? event.clientX < rect.left + rect.width / 2 ? "before" : "after"
-      : event.clientY < rect.top + rect.height / 2 ? "before" : "after";
+    dragAxis = "inline";
+    dragPlacement = event.clientX < rect.left + rect.width / 2 ? "before" : "after";
   }
 
   function finishModuleDrag(commit = true) {
@@ -998,6 +994,7 @@
               data-dashboard-tone={moduleTone(moduleId)}
               data-dashboard-width={moduleWidth(moduleId)}
               data-dashboard-drop-axis={dragTargetModule === moduleId ? dragAxis : undefined}
+              animate:flip={{ duration: 250 }}
               class="dashboard-module {moduleId === 'settings' ? 'dashboard-icon-module' : ''} {moduleId === 'timer' ? 'dashboard-timer-module' : ''} {arrangingModules ? 'dashboard-module-arranging' : ''} {draggedModule === moduleId ? 'dashboard-module-dragging' : ''} {dragTargetModule === moduleId ? `dashboard-module-drop-target dashboard-module-drop-${dragPlacement}` : ''}"
             >
               {#if arrangingModules}

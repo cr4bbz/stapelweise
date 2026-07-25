@@ -307,6 +307,11 @@
     container-type: inline-size;
   }
 
+  .app-container.dashboard-container {
+    width: 100%;
+    max-width: none;
+  }
+
   .dashboard-container {
     width: 100%;
     max-width: none;
@@ -408,38 +413,71 @@
   }
 
   .dashboard-grid {
-    display: grid;
-    grid-template-columns: repeat(12, 1fr);
-    grid-auto-flow: row;
-    align-items: start;
-    gap: 1rem;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-content: flex-start;
+    align-items: flex-start;
+    gap: 1.25rem;
     min-height: 24rem;
     container-type: inline-size;
   }
 
   .dashboard-module {
     display: flex;
-    grid-column: span var(--dashboard-module-span, 12);
+    flex: 0 0 auto;
+    width: var(--dashboard-module-width, 100%);
+    max-width: 100%;
     min-width: 0;
     min-height: 0;
     container-type: inline-size;
-    transition: opacity 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+    transition: opacity 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease, width 0.3s ease;
+
+    --fluid-text-xs: clamp(0.6rem, 2.5cqi, 0.8rem);
+    --fluid-text-sm: clamp(0.7rem, 3.5cqi, 0.95rem);
+    --fluid-text-base: clamp(0.78125rem, 4.2cqi, 1.15rem);
+    --fluid-text-lg: clamp(0.875rem, 5cqi, 1.35rem);
+    --fluid-text-xl: clamp(1rem, 6cqi, 1.65rem);
+    --fluid-text-2xl: clamp(1.15rem, 7cqi, 2.1rem);
   }
 
-  .dashboard-module[data-dashboard-width="2"] { --dashboard-module-span: 2; }
-  .dashboard-module[data-dashboard-width="3"] { --dashboard-module-span: 3; }
-  .dashboard-module[data-dashboard-width="4"] { --dashboard-module-span: 4; }
-  .dashboard-module[data-dashboard-width="5"] { --dashboard-module-span: 5; }
-  .dashboard-module[data-dashboard-width="6"] { --dashboard-module-span: 6; }
-  .dashboard-module[data-dashboard-width="8"] { --dashboard-module-span: 8; }
-  .dashboard-module[data-dashboard-width="12"] { --dashboard-module-span: 12; }
-
-  /* Nur bei sehr schmalen mobilen Bildschirmen füllen Module die volle Breite aus */
-  @container (max-width: 32rem) {
-    .dashboard-module[data-dashboard-width] {
-      --dashboard-module-span: 12;
-    }
+  .dashboard-module :is(.section-kicker, .section-kicker > *) {
+    font-size: var(--fluid-text-xs);
   }
+
+  .dashboard-module :is(h1, .text-2xl) {
+    font-size: var(--fluid-text-2xl);
+  }
+
+  .dashboard-module :is(h2, .text-xl, .section-heading) {
+    font-size: var(--fluid-text-xl);
+  }
+
+  .dashboard-module :is(h3, .text-lg) {
+    font-size: var(--fluid-text-lg);
+  }
+
+  .dashboard-module :is(.prose, [data-user-content]) {
+    font-size: var(--fluid-text-base);
+    line-height: 1.35;
+  }
+
+  .dashboard-module :is(.prose, [data-user-content]) :is(p, li, div, span) {
+    font-size: inherit;
+    line-height: inherit;
+  }
+
+  .dashboard-module :is(.primary-action, .secondary-action, select, button:not(.icon-button), input, .why-action) {
+    font-size: var(--fluid-text-sm);
+  }
+
+  .dashboard-module[data-dashboard-width="2"] { --dashboard-module-width: 14rem; }
+  .dashboard-module[data-dashboard-width="3"] { --dashboard-module-width: 21rem; }
+  .dashboard-module[data-dashboard-width="4"] { --dashboard-module-width: 28rem; }
+  .dashboard-module[data-dashboard-width="5"] { --dashboard-module-width: 35rem; }
+  .dashboard-module[data-dashboard-width="6"] { --dashboard-module-width: 42rem; }
+  .dashboard-module[data-dashboard-width="8"] { --dashboard-module-width: 56rem; }
+  .dashboard-module[data-dashboard-width="12"] { --dashboard-module-width: 100%; max-width: 84rem; }
 
   /* Stapel, Einzelkarten, Tag, Archiv, Stoppuhr/Lerntimer nutzen Ratio 5:3 */
   .dashboard-module:not(.dashboard-icon-module):not([data-dashboard-module="brand"]):not([data-dashboard-module^="spacer:"]) {

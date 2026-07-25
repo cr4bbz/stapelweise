@@ -78,10 +78,11 @@
   );
   let cardFaceTransform = $derived(
     (isPickerActive || isPickerFlipping)
-      ? `translateZ(0.01px) rotateX(${pickerAngleX}deg)`
-      : `translateZ(0.01px) rotateY(${cardAngle}deg) scale(${1 - Math.abs(Math.sin(cardAngle * Math.PI / 180)) * 0.1})`
+      ? `translateZ(0.01px) rotateY(${cardAngle}deg) rotateX(${pickerAngleX}deg)`
+      : `translateZ(0.01px) rotateY(${cardAngle}deg) rotateX(0deg) scale(${1 - Math.abs(Math.sin(cardAngle * Math.PI / 180)) * 0.1})`
   );
   let cardFaceTransition = $derived((isPickerActive || isPickerFlipping) ? pickerTransition : cardTransition);
+  let pickerFaceTransform = $derived(`rotateX(180deg) rotateY(${displayedBack ? 180 : 0}deg)`);
 
   function updateReasoningLayout() {
     if (!compact || !displayedBack || !renderedReasoning) {
@@ -146,6 +147,9 @@
     // Both parts of the back need to exist before the 3D turn starts.
     // Otherwise the explanation is inserted only after the answer is visible.
     displayedBack = target;
+    await tick();
+    await new Promise(resolve => requestAnimationFrame(resolve));
+    
     if (!target) {
       showReasoningDetail = false;
       backTextScale = 1;
@@ -228,9 +232,6 @@
       pickerAngleX = -180;
       return;
     }
-
-    displayedBack = false;
-    cardAngle = 0;
 
     showCardPicker = true;
     isPickerFlipping = true;
@@ -325,18 +326,17 @@
           {selectedCard.back_language ? ` · ${languageLabel(selectedCard.back_language)}` : ""}
         </span>
         <span class="absolute bottom-3 right-3 text-secondary transition-colors group-hover:text-accent-correct"><Repeat2 size={18} /></span>
-        <div bind:this={cardBodyElement} class="single-card-body flex h-full w-full min-h-0 flex-col items-center justify-center overflow-hidden pb-5 pt-5">
+        <div bind:this={cardBodyElement} class="single-card-body flex h-full w-full min-h-0 flex-col items-center justify-center overflow-hidden pb-5 pt-5" style="--back-scale: {compact ? backTextScale : 1};">
           <div
             bind:this={answerElement}
             data-user-content
             class:single-card-main-scroll={inlineReasoningVisible}
             class="single-card-main prose prose-sm max-h-full max-w-full overflow-hidden px-1 {cardFontClass}"
-            style:font-size={compact ? `${0.75 * backTextScale}rem` : undefined}
           >
             {@html renderMarkdown(selectedCard.back)}
           </div>
           {#if inlineReasoningVisible}
-            <div bind:this={reasoningElement} class="single-card-reasoning mt-3 w-full overflow-hidden border-t border-current/10 pt-3 text-center" style:font-size={compact ? `${0.6875 * backTextScale}rem` : undefined}>
+            <div bind:this={reasoningElement} class="single-card-reasoning mt-3 w-full overflow-hidden border-t border-current/10 pt-3 text-center">
               <span class="text-[10px] font-semibold uppercase tracking-wider text-secondary/80">{t("Warum?")}</span>
               <div data-user-content class="prose prose-xs mt-1 max-w-full text-primary/80 dark:text-primary-dark/80 {cardFontClass}">
                 {@html renderedReasoning}
@@ -374,7 +374,8 @@
         <div
           class:card-picker-compact={compact}
           class:pointer-events-none={!isPickerActive && !isPickerFlipping}
-          class="single-card-face single-card-face-picker card-picker-panel module-accent-subpanel z-20 flex flex-col rounded-xl p-3.5 shadow-lg sm:p-4"
+          class="single-card-face single-card-face-picker card-picker-panel module-accent-subpanel z-20 flex flex-col justify-center rounded-xl p-3.5 shadow-lg sm:p-4"
+          style:transform={pickerFaceTransform}
           role="dialog"
           tabindex="-1"
           aria-label={t("Karte auswählen")}
@@ -587,50 +588,43 @@
     white-space: nowrap;
   }
 
-  @container (max-width: 18rem) {
-    .single-card-body {
-      padding-top: 1.4rem;
-      padding-bottom: 1.4rem;
-    }
+  .single-card-main {
+    font-size: calc(clamp(0.8rem, 3.5cqi + 0.2rem, 1.25rem) * var(--back-scale, 1));
+    line-height: 1.35;
+  }
 
-    .single-card-main {
-      font-size: 0.75rem;
-      line-height: 1.28;
-    }
+  .single-card-main :global(p),
+  .single-card-main :global(li) {
+    font-size: inherit;
+    line-height: inherit;
+  }
 
-    .single-card-main :global(p),
-    .single-card-main :global(li) {
-      font-size: inherit;
-      line-height: inherit;
-    }
+  .single-card-main :global(h1),
+  .single-card-main :global(h2),
+  .single-card-main :global(h3) {
+    font-size: clamp(0.95rem, 4cqi + 0.2rem, 1.5rem);
+    line-height: 1.15;
+  }
 
-    .single-card-main :global(h1),
-    .single-card-main :global(h2),
-    .single-card-main :global(h3) {
-      font-size: 0.9rem;
-      line-height: 1.15;
-    }
+  .single-card-reasoning {
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+    font-size: calc(clamp(0.72rem, 2.8cqi + 0.15rem, 1.05rem) * var(--back-scale, 1));
+    line-height: 1.25;
+  }
 
-    .single-card-reasoning {
-      margin-top: 0.5rem;
-      padding-top: 0.5rem;
-      font-size: 0.6875rem;
-      line-height: 1.25;
-    }
+  .single-card-reasoning :global(p),
+  .single-card-reasoning :global(li),
+  .single-card-reasoning-measurement :global(p),
+  .single-card-reasoning-measurement :global(li) {
+    font-size: inherit;
+    line-height: inherit;
+  }
 
-    .single-card-reasoning :global(p),
-    .single-card-reasoning :global(li),
-    .single-card-reasoning-measurement :global(p),
-    .single-card-reasoning-measurement :global(li) {
-      font-size: inherit;
-      line-height: inherit;
-    }
-
-    .single-card-reasoning-measurement {
-      margin-top: 0.5rem;
-      padding-top: 0.5rem;
-      font-size: 0.6875rem;
-      line-height: 1.25;
-    }
+  .single-card-reasoning-measurement {
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+    font-size: clamp(0.72rem, 2.8cqi + 0.15rem, 1.05rem);
+    line-height: 1.25;
   }
 </style>
