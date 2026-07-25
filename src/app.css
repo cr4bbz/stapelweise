@@ -653,6 +653,16 @@
     color: white;
   }
 
+  .dashboard-module {
+    container-type: inline-size;
+    --fluid-text-xs: clamp(0.6rem, 2.2cqw + 0.15rem, 0.8rem);
+    --fluid-text-sm: clamp(0.7rem, 2.8cqw + 0.2rem, 0.95rem);
+    --fluid-text-base: clamp(0.78125rem, 3.4cqw + 0.22rem, 1.15rem);
+    --fluid-text-lg: clamp(0.875rem, 4cqw + 0.25rem, 1.35rem);
+    --fluid-text-xl: clamp(1rem, 4.8cqw + 0.3rem, 1.65rem);
+    --fluid-text-2xl: clamp(1.15rem, 5.5cqw + 0.35rem, 2.1rem);
+  }
+
   .dashboard-module .surface-panel,
   .dashboard-module .section-header,
   .dashboard-module .section-header > *,
@@ -663,6 +673,36 @@
 
   .dashboard-module :is(h1, h2, h3, p, span, label, button, option) {
     overflow-wrap: anywhere;
+  }
+
+  .dashboard-module :is(.section-kicker, .section-kicker > *) {
+    font-size: var(--fluid-text-xs);
+  }
+
+  .dashboard-module :is(h1, .text-2xl) {
+    font-size: var(--fluid-text-2xl);
+  }
+
+  .dashboard-module :is(h2, .text-xl, .section-heading) {
+    font-size: var(--fluid-text-xl);
+  }
+
+  .dashboard-module :is(h3, .text-lg) {
+    font-size: var(--fluid-text-lg);
+  }
+
+  .dashboard-module :is(.prose, [data-user-content]) {
+    font-size: var(--fluid-text-base);
+    line-height: 1.35;
+  }
+
+  .dashboard-module :is(.prose, [data-user-content]) :is(p, li, div, span) {
+    font-size: inherit;
+    line-height: inherit;
+  }
+
+  .dashboard-module :is(.primary-action, .secondary-action, select, button:not(.icon-button), input, .why-action) {
+    font-size: var(--fluid-text-sm);
   }
 
   .dashboard-module :is(.primary-action, .secondary-action) {
