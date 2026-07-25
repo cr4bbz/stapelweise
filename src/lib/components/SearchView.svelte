@@ -109,9 +109,15 @@
       <EmptyState
         title="Keine Ergebnisse"
         description="Keine Karten gefunden, die deiner Suche entsprechen."
-        icon={() => "🔍"}
       />
     </div>
+    {:else if !searched}
+      <div in:fade={{ duration: 150 }} out:fade={{ duration: 100 }} class="col-start-1 row-start-1 flex items-center justify-center px-6">
+        <EmptyState
+          title={t("Karten durchsuchen")}
+          description={t("Suche nach Begriffen, Antworten oder Tags in deinen Karteikarten.")}
+        />
+      </div>
     {:else if results.length > 0}
       <div in:fade={{ duration: 150 }} out:fade={{ duration: 100 }} class="col-start-1 row-start-1 flex-1 overflow-y-auto px-6 pb-6">
       <p class="text-secondary text-sm mb-3">{results.length} {t("Treffer")}</p>

@@ -24,21 +24,21 @@
   });
 
   function isCloze(card: Card) {
-    return card.card_type === "cloze" || card.front.includes("==") || card.front.includes("{{c1::");
+    return card.card_type === "cloze" || card.front.includes("==") || /\{\{c\d+::/.test(card.front);
   }
 
   function frontText(card: Card) {
     if (!isCloze(card)) return card.front;
     return card.front
       .replace(/==(.*?)==/g, "________")
-      .replace(/\{\{c1::(.*?)\}\}/g, "________");
+      .replace(/\{\{c\d+::[\s\S]*?\}\}/g, "________");
   }
 
   function backText(card: Card) {
     if (!isCloze(card)) return card.back;
     const resolvedFront = card.front
       .replace(/==(.*?)==/g, "$1")
-      .replace(/\{\{c1::(.*?)\}\}/g, "$1");
+      .replace(/\{\{c\d+::([\s\S]*?)\}\}/g, (_, value: string) => value.split("::", 1)[0]);
     return card.back.trim() ? `${resolvedFront}\n\n${card.back}` : resolvedFront;
   }
 

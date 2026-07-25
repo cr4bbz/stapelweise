@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Archive, BookOpen, Play, RotateCcw } from "@lucide/svelte";
+  import { Archive, Play, RotateCcw } from "@lucide/svelte";
   import * as api from "$lib/api";
   import { languageLabel } from "$lib/languages";
   import { renderMarkdown } from "$lib/markdown";
@@ -50,6 +50,7 @@
 
   let cardCount = $derived(stats?.total_cards ?? 0);
   let dueCount = $derived(stats?.due_cards ?? 0);
+  let hasDueCards = $derived(dueCount > 0);
   let previewCards = $derived(cards.slice(0, 3));
   const stackOffset = 4;
   let stackLayers = $derived.by(() => {
@@ -91,34 +92,51 @@
     </div>
   {/each}
 
-  <article class="surface-panel relative z-10 flex h-[calc(100%-1.5rem)] w-[calc(100%-1.5rem)] flex-col overflow-hidden p-4 transition-colors hover:border-accent-correct/45">
+  <div
+    class="surface-panel relative z-10 flex h-[calc(100%-1.5rem)] w-[calc(100%-1.5rem)] cursor-pointer flex-col overflow-hidden p-4 transition-colors hover:border-accent-correct/45"
+    role="button"
+    tabindex="0"
+    aria-label={`${t("Stapel öffnen")}: ${deck.name}`}
+    onclick={() => onSelect(deck)}
+    onkeydown={(event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        onSelect(deck);
+      }
+    }}
+  >
     <header class="flex items-start justify-between gap-3">
-      <button class="min-w-0 text-left" onclick={() => onSelect(deck)} title={t("Stapel öffnen")}>
+      <div class="min-w-0 text-left">
         <p class="section-kicker mb-2">{t("Stapel")}</p>
         <h2 data-user-content class="{cardFontClass} line-clamp-2 text-xl leading-tight text-primary dark:text-primary-dark">{deck.name}</h2>
-      </button>
+      </div>
       <button
         class="icon-button shrink-0 !h-9 !w-9"
-        onclick={() => onArchive(deck)}
+        onclick={(event) => {
+          event.stopPropagation();
+          onArchive(deck);
+        }}
         title={t("Stapel archivieren")}
         aria-label={t("Stapel archivieren")}
       ><Archive size={17} /></button>
     </header>
 
     <footer class="mt-auto grid grid-cols-2 gap-2 border-t border-current/10 pt-4">
-      <button class="secondary-action flex items-center justify-center gap-2 px-3 py-2 text-xs" onclick={() => onSelect(deck)}>
-        <BookOpen size={15} /> {t("Öffnen")}
-      </button>
       <button
-        class="primary-action flex items-center justify-center gap-2 px-3 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-45"
-        onclick={() => onStudy(deck)}
-        disabled={dueCount === 0}
-      ><Play size={15} /> {t("Lernen")}</button>
-      <button
-        class="secondary-action col-span-2 flex items-center justify-center gap-2 px-3 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-45"
-        onclick={() => onPractice(deck)}
+        class="primary-action col-span-2 flex items-center justify-center gap-2 rounded-md px-3 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-45"
+        onclick={(event) => {
+          event.stopPropagation();
+          if (hasDueCards) onStudy(deck);
+          else onPractice(deck);
+        }}
         disabled={cardCount === 0}
-      ><RotateCcw size={15} /> {t("Freie Übung")}</button>
+      >
+        {#if hasDueCards}
+          <Play size={15} /> {t("Lernen")}
+        {:else}
+          <RotateCcw size={15} /> {t("Freie Übung")}
+        {/if}
+      </button>
     </footer>
-  </article>
+  </div>
 </div>

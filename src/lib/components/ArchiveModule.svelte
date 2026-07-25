@@ -1,7 +1,8 @@
 <script lang="ts">
-  import { ArchiveRestore, Eye, Pencil } from "@lucide/svelte";
+  import { ArchiveRestore, ChevronDown, ChevronUp, Eye, Pencil, Search } from "@lucide/svelte";
   import * as api from "$lib/api";
   import { t } from "$lib/i18n";
+  import { settingsStore } from "$lib/stores/settings.svelte";
   import type { Deck, Exam } from "$lib/types";
 
   let {
@@ -27,6 +28,17 @@
   let archivedDecks = $state<Deck[]>([]);
   let archivedExams = $state<Exam[]>([]);
   let loadedToken = $state(-1);
+  let expanded = $state(false);
+  let archiveQuery = $state("");
+  let cardFontClass = $derived(settingsStore.fontFamilyClass(settingsStore.current.card_font_family));
+  let managedItemCount = $derived(archivedDecks.length + hiddenDecks.length + archivedExams.length + hiddenExams.length);
+  let canExpand = $derived(managedItemCount > 4);
+  let normalizedArchiveQuery = $derived(archiveQuery.trim().toLocaleLowerCase());
+  let filteredArchivedDecks = $derived(archivedDecks.filter((deck: Deck) => deck.name.toLocaleLowerCase().includes(normalizedArchiveQuery)));
+  let filteredArchivedExams = $derived(archivedExams.filter((exam: Exam) => exam.name.toLocaleLowerCase().includes(normalizedArchiveQuery)));
+  let filteredHiddenDecks = $derived(hiddenDecks.filter((deck: Deck) => deck.name.toLocaleLowerCase().includes(normalizedArchiveQuery)));
+  let filteredHiddenExams = $derived(hiddenExams.filter((exam: Exam) => exam.name.toLocaleLowerCase().includes(normalizedArchiveQuery)));
+  let hasSearchResults = $derived(filteredArchivedDecks.length + filteredArchivedExams.length + filteredHiddenDecks.length + filteredHiddenExams.length > 0);
 
   function isPastExam(exam: Exam) {
     const today = new Date();
@@ -53,31 +65,48 @@
   <div class="mb-4 flex items-center justify-between gap-3">
     <div>
       <p class="section-kicker">{t("Archiv")}</p>
-      <p class="mt-1 text-sm text-secondary">{archivedDecks.length + hiddenDecks.length + archivedExams.length + hiddenExams.length} {t("verwaltete Elemente")}</p>
     </div>
   </div>
 
-  <div class="min-h-0 flex-1 overflow-y-auto pr-1">
-    {#if archivedDecks.length > 0}
-      <p class="mb-2 text-xs font-semibold uppercase text-secondary">{t("Archiviert")}</p>
-      <div class="space-y-2">
-        {#each archivedDecks as deck (deck.id)}
-          <div class="module-accent-subpanel flex items-center justify-between gap-3 rounded-lg px-3 py-2.5">
-            <p data-user-content class="min-w-0 truncate text-sm font-semibold text-primary dark:text-primary-dark">{deck.name}</p>
-            <button
-              class="icon-button shrink-0 !h-8 !w-8"
-              onclick={() => onRestore(deck)}
-              title={t("Stapel wiederherstellen")}
-              aria-label={t("Stapel wiederherstellen")}
-            ><ArchiveRestore size={16} /></button>
+  {#if managedItemCount > 0}
+    <label class="relative mb-3 block">
+      <Search class="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-secondary" size={14} aria-hidden="true" />
+      <input
+        bind:value={archiveQuery}
+        type="search"
+        class="module-accent-input w-full rounded-md py-2 pl-8 pr-8 text-xs outline-none"
+        placeholder={t("Archiv durchsuchen")}
+        aria-label={t("Archiv durchsuchen")}
+      />
+    </label>
+  {/if}
+
+  <div class="archive-list min-h-0 pr-1" class:archive-list-expanded={expanded}>
+    {#if filteredArchivedDecks.length > 0}
+      <div class="grid grid-cols-3 gap-2">
+        {#each filteredArchivedDecks as deck (deck.id)}
+          <div
+            class="module-accent-subpanel flex aspect-[5/3] min-w-0 cursor-pointer items-start overflow-hidden rounded-lg p-2.5 transition-colors hover:border-accent-correct/45"
+            role="button"
+            tabindex="0"
+            aria-label={`${t("Stapel wiederherstellen")}: ${deck.name}`}
+            onclick={() => onRestore(deck)}
+            onkeydown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                onRestore(deck);
+              }
+            }}
+          >
+            <h2 data-user-content class="{cardFontClass} line-clamp-3 text-[11px] font-normal leading-tight text-primary dark:text-primary-dark">{deck.name}</h2>
           </div>
         {/each}
       </div>
     {/if}
 
-  {#if archivedExams.length > 0}
-    <div class="space-y-2 {archivedDecks.length > 0 ? 'mt-2' : ''}">
-      {#each archivedExams as exam (exam.id)}
+  {#if filteredArchivedExams.length > 0}
+    <div class="space-y-2 {filteredArchivedDecks.length > 0 ? 'mt-2' : ''}">
+      {#each filteredArchivedExams as exam (exam.id)}
         <div class="module-accent-subpanel flex items-center justify-between gap-3 rounded-lg px-3 py-2.5">
           <div class="min-w-0">
             <p data-user-content class="truncate text-sm font-semibold text-primary dark:text-primary-dark">{exam.name}</p>
@@ -105,10 +134,11 @@
     </div>
   {/if}
 
-  {#if hiddenDecks.length > 0}
-    <p class="mb-2 {archivedDecks.length > 0 || archivedExams.length > 0 ? 'mt-5' : ''} text-xs font-semibold uppercase text-secondary">{t("Ausgeblendete Stapel")}</p>
+  {#if filteredHiddenDecks.length > 0}
+    <p class="mb-2 {filteredArchivedDecks.length > 0 || filteredArchivedExams.length > 0 ? 'mt-5' : ''} text-xs font-semibold uppercase text-secondary">{t("Ausgeblendete Stapel")}</p>
+    <p class="mb-3 text-xs text-secondary">{t("Ausgeblendete Elemente sind nur vom Dashboard entfernt.")}</p>
     <div class="space-y-2">
-      {#each hiddenDecks as deck (deck.id)}
+      {#each filteredHiddenDecks as deck (deck.id)}
         <div class="module-accent-subpanel flex items-center justify-between gap-3 rounded-lg px-3 py-2.5">
           <p data-user-content class="min-w-0 truncate text-sm font-semibold text-primary dark:text-primary-dark">{deck.name}</p>
           <button
@@ -122,10 +152,10 @@
     </div>
   {/if}
 
-  {#if hiddenExams.length > 0}
-    <p class="mb-2 {hiddenDecks.length > 0 || archivedDecks.length > 0 || archivedExams.length > 0 ? 'mt-5' : ''} text-xs font-semibold uppercase text-secondary">{t("Ausgeblendete Pr\u00fcfungen")}</p>
+  {#if filteredHiddenExams.length > 0}
+    <p class="mb-2 {filteredHiddenDecks.length > 0 || filteredArchivedDecks.length > 0 || filteredArchivedExams.length > 0 ? 'mt-5' : ''} text-xs font-semibold uppercase text-secondary">{t("Ausgeblendete Pr\u00fcfungen")}</p>
     <div class="space-y-2">
-      {#each hiddenExams as exam (exam.id)}
+      {#each filteredHiddenExams as exam (exam.id)}
         <div class="module-accent-subpanel flex items-center justify-between gap-3 rounded-lg px-3 py-2.5">
           <div class="min-w-0">
             <p data-user-content class="truncate text-sm font-semibold text-primary dark:text-primary-dark">{exam.name}</p>
@@ -142,8 +172,39 @@
     </div>
   {/if}
 
-    {#if archivedDecks.length === 0 && hiddenDecks.length === 0 && archivedExams.length === 0 && hiddenExams.length === 0}
-      <p class="py-4 text-sm text-secondary">{t("Keine archivierten oder ausgeblendeten Elemente.")}</p>
+    {#if !hasSearchResults}
+      <p class="py-4 text-sm text-secondary">{archiveQuery.trim() ? t("Keine passenden Elemente.") : t("Keine archivierten oder ausgeblendeten Elemente.")}</p>
     {/if}
   </div>
+  {#if canExpand}
+    <footer class="module-list-footer mt-auto min-h-11 border-t border-current/10 pt-3">
+      <button
+        type="button"
+        class="secondary-action flex h-8 w-full shrink-0 items-center justify-center gap-1.5 !rounded-md px-3 py-0 text-xs"
+        onclick={() => (expanded = !expanded)}
+        aria-expanded={expanded}
+      >
+        {#if expanded}
+          <ChevronUp size={14} aria-hidden="true" />
+          {t("Archiv einklappen")}
+        {:else}
+          <ChevronDown size={14} aria-hidden="true" />
+          {t("Archiv ausklappen")} ({managedItemCount})
+        {/if}
+      </button>
+    </footer>
+  {/if}
 </aside>
+
+<style>
+  .archive-list {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+    scrollbar-gutter: stable;
+  }
+
+  .archive-list-expanded {
+    overflow-y: auto;
+  }
+</style>

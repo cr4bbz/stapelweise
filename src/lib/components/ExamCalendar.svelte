@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { fade, scale } from "svelte/transition";
   import * as api from "$lib/api";
   import { deckStore } from "$lib/stores/decks.svelte";
   import { t } from "$lib/i18n";
@@ -61,8 +62,8 @@
 </script>
 
 {#if open}
-  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm" role="presentation" onclick={onClose} onkeydown={(event) => event.key === "Escape" && onClose()} tabindex="-1">
-    <div class="surface-panel max-h-full w-full max-w-2xl overflow-y-auto p-5 sm:p-6" role="dialog" aria-modal="true" aria-label={exam ? t("Pr\u00fcfung bearbeiten") : t("Pr\u00fcfung planen")} tabindex="-1" onclick={(event) => event.stopPropagation()} onkeydown={(event) => event.stopPropagation()}>
+  <div in:fade={{ duration: 140 }} out:fade={{ duration: 110 }} class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm" role="presentation" onclick={onClose} onkeydown={(event) => event.key === "Escape" && onClose()} tabindex="-1">
+    <div in:scale={{ duration: 180, start: 0.97, opacity: 0 }} out:scale={{ duration: 120, start: 0.97, opacity: 0 }} class="surface-panel max-h-full w-full max-w-2xl overflow-y-auto p-5 sm:p-6" role="dialog" aria-modal="true" aria-label={exam ? t("Pr\u00fcfung bearbeiten") : t("Pr\u00fcfung planen")} tabindex="-1" onclick={(event) => event.stopPropagation()} onkeydown={(event) => event.stopPropagation()}>
       <div class="mb-5 flex items-center justify-between gap-3">
         <div>
           <p class="section-kicker">{t("Pr\u00fcfung")}</p>

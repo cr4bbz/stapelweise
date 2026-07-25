@@ -331,7 +331,6 @@
         description="Erstelle deinen ersten Stapel, probiere Beispieldaten aus oder importiere vorhandene Karten."
         actionLabel="Ersten Stapel anlegen"
         onAction={() => (showNewDeck = true)}
-        icon={() => "🗂️"}
       />
       <div class="-mt-8 flex flex-wrap justify-center gap-2">
         <button class="secondary-action px-4 py-2 text-sm" onclick={handleSeedSamples}>Beispieldaten laden</button>

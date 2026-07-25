@@ -1,12 +1,26 @@
 import * as api from "$lib/api";
 import { isColorTheme } from "$lib/themes";
-import type { AppSettings } from "$lib/types";
+import type { AppSettings, ModuleColorSlot, ModuleColorTarget } from "$lib/types";
+
+const defaultModuleColorAssignments: Record<ModuleColorTarget, ModuleColorSlot> = {
+  brand: "primary",
+  deck: "primary",
+  single_card: "primary",
+  timer: "secondary",
+  tags: "primary",
+  settings: "secondary",
+  archive: "secondary",
+  exam: "secondary",
+};
 
 const defaults: AppSettings = {
   ui_language: "de",
-  theme: "auto",
+  theme: "light",
   color_theme: "academy",
-  module_surface: "solid",
+  custom_primary_color: "#2563eb",
+  custom_secondary_color: "#059669",
+  module_color_assignments: JSON.stringify(defaultModuleColorAssignments),
+  module_surface: "glass",
   show_deck_card_previews: true,
   pixel_font: "press-start",
   card_font_family: "serif",
@@ -16,6 +30,9 @@ const defaults: AppSettings = {
   control_transition_animation: true,
   rating_buttons_animation: true,
   session_limit: 50,
+  timer_slider_scale: "logarithmic",
+  timer_min_minutes: 5,
+  timer_max_minutes: 240,
   sm2_initial_ef: 2.5,
   sm2_pass_threshold: 3,
   obsidian_vault_path: "",
@@ -23,13 +40,12 @@ const defaults: AppSettings = {
 };
 
 const colorThemeStorageKey = "stapelweise.color-theme";
-const moduleSurfaceStorageKey = "stapelweise.module-surface";
 const pixelFontStorageKey = "stapelweise.pixel-font";
 
 function storedColorTheme(): AppSettings["color_theme"] {
   if (typeof localStorage === "undefined") return defaults.color_theme;
   const savedTheme = localStorage.getItem(colorThemeStorageKey);
-  return savedTheme && isColorTheme(savedTheme) ? savedTheme : defaults.color_theme;
+  return savedTheme === "custom" || (savedTheme && isColorTheme(savedTheme)) ? savedTheme : defaults.color_theme;
 }
 
 function storedPixelFont(): AppSettings["pixel_font"] {
@@ -40,50 +56,73 @@ function storedPixelFont(): AppSettings["pixel_font"] {
     : defaults.pixel_font;
 }
 
-function storedModuleSurface(): AppSettings["module_surface"] {
-  if (typeof localStorage === "undefined") return defaults.module_surface;
-  const savedSurface = localStorage.getItem(moduleSurfaceStorageKey);
-  return savedSurface === "glass" || savedSurface === "solid" ? savedSurface : defaults.module_surface;
-}
-
 const initialColorTheme = storedColorTheme();
-const initialModuleSurface = storedModuleSurface();
 const initialPixelFont = storedPixelFont();
 let current = $state<AppSettings>({
   ...defaults,
   color_theme: initialColorTheme,
-  module_surface: initialModuleSurface,
   pixel_font: initialPixelFont,
 });
 let loaded = $state(false);
 let loadPromise: Promise<void> | null = null;
 
-function applyThemeToDom(theme: string) {
+function applyThemeToDom() {
   if (typeof document === "undefined") return;
-  let isDark: boolean;
-  if (theme === "dark") {
-    isDark = true;
-  } else if (theme === "light") {
-    isDark = false;
-  } else {
-    isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-  }
-  document.documentElement.classList.toggle("dark", isDark);
-  localStorage.setItem("theme", isDark ? "dark" : "light");
+  document.documentElement.classList.remove("dark");
+  localStorage.setItem("theme", "light");
 }
 
-function applyColorThemeToDom(colorTheme: AppSettings["color_theme"]) {
+function isHexColor(value: string): boolean {
+  return /^#[0-9a-f]{6}$/i.test(value);
+}
+
+function hexToRgbValue(hex: string): string {
+  const value = hex.replace("#", "");
+  return `${Number.parseInt(value.slice(0, 2), 16)} ${Number.parseInt(value.slice(2, 4), 16)} ${Number.parseInt(value.slice(4, 6), 16)}`;
+}
+
+function applyColorThemeToDom(
+  colorTheme: AppSettings["color_theme"],
+  primaryColor = current.custom_primary_color,
+  secondaryColor = current.custom_secondary_color,
+) {
   if (typeof document === "undefined") return;
-  const resolvedTheme = isColorTheme(colorTheme) ? colorTheme : defaults.color_theme;
-  document.documentElement.dataset.colorTheme = resolvedTheme;
+  const root = document.documentElement;
+  const resolvedTheme = isColorTheme(colorTheme) ? colorTheme : "custom";
+  root.dataset.colorTheme = resolvedTheme;
   localStorage.setItem(colorThemeStorageKey, resolvedTheme);
+  for (const property of ["--color-accent-primary", "--color-accent-secondary", "--dashboard-tone-primary", "--dashboard-tone-secondary", "--dashboard-tone-warm"]) {
+    root.style.removeProperty(property);
+  }
+  if (colorTheme === "custom" && isHexColor(primaryColor) && isHexColor(secondaryColor)) {
+    const primary = hexToRgbValue(primaryColor);
+    const secondary = hexToRgbValue(secondaryColor);
+    root.style.setProperty("--color-accent-primary", primary);
+    root.style.setProperty("--color-accent-secondary", secondary);
+    root.style.setProperty("--dashboard-tone-primary", primary);
+    root.style.setProperty("--dashboard-tone-secondary", secondary);
+    root.style.setProperty("--dashboard-tone-warm", secondary);
+  }
 }
 
-function applyModuleSurfaceToDom(moduleSurface: AppSettings["module_surface"]) {
+function parsedModuleColorAssignments(value: string): Record<ModuleColorTarget, ModuleColorSlot> {
+  try {
+    const parsed = JSON.parse(value) as Partial<Record<ModuleColorTarget, unknown>>;
+    return Object.fromEntries(
+      Object.entries(defaultModuleColorAssignments).map(([target, fallback]) => [
+        target,
+        parsed[target as ModuleColorTarget] === "secondary" ? "secondary" : parsed[target as ModuleColorTarget] === "primary" ? "primary" : fallback,
+      ])
+    ) as Record<ModuleColorTarget, ModuleColorSlot>;
+  } catch {
+    return defaultModuleColorAssignments;
+  }
+}
+
+function applyModuleSurfaceToDom() {
   if (typeof document === "undefined") return;
-  const resolvedSurface = moduleSurface === "glass" ? "glass" : "solid";
-  document.documentElement.dataset.moduleSurface = resolvedSurface;
-  localStorage.setItem(moduleSurfaceStorageKey, resolvedSurface);
+  document.documentElement.dataset.moduleSurface = "glass";
+  localStorage.setItem("stapelweise.module-surface", "glass");
 }
 
 function applyPixelFontToDom(pixelFont: AppSettings["pixel_font"]) {
@@ -96,8 +135,9 @@ function applyPixelFontToDom(pixelFont: AppSettings["pixel_font"]) {
 }
 
 if (typeof document !== "undefined") {
+  applyThemeToDom();
   applyColorThemeToDom(initialColorTheme);
-  applyModuleSurfaceToDom(initialModuleSurface);
+  applyModuleSurfaceToDom();
   applyPixelFontToDom(initialPixelFont);
 }
 
@@ -112,15 +152,15 @@ async function load() {
   loadPromise = (async () => {
     try {
       const s = await api.getSettings();
-      current = { ...defaults, ...s };
+      current = { ...defaults, ...s, theme: "light", module_surface: "glass" };
     } catch {
       // Use defaults if backend isn't ready
     } finally {
       loaded = true;
       loadPromise = null;
-      applyThemeToDom(current.theme);
-      applyColorThemeToDom(current.color_theme);
-      applyModuleSurfaceToDom(current.module_surface);
+      applyThemeToDom();
+      applyColorThemeToDom(current.color_theme, current.custom_primary_color, current.custom_secondary_color);
+      applyModuleSurfaceToDom();
       applyPixelFontToDom(current.pixel_font);
       applyLanguageToDom(current.ui_language);
     }
@@ -130,9 +170,11 @@ async function load() {
 
 async function save(partial: Partial<AppSettings>) {
   current = { ...current, ...partial };
-  if ("theme" in partial) applyThemeToDom(partial.theme!);
-  if ("color_theme" in partial) applyColorThemeToDom(partial.color_theme!);
-  if ("module_surface" in partial) applyModuleSurfaceToDom(partial.module_surface!);
+  if ("theme" in partial) applyThemeToDom();
+  if ("color_theme" in partial || "custom_primary_color" in partial || "custom_secondary_color" in partial) {
+    applyColorThemeToDom(current.color_theme, current.custom_primary_color, current.custom_secondary_color);
+  }
+  if ("module_surface" in partial) applyModuleSurfaceToDom();
   if ("pixel_font" in partial) applyPixelFontToDom(partial.pixel_font!);
   if ("ui_language" in partial) applyLanguageToDom(partial.ui_language!);
   try {
@@ -175,6 +217,16 @@ function ratingButtonsAnimationEnabled(): boolean {
   return animationEnabled(current.rating_buttons_animation);
 }
 
+function moduleColorFor(target: ModuleColorTarget): ModuleColorSlot {
+  return parsedModuleColorAssignments(current.module_color_assignments)[target];
+}
+
+function setModuleColor(target: ModuleColorTarget, color: ModuleColorSlot) {
+  const assignments = parsedModuleColorAssignments(current.module_color_assignments);
+  if (assignments[target] === color) return;
+  void save({ module_color_assignments: JSON.stringify({ ...assignments, [target]: color }) });
+}
+
 export function getSettingsStore() {
   return {
     get current() {
@@ -187,6 +239,8 @@ export function getSettingsStore() {
     save,
     fontSizeClass,
     fontFamilyClass,
+    moduleColorFor,
+    setModuleColor,
     cardFlipAnimationEnabled,
     controlTransitionAnimationEnabled,
     ratingButtonsAnimationEnabled,

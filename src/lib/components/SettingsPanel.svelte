@@ -2,8 +2,8 @@
   import * as api from "$lib/api";
   import { deckStore } from "$lib/stores/decks.svelte";
   import { settingsStore } from "$lib/stores/settings.svelte";
-  import { colorThemes, type ColorTheme } from "$lib/themes";
-  import type { AppSettings } from "$lib/types";
+  import { colorSuggestions, colorThemes, type ColorTheme } from "$lib/themes";
+  import type { AppSettings, ModuleColorSlot, ModuleColorTarget } from "$lib/types";
   import { t, uiLanguageOptions, type UiLanguage } from "$lib/i18n";
   import IntegrationImports from "./IntegrationImports.svelte";
 
@@ -17,6 +17,16 @@
     { key: "card_flip_animation", label: "Karten wenden" },
     { key: "control_transition_animation", label: "Bedienelemente wechseln" },
     { key: "rating_buttons_animation", label: "Bewertungstasten einblenden" },
+  ];
+  const moduleColorTargets: { id: ModuleColorTarget; label: string }[] = [
+    { id: "deck", label: "Karteikartenstapel" },
+    { id: "single_card", label: "Einzelkarte" },
+    { id: "timer", label: "Lerntimer" },
+    { id: "tags", label: "Tags" },
+    { id: "exam", label: "Prüfungen" },
+    { id: "archive", label: "Archiv" },
+    { id: "brand", label: "Stapelweise" },
+    { id: "settings", label: "Einstellungen" },
   ];
   let syncingObsidian = $state(false);
   let obsidianSyncMessage = $state<string | null>(null);
@@ -32,15 +42,6 @@
     }
   }
 
-  function themeLabel(mode: string): string {
-    switch (mode) {
-      case "auto": return t("Auto");
-      case "light": return t("Hell");
-      case "dark": return t("Dunkel");
-      default: return mode;
-    }
-  }
-
   function thresholdLabel(v: number): string {
     switch (v) {
       case 1: return "Mild";
@@ -53,6 +54,35 @@
 
   function toggleAnimation(key: AnimationSetting) {
     s.save({ [key]: !s.current[key] } as Partial<AppSettings>);
+  }
+
+  function updateTimerMinimum(value: number) {
+    const minimum = Math.min(475, Math.max(1, Math.round(value)));
+    s.save({
+      timer_min_minutes: minimum,
+      timer_max_minutes: Math.max(s.current.timer_max_minutes, minimum + 5),
+    });
+  }
+
+  function updateTimerMaximum(value: number) {
+    const maximum = Math.min(480, Math.max(s.current.timer_min_minutes + 5, Math.round(value)));
+    s.save({ timer_max_minutes: maximum });
+  }
+
+  function colorForSlot(slot: ModuleColorSlot): string {
+    if (s.current.color_theme === "custom") {
+      return slot === "primary" ? s.current.custom_primary_color : s.current.custom_secondary_color;
+    }
+    const theme = colorThemes.find((candidate) => candidate.id === s.current.color_theme) ?? colorThemes[0];
+    return theme[slot];
+  }
+
+  function setCustomPrimaryColor(color: string) {
+    s.save({ color_theme: "custom", custom_primary_color: color });
+  }
+
+  function setCustomSecondaryColor(color: string) {
+    s.save({ color_theme: "custom", custom_secondary_color: color });
   }
 
   async function syncObsidianVault() {
@@ -114,27 +144,9 @@
     <section>
       <h2 class="text-sm font-semibold text-secondary uppercase tracking-wider mb-4">{t("appearance")}</h2>
       <div class="space-y-4">
-        <!-- Theme -->
-        <div>
-          <span class="text-sm font-medium text-primary dark:text-primary-dark">{t("Design")}</span>
-          <p class="text-xs text-secondary mb-2">{t("Hell, Dunkel oder automatisch nach System.")}</p>
-          <div class="flex gap-2">
-            {#each ["auto", "light", "dark"] as mode}
-              <button
-                onclick={() => s.save({ theme: mode as "auto" | "light" | "dark" })}
-                class="rounded-button px-4 py-1.5 text-sm font-medium transition-transform hover:scale-[1.02] {s.current.theme === mode
-                  ? 'bg-accent-correct text-white'
-                  : 'bg-white/40 dark:bg-white/10 text-secondary hover:text-primary dark:hover:text-primary-dark'}"
-              >
-                {themeLabel(mode)}
-              </button>
-            {/each}
-          </div>
-        </div>
-
         <div>
           <span class="text-sm font-medium text-primary dark:text-primary-dark">{t("Farbwelt")}</span>
-          <p class="text-xs text-secondary mb-2">{t("Primär- und Sekundärfarbe sind für Hell- und Dunkelmodus abgestimmt.")}</p>
+          <p class="text-xs text-secondary mb-2">Wähle ein Farbduo oder stelle ein eigenes Duo zusammen.</p>
           <div class="grid max-w-2xl gap-2 sm:grid-cols-2">
             {#each colorThemes as colorTheme}
               <button
@@ -151,24 +163,84 @@
                 <span class="text-sm font-semibold">{t(colorTheme.label)}</span>
               </button>
             {/each}
+            <button
+              onclick={() => s.save({ color_theme: "custom" })}
+              aria-pressed={s.current.color_theme === "custom"}
+              class="flex min-h-14 items-center gap-3 rounded-md border px-3 py-2 text-left transition-colors {s.current.color_theme === 'custom'
+                ? 'border-accent-correct bg-accent-correct/10 text-primary dark:text-primary-dark'
+                : 'border-[#d8dee8] bg-white/40 text-secondary hover:border-accent-correct/45 hover:text-primary dark:border-[#303744] dark:bg-white/5 dark:hover:text-primary-dark'}"
+            >
+              <span class="flex shrink-0 -space-x-1" aria-hidden="true">
+                <span class="h-6 w-6 rounded-full border-2 border-white dark:border-[#171B24]" style="background-color: {s.current.custom_primary_color}"></span>
+                <span class="h-6 w-6 rounded-full border-2 border-white dark:border-[#171B24]" style="background-color: {s.current.custom_secondary_color}"></span>
+              </span>
+              <span class="text-sm font-semibold">Eigenes Farbduo</span>
+            </button>
           </div>
-        </div>
 
-        <div>
-          <span class="text-sm font-medium text-primary dark:text-primary-dark">{t("Modulflächen")}</span>
-          <p class="text-xs text-secondary mb-2">{t("Wähle zwischen deckenden Flächen und transparentem Milchglas auf dem Dashboard.")}</p>
-          <div class="flex gap-2">
-            {#each ["solid", "glass"] as surface}
-              <button
-                onclick={() => s.save({ module_surface: surface as "solid" | "glass" })}
-                aria-pressed={s.current.module_surface === surface}
-                class="rounded-button px-4 py-1.5 text-sm font-medium transition-transform hover:scale-[1.02] {s.current.module_surface === surface
-                  ? 'bg-accent-correct text-white'
-                  : 'bg-white/40 dark:bg-white/10 text-secondary hover:text-primary dark:hover:text-primary-dark'}"
-              >
-                {surface === "solid" ? t("Deckend") : t("Milchglas")}
-              </button>
-            {/each}
+          {#if s.current.color_theme === "custom"}
+            <div class="mt-3 max-w-2xl rounded-lg border border-current/10 bg-white/35 p-3 dark:bg-white/5">
+              <div class="grid gap-3 sm:grid-cols-2">
+                <label class="flex items-center gap-3 text-sm font-semibold text-primary dark:text-primary-dark">
+                  <input
+                    type="color"
+                    value={s.current.custom_primary_color}
+                    onchange={(event) => setCustomPrimaryColor(event.currentTarget.value)}
+                    class="h-9 w-11 cursor-pointer rounded border border-current/15 bg-transparent p-0.5"
+                  />
+                  <span>Erste Farbe <span class="font-mono text-xs font-normal text-secondary">{s.current.custom_primary_color}</span></span>
+                </label>
+                <label class="flex items-center gap-3 text-sm font-semibold text-primary dark:text-primary-dark">
+                  <input
+                    type="color"
+                    value={s.current.custom_secondary_color}
+                    onchange={(event) => setCustomSecondaryColor(event.currentTarget.value)}
+                    class="h-9 w-11 cursor-pointer rounded border border-current/15 bg-transparent p-0.5"
+                  />
+                  <span>Zweite Farbe <span class="font-mono text-xs font-normal text-secondary">{s.current.custom_secondary_color}</span></span>
+                </label>
+              </div>
+              <div class="mt-3 border-t border-current/10 pt-3">
+                <p class="text-xs font-semibold text-secondary">Passende Kontrastfarben zur ersten Farbe</p>
+                <div class="mt-2 flex flex-wrap gap-2">
+                  {#each colorSuggestions(s.current.custom_primary_color) as suggestion}
+                    <button
+                      onclick={() => setCustomSecondaryColor(suggestion.color)}
+                      class="inline-flex items-center gap-2 rounded-md border border-current/15 px-2.5 py-1.5 text-xs font-semibold text-primary transition-colors hover:border-accent-correct/45 dark:text-primary-dark"
+                      aria-label={`${suggestion.label}: ${suggestion.color} als zweite Farbe wählen`}
+                    >
+                      <span class="h-4 w-4 rounded-full border border-black/10" style="background-color: {suggestion.color}"></span>
+                      {suggestion.label}
+                    </button>
+                  {/each}
+                </div>
+              </div>
+            </div>
+          {/if}
+
+          <div class="mt-4 max-w-2xl border-t border-current/10 pt-4">
+            <span class="text-sm font-medium text-primary dark:text-primary-dark">Modulfarben zuordnen</span>
+            <p class="mb-3 text-xs text-secondary">Lege für jedes Dashboard-Modul fest, welche der beiden Farben es verwendet.</p>
+            <div class="grid gap-2 sm:grid-cols-2">
+              {#each moduleColorTargets as target}
+                <div class="flex items-center justify-between gap-2 rounded-md border border-current/10 px-3 py-2">
+                  <span class="text-xs font-semibold text-primary dark:text-primary-dark">{target.label}</span>
+                  <div class="flex overflow-hidden rounded-md border border-current/15" role="group" aria-label={`Farbe für ${target.label}`}>
+                    {#each (["primary", "secondary"] as ModuleColorSlot[]) as slot}
+                      <button
+                        onclick={() => s.setModuleColor(target.id, slot)}
+                        aria-pressed={s.moduleColorFor(target.id) === slot}
+                        class="flex items-center gap-1 px-2 py-1 text-[10px] font-semibold transition-colors {s.moduleColorFor(target.id) === slot ? 'text-white' : 'text-secondary hover:bg-current/5'}"
+                        style={s.moduleColorFor(target.id) === slot ? `background-color: ${colorForSlot(slot)}` : ""}
+                      >
+                        <span class="h-2 w-2 rounded-full border border-current/20" style={`background-color: ${colorForSlot(slot)}`}></span>
+                        {slot === "primary" ? "Erste" : "Zweite"}
+                      </button>
+                    {/each}
+                  </div>
+                </div>
+              {/each}
+            </div>
           </div>
         </div>
 
@@ -344,6 +416,53 @@
           <div class="flex justify-between text-xs text-secondary mt-0.5">
             <span>5</span>
             <span>200</span>
+          </div>
+        </div>
+
+        <div class="border-t border-current/10 pt-5">
+          <div class="flex items-center justify-between gap-4">
+            <div>
+              <p class="text-sm font-medium text-primary dark:text-primary-dark">Lerntimer</p>
+              <p class="mt-1 text-xs text-secondary">Skalierung und Wertebereich des Zeitreglers.</p>
+            </div>
+            <div class="flex overflow-hidden rounded-md border border-current/15" role="group" aria-label="Timer-Skalierung">
+              <button
+                onclick={() => s.save({ timer_slider_scale: "linear" })}
+                class="px-3 py-1.5 text-xs font-semibold transition-colors {s.current.timer_slider_scale === 'linear' ? 'bg-accent-correct text-white' : 'text-secondary hover:bg-current/5'}"
+                aria-pressed={s.current.timer_slider_scale === "linear"}
+              >Linear</button>
+              <button
+                onclick={() => s.save({ timer_slider_scale: "logarithmic" })}
+                class="px-3 py-1.5 text-xs font-semibold transition-colors {s.current.timer_slider_scale === 'logarithmic' ? 'bg-accent-correct text-white' : 'text-secondary hover:bg-current/5'}"
+                aria-pressed={s.current.timer_slider_scale === "logarithmic"}
+              >Logarithmisch</button>
+            </div>
+          </div>
+          <div class="mt-4 grid grid-cols-2 gap-3">
+            <label class="block text-xs font-semibold text-secondary">
+              Minimum (Min.)
+              <input
+                type="number"
+                min="1"
+                max={s.current.timer_max_minutes - 5}
+                step="5"
+                value={s.current.timer_min_minutes}
+                onchange={(event) => updateTimerMinimum(Number(event.currentTarget.value))}
+                class="module-accent-input mt-1.5 w-full rounded-md px-3 py-2 text-sm font-medium"
+              />
+            </label>
+            <label class="block text-xs font-semibold text-secondary">
+              Maximum (Min.)
+              <input
+                type="number"
+                min={s.current.timer_min_minutes + 5}
+                max="480"
+                step="5"
+                value={s.current.timer_max_minutes}
+                onchange={(event) => updateTimerMaximum(Number(event.currentTarget.value))}
+                class="module-accent-input mt-1.5 w-full rounded-md px-3 py-2 text-sm font-medium"
+              />
+            </label>
           </div>
         </div>
 

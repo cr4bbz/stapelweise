@@ -6,8 +6,9 @@
   import StatsDashboard from "./StatsDashboard.svelte";
   import ConfirmDialog from "./ConfirmDialog.svelte";
   import FlashCard from "./FlashCard.svelte";
+  import CardOverviewTile from "./CardOverviewTile.svelte";
   import StudySheetPrint from "./StudySheetPrint.svelte";
-  import { BarChart3, ClipboardCheck, FileText, ImageIcon, ListChecks, ListOrdered, Plus, Printer, X } from "@lucide/svelte";
+  import { BarChart3, ClipboardCheck, FileText, ImageIcon, LayoutGrid, List, ListChecks, ListOrdered, Plus, Printer, X } from "@lucide/svelte";
   import { renderMarkdown } from "$lib/markdown";
   import { hasMath, renderLatexExpression } from "$lib/math";
   import { parseFreeTextContent, serializeFreeTextContent } from "$lib/free-text";
@@ -43,6 +44,8 @@
   let deleteConfirmCardId = $state<string | null>(null);
   let viewingCard = $state<Card | null>(null);
   let cardFlipped = $state(false);
+  let cardOverviewMode = $state<"list" | "cards">("list");
+  let cardGridSize = $state<"small" | "medium">("small");
   let frontTextarea = $state<HTMLTextAreaElement | null>(null);
   let cardFontClass = $derived(settingsStore.fontFamilyClass(settingsStore.current.card_font_family));
 
@@ -1102,8 +1105,42 @@
     </div>
   {:else}
     <div class="flex-1 overflow-y-auto min-h-0 px-6 pb-6">
+      <div class="mb-3 flex flex-wrap items-center justify-end gap-2">
+        <div class="flex overflow-hidden rounded-lg border border-white/15 bg-white/5 p-0.5" role="group" aria-label="Kartenansicht">
+          <button
+            onclick={() => (cardOverviewMode = "list")}
+            class="flex h-8 items-center gap-1.5 rounded-md px-2.5 text-xs font-semibold transition-colors {cardOverviewMode === 'list' ? 'bg-accent-correct text-white shadow-sm' : 'text-secondary hover:bg-white/10 hover:text-primary dark:hover:text-primary-dark'}"
+            aria-pressed={cardOverviewMode === "list"}
+            title="Listenansicht"
+          ><List size={15} /> Liste</button>
+          <button
+            onclick={() => (cardOverviewMode = "cards")}
+            class="flex h-8 items-center gap-1.5 rounded-md px-2.5 text-xs font-semibold transition-colors {cardOverviewMode === 'cards' ? 'bg-accent-correct text-white shadow-sm' : 'text-secondary hover:bg-white/10 hover:text-primary dark:hover:text-primary-dark'}"
+            aria-pressed={cardOverviewMode === "cards"}
+            title="Kartenansicht"
+          ><LayoutGrid size={15} /> Karten</button>
+        </div>
+        {#if cardOverviewMode === "cards"}
+          <div in:fade={{ duration: 140 }} out:fade={{ duration: 100 }} class="flex items-center gap-1 rounded-lg border border-accent-correct/30 bg-accent-correct/10 p-1 shadow-sm" role="group" aria-label="Kartengröße">
+            <button
+              onclick={() => (cardGridSize = "small")}
+              class="h-8 min-w-8 rounded-md border px-2 text-sm font-bold transition-colors {cardGridSize === 'small' ? 'border-accent-correct bg-accent-correct text-white shadow-sm' : 'border-transparent text-accent-correct hover:border-accent-correct/35 hover:bg-accent-correct/10'}"
+              aria-pressed={cardGridSize === "small"}
+              aria-label="Kleinere Karten"
+              title="Kleinere Karten"
+            >−</button>
+            <button
+              onclick={() => (cardGridSize = "medium")}
+              class="h-8 min-w-8 rounded-md border px-2 text-sm font-bold transition-colors {cardGridSize === 'medium' ? 'border-accent-correct bg-accent-correct text-white shadow-sm' : 'border-transparent text-accent-correct hover:border-accent-correct/35 hover:bg-accent-correct/10'}"
+              aria-pressed={cardGridSize === "medium"}
+              aria-label="Größere Karten"
+              title="Größere Karten"
+            >+</button>
+          </div>
+        {/if}
+      </div>
       {#if allDeckTags.length > 0}
-        <div class="flex flex-wrap items-center gap-1.5 mb-3">
+        <div class="relative z-10 mb-3 flex flex-wrap items-center gap-1.5">
           <span class="text-xs text-secondary font-medium mr-1">Filter nach Tag:</span>
           <button
             onclick={() => (selectedFilterTags = [])}
@@ -1171,8 +1208,11 @@
         </div>
       {/if}
 
-      <div class="space-y-2">
-        {#each filteredCards as card (card.id)}
+      {#key cardOverviewMode}
+        <div in:scale={{ duration: 210, start: 0.985 }} out:fade={{ duration: 150 }} class="relative z-0">
+        {#if cardOverviewMode === "list"}
+          <div class="space-y-2">
+            {#each filteredCards as card (card.id)}
           <div animate:flip={{ duration: 200 }} in:fade={{ duration: 200 }} out:fade={{ duration: 160 }}>
           <div class="glass rounded-card p-4 flex items-start gap-4 group cursor-pointer hover:bg-white/5 dark:hover:bg-white/5 transition-colors" onclick={() => { viewingCard = card; cardFlipped = false; }} role="button" tabindex="0" onkeydown={(e) => (e.key === "Enter" || e.key === " ") && (viewingCard = card, cardFlipped = false)}>
             <div class="flex-1 min-w-0 flex flex-col gap-2">
@@ -1264,8 +1304,19 @@
             </div>
           {/if}
           </div>
-        {/each}
-      </div>
+            {/each}
+          </div>
+        {:else}
+          <div class:card-overview-grid-small={cardGridSize === "small"} class:card-overview-grid-medium={cardGridSize === "medium"} class="card-overview-grid">
+            {#each filteredCards as card, index (card.id)}
+              <div animate:flip={{ duration: 200 }} in:scale={{ duration: 200, delay: Math.min(index * 22, 176), start: 0.94 }}>
+                <CardOverviewTile {card} />
+              </div>
+            {/each}
+          </div>
+        {/if}
+        </div>
+      {/key}
     </div>
   {/if}
 </div>
@@ -1283,3 +1334,25 @@
     onCancel={() => (deleteConfirmCardId = null)}
   />
 {/if}
+
+<style>
+  .card-overview-grid {
+    display: grid;
+    gap: 1rem;
+  }
+
+  .card-overview-grid-small {
+    grid-template-columns: repeat(auto-fill, minmax(26.25rem, 1fr));
+  }
+
+  .card-overview-grid-medium {
+    grid-template-columns: repeat(auto-fill, minmax(35.333333rem, 1fr));
+  }
+
+  @media (max-width: 640px) {
+    .card-overview-grid-small,
+    .card-overview-grid-medium {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+</style>

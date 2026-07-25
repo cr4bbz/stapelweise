@@ -7,12 +7,14 @@
   let {
     value = "",
     disabled = false,
+    showPreview = true,
     evaluationMode = "manual",
     result = null,
     onChange = (_value: string) => {},
   } = $props<{
     value?: string;
     disabled?: boolean;
+    showPreview?: boolean;
     evaluationMode?: "manual" | "symbolic";
     result?: SymbolicEvaluationResult | null;
     onChange?: (value: string) => void;
@@ -99,6 +101,10 @@
   }
 
   $effect(() => {
+    if (!showPreview) {
+      previewHtml = "";
+      return;
+    }
     const source = value;
     const frame = requestAnimationFrame(() => {
       previewHtml = source.trim() ? renderLatexExpression(source) : "";
@@ -137,7 +143,7 @@
       {/each}
     </div>
   {/if}
-  {#if evaluationMode === "symbolic" && previewHtml}
+  {#if showPreview && evaluationMode === "symbolic" && previewHtml}
     <div role="math" aria-label={value} class="mt-2 border border-dashed border-accent-correct/40 bg-white/45 px-3 py-2 text-center text-sm text-primary dark:bg-black/15 dark:text-primary-dark">
       <span class="mb-1 block text-left text-[10px] font-medium uppercase text-secondary">{t("mathPreview")}</span>
       {@html previewHtml}

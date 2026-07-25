@@ -1,6 +1,7 @@
 <script lang="ts">
-  import { onMount, onDestroy } from "svelte";
+  import { onMount, onDestroy, tick } from "svelte";
   import { fade, slide } from "svelte/transition";
+  import { CheckCircle2, CircleX, Flag, FlaskConical, Play, Timer } from "@lucide/svelte";
   import * as api from "$lib/api";
   import type { Card } from "$lib/types";
   import { parseFreeTextContent } from "$lib/free-text";
@@ -38,6 +39,7 @@
   let currentIndex = $state<number>(0);
   let isFlipped = $state<boolean>(false);
   let isAnswering = $state<boolean>(false);
+  let isQuestionTransitioning = $state<boolean>(false);
   
   // Answers tracking: card.id -> boolean (true = correct, false = incorrect)
   let userAnswers = $state<Record<string, boolean>>({});
@@ -58,6 +60,11 @@
   let activeFreeTextAnswer = $derived.by(() => {
     const cardId = testCards[currentIndex]?.id;
     return cardId ? freeTextAnswers[cardId] ?? "" : "";
+  });
+  let isSymbolicFreeText = $derived(activeFreeTextContent?.evaluationMode === "symbolic");
+  let activeSymbolicResult = $derived.by(() => {
+    const cardId = testCards[currentIndex]?.id;
+    return cardId ? symbolicResults[cardId] ?? null : null;
   });
 
   onMount(async () => {
@@ -116,22 +123,36 @@
     mode = "running";
   }
 
+  async function completeAnswer(cardId: string, correct: boolean, delay = 50) {
+    userAnswers = { ...userAnswers, [cardId]: correct };
+
+    await new Promise((resolve) => setTimeout(resolve, delay));
+    if (mode !== "running" || testCards[currentIndex]?.id !== cardId) {
+      isAnswering = false;
+      return;
+    }
+
+    isQuestionTransitioning = true;
+    await new Promise((resolve) => setTimeout(resolve, 180));
+    if (currentIndex + 1 < testCards.length) {
+      isFlipped = false;
+      currentIndex += 1;
+      await tick();
+      requestAnimationFrame(() => {
+        isQuestionTransitioning = false;
+        isAnswering = false;
+      });
+    } else {
+      isQuestionTransitioning = false;
+      isAnswering = false;
+      finishTest();
+    }
+  }
+
   function handleAnswer(correct: boolean) {
     if (isAnswering || currentIndex >= testCards.length) return;
     isAnswering = true;
-    
-    const currentCard = testCards[currentIndex];
-    userAnswers[currentCard.id] = correct;
-
-    setTimeout(() => {
-      if (currentIndex + 1 < testCards.length) {
-        currentIndex += 1;
-        isFlipped = false;
-      } else {
-        finishTest();
-      }
-      isAnswering = false;
-    }, 50);
+    completeAnswer(testCards[currentIndex].id, correct);
   }
 
   function updateFreeTextAnswer(value: string) {
@@ -143,13 +164,12 @@
     symbolicResults = nextResults;
   }
 
-  async function revealTestAnswer() {
-    if (isFlipped) return;
-    isFlipped = true;
-
+  async function checkSymbolicFreeTextAnswer() {
+    if (isAnswering || isFlipped) return;
     const card = testCards[currentIndex];
     if (!card || activeFreeTextContent?.evaluationMode !== "symbolic") return;
 
+    isAnswering = true;
     symbolicResults = { ...symbolicResults, [card.id]: { status: "checking" } };
     const result = await evaluateSymbolicAnswer(
       freeTextAnswers[card.id] ?? "",
@@ -158,7 +178,17 @@
 
     if (testCards[currentIndex]?.id === card.id) {
       symbolicResults = { ...symbolicResults, [card.id]: result };
+      if (result.status === "equivalent" || result.status === "not-equivalent") {
+        completeAnswer(card.id, result.status === "equivalent", 650);
+        return;
+      }
     }
+    isAnswering = false;
+  }
+
+  function revealTestAnswer() {
+    if (isFlipped || isAnswering) return;
+    isFlipped = true;
   }
 
   function finishTest() {
@@ -192,7 +222,8 @@
       e.preventDefault();
       if (testCards[currentIndex]?.card_type === "free_text") {
         if (isFlipped) isFlipped = false;
-        else void revealTestAnswer();
+        else if (isSymbolicFreeText) void checkSymbolicFreeTextAnswer();
+        else revealTestAnswer();
       } else {
         isFlipped = !isFlipped;
       }
@@ -247,14 +278,14 @@
         </svg>
       </button>
       <div>
-        <h1 class="text-xl font-bold text-primary dark:text-primary-dark">🧪 {t("Prüfungs-Simulator")}</h1>
+        <h1 class="flex items-center gap-2 text-xl font-bold text-primary dark:text-primary-dark"><FlaskConical size={20} aria-hidden="true" /> {t("Prüfungs-Simulator")}</h1>
         <p class="text-xs text-secondary">{testName}</p>
       </div>
     </div>
 
     {#if mode === "running" && timeLimitMinutes > 0}
       <div class="flex items-center gap-2 font-mono text-sm px-3 py-1.5 rounded-lg border shadow-sm {timeRemaining < 120 ? 'bg-accent-incorrect/10 border-accent-incorrect/30 text-accent-incorrect animate-pulse' : 'glass border-white/10 text-primary dark:text-primary-dark'}">
-        <span>⏱️</span>
+        <Timer size={16} aria-hidden="true" />
         <span class="font-bold">{formatTimer(timeRemaining)}</span>
       </div>
     {/if}
@@ -317,9 +348,9 @@
           <button
             onclick={startTest}
             disabled={allCards.length === 0}
-            class="w-full py-3 rounded-xl bg-accent-correct text-white font-bold text-sm hover:scale-[1.01] transition-transform shadow-elevation-low disabled:opacity-50"
+            class="flex w-full items-center justify-center gap-2 py-3 rounded-xl bg-accent-correct text-white font-bold text-sm hover:scale-[1.01] transition-transform shadow-elevation-low disabled:opacity-50"
           >
-            🚀 {t("Simulation starten")} ({allCards.length} {t("verfügbare Karten")})
+            <Play size={17} aria-hidden="true" /> {t("Simulation starten")} ({allCards.length} {t("verfügbare Karten")})
           </button>
         </div>
       </div>
@@ -334,36 +365,39 @@
           </span>
           <button
             onclick={requestFinishTest}
-            class="text-xs font-medium text-secondary hover:text-accent-incorrect transition-colors"
+            class="inline-flex items-center gap-1.5 text-xs font-medium text-secondary hover:text-accent-incorrect transition-colors"
           >
-            🏁 {t("Test vorzeitig beenden")}
+            <Flag size={14} aria-hidden="true" /> {t("Test vorzeitig beenden")}
           </button>
         </div>
 
         <!-- Question Flashcard -->
         {#if testCards[currentIndex]}
-          <div class="w-full h-80 my-auto">
-            <FlashCard
-              front={testCards[currentIndex].front}
-              back={testCards[currentIndex].back}
-              frontLanguage={testCards[currentIndex].front_language}
-              backLanguage={testCards[currentIndex].back_language}
-              reasoning={testCards[currentIndex].reasoning}
-              tags={testCards[currentIndex].tags}
-              flipped={isFlipped}
-              cardType={testCards[currentIndex].card_type}
-              content={testCards[currentIndex].content}
-            />
+          <div class="my-auto h-80 w-full transition-[opacity,transform] duration-200 ease-out {isQuestionTransitioning ? 'translate-y-1 opacity-0' : 'translate-y-0 opacity-100'}">
+            {#key testCards[currentIndex].id}
+              <FlashCard
+                front={testCards[currentIndex].front}
+                back={testCards[currentIndex].back}
+                frontLanguage={testCards[currentIndex].front_language}
+                backLanguage={testCards[currentIndex].back_language}
+                reasoning={testCards[currentIndex].reasoning}
+                tags={testCards[currentIndex].tags}
+                flipped={isFlipped}
+                cardType={testCards[currentIndex].card_type}
+                content={testCards[currentIndex].content}
+              />
+            {/key}
           </div>
         {/if}
 
         {#if activeFreeTextContent && testCards[currentIndex]}
-          <div class="mt-4 w-full">
+          <div class="mt-4 w-full transition-[opacity,transform] duration-200 ease-out {isQuestionTransitioning ? 'translate-y-1 opacity-0' : 'translate-y-0 opacity-100'}">
             <FreeTextResponse
               value={activeFreeTextAnswer}
-              disabled={isFlipped}
+              disabled={isFlipped || isAnswering}
+              showPreview={false}
               evaluationMode={activeFreeTextContent.evaluationMode}
-              result={isFlipped ? symbolicResults[testCards[currentIndex].id] ?? null : null}
+              result={activeSymbolicResult}
               onChange={updateFreeTextAnswer}
             />
           </div>
@@ -372,25 +406,45 @@
         <!-- Controls -->
         <div class="w-full mt-6">
           {#if !isFlipped}
-            <button
-              onclick={() => revealTestAnswer()}
-              class="w-full py-3 rounded-xl glass border border-white/20 text-primary dark:text-primary-dark font-semibold hover:bg-white/10 transition-all text-sm shadow-elevation-low"
-            >
-              {t("Antwort aufdecken (Leertaste)")}
-            </button>
+            {#if isSymbolicFreeText}
+              <div class="grid grid-cols-2 gap-4">
+                <button
+                  onclick={() => void checkSymbolicFreeTextAnswer()}
+                  disabled={isAnswering}
+                  class="py-3 rounded-xl glass border border-white/20 text-primary dark:text-primary-dark font-semibold hover:bg-white/10 transition-all text-sm shadow-elevation-low disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {t("Antwort prüfen (Leertaste)")}
+                </button>
+                <button
+                  onclick={() => handleAnswer(false)}
+                  disabled={isAnswering}
+                  class="flex items-center justify-center gap-2 rounded-xl bg-accent-incorrect py-3 text-sm font-bold text-white shadow-elevation-low transition-transform hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <CircleX size={17} aria-hidden="true" /> {t("Nicht gewusst")}
+                </button>
+              </div>
+            {:else}
+              <button
+                onclick={revealTestAnswer}
+                disabled={isAnswering}
+                class="w-full py-3 rounded-xl glass border border-white/20 text-primary dark:text-primary-dark font-semibold hover:bg-white/10 transition-all text-sm shadow-elevation-low disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {t("Antwort aufdecken (Leertaste)")}
+              </button>
+            {/if}
           {:else}
             <div class="grid grid-cols-2 gap-4">
               <button
                 onclick={() => handleAnswer(false)}
-                class="py-3 rounded-xl bg-accent-incorrect text-white font-bold text-sm hover:scale-[1.02] transition-transform shadow-elevation-low"
+                class="flex items-center justify-center gap-2 py-3 rounded-xl bg-accent-incorrect text-white font-bold text-sm hover:scale-[1.02] transition-transform shadow-elevation-low"
               >
-                ❌ {t("Falsch / Nicht gewusst")}
+                <CircleX size={17} aria-hidden="true" /> {t("Falsch / Nicht gewusst")}
               </button>
               <button
                 onclick={() => handleAnswer(true)}
-                class="py-3 rounded-xl bg-accent-correct text-white font-bold text-sm hover:scale-[1.02] transition-transform shadow-elevation-low"
+                class="flex items-center justify-center gap-2 py-3 rounded-xl bg-accent-correct text-white font-bold text-sm hover:scale-[1.02] transition-transform shadow-elevation-low"
               >
-                ✅ {t("Richtig / Gewusst")}
+                <CheckCircle2 size={17} aria-hidden="true" /> {t("Richtig / Gewusst")}
               </button>
             </div>
   {/if}
