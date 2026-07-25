@@ -179,6 +179,9 @@ export function getStudyStore() {
     get completedCount() {
       return completedCount;
     },
+    get canUndo() {
+      return lastRating !== null;
+    },
     canResumeSession(key: string) {
       return sessionActive && sessionKey === key && dueCards.length > 0;
     },

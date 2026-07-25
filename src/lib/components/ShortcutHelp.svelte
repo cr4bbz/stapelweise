@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { fade, scale } from "svelte/transition";
   import { t } from "$lib/i18n";
   let { visible = false, onClose = () => {} } = $props<{
     visible: boolean;
@@ -23,15 +24,6 @@
       ],
     },
     {
-      title: "Durchblättern",
-      shortcuts: [
-        ["←", "Vorherige Karte"],
-        ["→", "Nächste Karte"],
-        ["Leertaste", "Karte umdrehen"],
-        ["Esc", "Zurück"],
-      ],
-    },
-    {
       title: "Editor",
       shortcuts: [
         ["Strg+Enter", "Karte speichern/erstellen"],
@@ -52,8 +44,10 @@
 <svelte:window onkeydown={handleKeydown} />
 
 {#if visible}
-  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onclick={onClose} onkeydown={(e) => e.key === "Escape" && onClose()} tabindex="-1" role="presentation">
+  <div in:fade={{ duration: 140 }} out:fade={{ duration: 110 }} class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onclick={onClose} onkeydown={(e) => e.key === "Escape" && onClose()} tabindex="-1" role="presentation">
     <div
+      in:scale={{ duration: 180, start: 0.97, opacity: 0 }}
+      out:scale={{ duration: 120, start: 0.97, opacity: 0 }}
       class="glass rounded-card p-6 max-w-lg mx-4 shadow-elevation-high max-h-[80vh] overflow-y-auto"
       onclick={(e) => e.stopPropagation()}
       onkeydown={(e) => e.stopPropagation()}

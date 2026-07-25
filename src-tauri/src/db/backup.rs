@@ -7,6 +7,36 @@ use super::repository::Repository;
 use super::settings::AppSettings;
 use crate::commands::CommandError;
 
+const MAX_BACKUP_BYTES: usize = 50 * 1024 * 1024;
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum ConflictStrategy {
+    Overwrite,
+    Skip,
+}
+
+impl ConflictStrategy {
+    fn parse(value: &str) -> Result<Self, CommandError> {
+        match value {
+            "overwrite" => Ok(Self::Overwrite),
+            "skip" => Ok(Self::Skip),
+            _ => Err(CommandError::validation(
+                "Unknown backup conflict strategy. Use 'overwrite' or 'skip'.",
+            )),
+        }
+    }
+}
+
+fn ensure_backup_size(json_data: &str) -> Result<(), CommandError> {
+    if json_data.len() > MAX_BACKUP_BYTES {
+        return Err(CommandError::import_failed(
+            "The backup is too large. The maximum import size is 50 MB.",
+            None,
+        ));
+    }
+    Ok(())
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BackupPackage {
     pub version: u32,
@@ -69,6 +99,7 @@ pub fn inspect_backup(
     repo: &Repository,
     json_data: &str,
 ) -> Result<ImportInspection, CommandError> {
+    ensure_backup_size(json_data)?;
     let pkg: BackupPackage = serde_json::from_str(json_data)
         .map_err(|e| CommandError::import_failed("Ungültiges Backup-JSON", Some(e.to_string())))?;
 
@@ -117,20 +148,41 @@ pub fn inspect_backup(
 pub fn restore_backup(
     repo: &Repository,
     json_data: &str,
-    conflict_strategy: &str, // "overwrite" | "skip" | "merge"
+    conflict_strategy: &str,
 ) -> Result<(), CommandError> {
+    ensure_backup_size(json_data)?;
+    let conflict_strategy = ConflictStrategy::parse(conflict_strategy)?;
     let pkg: BackupPackage = serde_json::from_str(json_data).map_err(|e| {
         CommandError::import_failed("Ungültiges Backup-JSON Format", Some(e.to_string()))
     })?;
 
     let existing_cards = repo.list_all_cards()?;
     let existing_card_ids: HashSet<String> = existing_cards.into_iter().map(|c| c.id).collect();
+    let existing_deck_ids: HashSet<String> = repo
+        .list_all_decks()?
+        .into_iter()
+        .map(|deck| deck.id)
+        .collect();
+    let existing_exam_ids: HashSet<String> = repo
+        .list_exams(true)?
+        .into_iter()
+        .map(|exam| exam.id)
+        .collect();
+    let existing_template_ids: HashSet<String> = repo
+        .list_exam_templates()?
+        .into_iter()
+        .map(|template| template.id)
+        .collect();
+    let mut restored_card_ids = HashSet::new();
 
     // Begin atomic transaction
     repo.conn().execute_batch("BEGIN TRANSACTION;")?;
 
     // 1. Decks
     for deck in &pkg.decks {
+        if conflict_strategy == ConflictStrategy::Skip && existing_deck_ids.contains(&deck.id) {
+            continue;
+        }
         if let Err(e) = repo.conn().execute(
             "INSERT INTO decks (id, name, archived, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5)
              ON CONFLICT(id) DO UPDATE SET name = excluded.name, archived = excluded.archived, updated_at = excluded.updated_at",
@@ -144,7 +196,7 @@ pub fn restore_backup(
     // 2. Cards
     for card in &pkg.cards {
         let exists = existing_card_ids.contains(&card.id);
-        if exists && conflict_strategy == "skip" {
+        if exists && conflict_strategy == ConflictStrategy::Skip {
             continue;
         }
 
@@ -179,6 +231,8 @@ pub fn restore_backup(
             return Err(CommandError::from(e));
         }
 
+        restored_card_ids.insert(card.id.clone());
+
         // Set tags with error checking & rollback
         if !card.tags.is_empty() {
             if let Err(e) = repo.set_card_tags(&card.id, &card.tags) {
@@ -190,6 +244,9 @@ pub fn restore_backup(
 
     // 3. CardStates
     for cs in &pkg.card_states {
+        if conflict_strategy == ConflictStrategy::Skip && !restored_card_ids.contains(&cs.card_id) {
+            continue;
+        }
         if let Err(e) = repo.conn().execute(
             "INSERT INTO card_state (card_id, interval, ease_factor, repetitions, next_review, total_reviews, correct_streak, last_review)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
@@ -219,6 +276,10 @@ pub fn restore_backup(
 
     // 4. Reviews
     for rev in &pkg.reviews {
+        if conflict_strategy == ConflictStrategy::Skip && !restored_card_ids.contains(&rev.card_id)
+        {
+            continue;
+        }
         if let Err(e) = repo.conn().execute(
             "INSERT INTO reviews (id, card_id, quality, reviewed_at, interval, ease_factor, repetitions, prev_state)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
@@ -241,6 +302,9 @@ pub fn restore_backup(
 
     // 5. Exams and their deck assignments
     for exam in &pkg.exams {
+        if conflict_strategy == ConflictStrategy::Skip && existing_exam_ids.contains(&exam.id) {
+            continue;
+        }
         if let Err(e) = repo.conn().execute(
             "INSERT INTO exams (id, name, exam_type, exam_date, archived, created_at)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6)
@@ -283,6 +347,9 @@ pub fn restore_backup(
 
     // 6. ExamTemplates
     for tmpl in &pkg.exam_templates {
+        if conflict_strategy == ConflictStrategy::Skip && existing_template_ids.contains(&tmpl.id) {
+            continue;
+        }
         let deck_ids_json =
             serde_json::to_string(&tmpl.deck_ids).unwrap_or_else(|_| "[]".to_string());
         let tags_json = serde_json::to_string(&tmpl.tags).unwrap_or_else(|_| "[]".to_string());
@@ -320,13 +387,39 @@ pub fn restore_backup(
     }
 
     // 7. Settings
-    if let Some(ref s) = pkg.settings {
-        if let Err(e) = s.save(repo) {
-            let _ = repo.conn().execute_batch("ROLLBACK;");
-            return Err(CommandError::from(e));
+    if conflict_strategy == ConflictStrategy::Overwrite {
+        if let Some(ref s) = pkg.settings {
+            if let Err(e) = s.save(repo) {
+                let _ = repo.conn().execute_batch("ROLLBACK;");
+                return Err(CommandError::from(e));
+            }
         }
     }
 
     repo.conn().execute_batch("COMMIT;")?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ensure_backup_size, ConflictStrategy, MAX_BACKUP_BYTES};
+
+    #[test]
+    fn accepts_only_documented_conflict_strategies() {
+        assert_eq!(
+            ConflictStrategy::parse("overwrite").unwrap(),
+            ConflictStrategy::Overwrite
+        );
+        assert_eq!(
+            ConflictStrategy::parse("skip").unwrap(),
+            ConflictStrategy::Skip
+        );
+        assert!(ConflictStrategy::parse("merge").is_err());
+    }
+
+    #[test]
+    fn rejects_oversized_backup_payloads() {
+        assert!(ensure_backup_size(&"x".repeat(MAX_BACKUP_BYTES)).is_ok());
+        assert!(ensure_backup_size(&"x".repeat(MAX_BACKUP_BYTES + 1)).is_err());
+    }
 }

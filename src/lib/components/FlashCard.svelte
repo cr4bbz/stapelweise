@@ -3,6 +3,7 @@
   import { settingsStore } from "$lib/stores/settings.svelte";
   import { renderMarkdown } from "$lib/markdown";
   import { languageLabel } from "$lib/languages";
+  import { t } from "$lib/i18n";
 
   let {
     front = "",
@@ -29,12 +30,47 @@
   }>();
 
   let zoomedImageSrc = $state<string | null>(null);
+  let zoomDialog = $state<HTMLElement | null>(null);
+  let zoomCloseButton = $state<HTMLButtonElement | null>(null);
+  let zoomOrigin = $state<HTMLElement | null>(null);
+
+  function openImageZoom(src: string) {
+    zoomOrigin = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    zoomedImageSrc = src;
+    void tick().then(() => zoomCloseButton?.focus());
+  }
+
+  function closeImageZoom() {
+    zoomedImageSrc = null;
+    void tick().then(() => zoomOrigin?.focus());
+  }
+
+  function handleZoomKeydown(event: KeyboardEvent) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeImageZoom();
+      return;
+    }
+    if (event.key !== "Tab" || !zoomDialog) return;
+
+    const focusable = Array.from(zoomDialog.querySelectorAll<HTMLElement>("button, [href], input, select, textarea, [tabindex]:not([tabindex='-1'])"));
+    const first = focusable[0];
+    const last = focusable.at(-1);
+    if (!first || !last) return;
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
 
   onMount(() => {
     const handleZoom = (e: Event) => {
       const detail = (e as CustomEvent).detail;
       if (typeof detail === "string") {
-        zoomedImageSrc = detail;
+        openImageZoom(detail);
       }
     };
     window.addEventListener("stapelweise:zoom-image", handleZoom);
@@ -43,9 +79,13 @@
     };
   });
 
-  let isCloze = $derived(cardType === "cloze" || front.includes("==") || front.includes("{{c1::"));
+  let isCloze = $derived(cardType === "cloze" || front.includes("==") || /\{\{c\d+::/.test(front));
   let isMultipleChoice = $derived(cardType === "multiple_choice");
   let isOrdering = $derived(cardType === "ordering");
+
+  function renderInlineMarkdown(text: string) {
+    return renderMarkdown(text).replace(/^<p>([\s\S]*)<\/p>\n?$/, "$1");
+  }
 
   // Parse MC Options from JSON content or Markdown back
   interface McOption {
@@ -132,14 +172,35 @@
 
   function renderClozeFront(text: string) {
     let res = text.replace(/==(.*?)==/g, "[...]");
-    res = res.replace(/\{\{c1::(.*?)\}\}/g, "[...]");
+    res = res.replace(/\{\{c\d+::[\s\S]*?\}\}/g, "[...]");
     return renderMarkdown(res);
   }
 
+  function renderClozeAnswer(answer: string) {
+    const rendered = renderMarkdown(answer);
+    return rendered.replace(/^<p>([\s\S]*)<\/p>\n?$/, "$1");
+  }
+
   function renderClozeBack(text: string) {
-    let res = text.replace(/==(.*?)==/g, '<span class="text-accent-correct bg-accent-correct/10 px-1 rounded font-bold">$1</span>');
-    res = res.replace(/\{\{c1::(.*?)\}\}/g, '<span class="text-accent-correct bg-accent-correct/10 px-1 rounded font-bold">$1</span>');
-    return renderMarkdown(res);
+    const answers: string[] = [];
+    const tokenized = text
+      .replace(/==(.*?)==/g, (_, answer: string) => {
+        const token = `CLOZE_ANSWER_${answers.length}_TOKEN`;
+        answers.push(answer);
+        return token;
+      })
+      .replace(/\{\{c\d+::([\s\S]*?)\}\}/g, (_, value: string) => {
+        const token = `CLOZE_ANSWER_${answers.length}_TOKEN`;
+        answers.push(value.split("::", 1)[0]);
+        return token;
+      });
+
+    let rendered = renderMarkdown(tokenized);
+    answers.forEach((answer, index) => {
+      const solution = `<span class="text-accent-correct bg-accent-correct/10 px-1 rounded font-bold">${renderClozeAnswer(answer)}</span>`;
+      rendered = rendered.replace(`CLOZE_ANSWER_${index}_TOKEN`, solution);
+    });
+    return rendered;
   }
 
   let renderedFront = $derived(isCloze ? renderClozeFront(front) : renderMarkdown(front));
@@ -207,7 +268,7 @@
   });
 </script>
 
-<div class="relative mx-auto h-80 w-full max-w-2xl [perspective:1400px]" aria-live="polite">
+<div class="relative mx-auto w-full max-w-2xl [perspective:1400px]" style="aspect-ratio: 5 / 3" aria-live="polite">
   {#if !displayedFlipped}
     <!-- Front -->
     <div
@@ -247,9 +308,9 @@
               onclick={(e) => toggleMcOption(idx, e)}
               class="w-full p-2.5 rounded-xl border text-xs font-medium text-left transition-all flex items-center justify-between {isSelected ? 'bg-accent-correct/20 border-accent-correct text-primary dark:text-primary-dark shadow-sm' : 'glass border-white/10 hover:bg-white/10 text-secondary'}"
             >
-              <span data-user-content>{opt.text}</span>
+              <span data-user-content class="min-w-0 flex-1">{@html renderInlineMarkdown(opt.text)}</span>
               <span class="w-5 h-5 rounded-md border flex items-center justify-center text-xs {isSelected ? 'bg-accent-correct border-accent-correct text-white' : 'border-white/20'}">
-                {isSelected ? '✓' : ''}
+                {isSelected ? 'Ausgewählt' : ''}
               </span>
             </button>
           {/each}
@@ -318,9 +379,9 @@
             {@const isWrongSelect = isSelected && !isCorrect}
 
             <div class="w-full p-2.5 rounded-xl border text-xs font-medium flex items-center justify-between {isSuccess ? 'bg-accent-easy/20 border-accent-easy text-accent-easy' : isMissed ? 'bg-accent-hard/20 border-accent-hard text-accent-hard' : isWrongSelect ? 'bg-accent-incorrect/20 border-accent-incorrect text-accent-incorrect' : 'glass border-white/5 opacity-50 text-secondary'}">
-              <span data-user-content>{opt.text}</span>
+              <span data-user-content class="min-w-0 flex-1">{@html renderInlineMarkdown(opt.text)}</span>
               <span class="text-xs font-bold px-2 py-0.5 rounded {isSuccess ? 'bg-accent-easy/20 text-accent-easy' : isMissed ? 'bg-accent-hard/20 text-accent-hard' : isWrongSelect ? 'bg-accent-incorrect/20 text-accent-incorrect' : ''}">
-                {isSuccess ? 'Richtig ausgewählt ✓' : isMissed ? 'Fehlend (Wäre richtiggewesen)' : isWrongSelect ? 'Falsch ausgewählt ✗' : 'Nicht zutreffend'}
+                {isSuccess ? 'Richtig ausgewählt' : isMissed ? 'Fehlend (Wäre richtig gewesen)' : isWrongSelect ? 'Falsch ausgewählt' : 'Nicht zutreffend'}
               </span>
             </div>
           {/each}
@@ -334,7 +395,7 @@
             <div class="flex items-center justify-between p-2.5 rounded-xl border text-xs font-medium {userMatch ? 'bg-accent-easy/20 border-accent-easy text-accent-easy' : 'bg-accent-incorrect/20 border-accent-incorrect text-accent-incorrect'}">
               <span data-user-content>{idx + 1}. {item}</span>
               <span class="text-xs font-bold px-2 py-0.5 rounded {userMatch ? 'bg-accent-easy/20' : 'bg-accent-incorrect/20'}">
-                {userMatch ? '✓ Richtig platziert' : `Deine Wahl: ${userOrderingItems[idx] || '-'}`}
+                {userMatch ? 'Richtig platziert' : `Deine Wahl: ${userOrderingItems[idx] || '-'}`}
               </span>
             </div>
           {/each}
@@ -364,22 +425,25 @@
 {#if zoomedImageSrc}
   <div
     class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-6 cursor-zoom-out"
-    role="button"
-    tabindex="0"
-    onclick={(e) => { e.stopPropagation(); zoomedImageSrc = null; }}
-    onkeydown={(e) => { e.stopPropagation(); (e.key === "Escape" || e.key === " ") && (zoomedImageSrc = null); }}
+    role="presentation"
+    onclick={closeImageZoom}
   >
     <div
+      bind:this={zoomDialog}
       class="relative max-w-5xl max-h-[90vh] flex flex-col items-center justify-center"
       onclick={(e) => e.stopPropagation()}
-      onkeydown={(e) => e.stopPropagation()}
+      onkeydown={handleZoomKeydown}
       role="dialog"
+      aria-modal="true"
+      aria-label={t("Bildgroßansicht")}
       tabindex="-1"
     >
       <button
-        onclick={(e) => { e.stopPropagation(); zoomedImageSrc = null; }}
+        bind:this={zoomCloseButton}
+        onclick={closeImageZoom}
         class="absolute -top-12 right-0 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
-        title="Schließen"
+        title={t("Schließen")}
+        aria-label={t("Schließen")}
       >
         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />

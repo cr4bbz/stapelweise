@@ -1,7 +1,8 @@
 <script lang="ts">
-  import { onMount } from "svelte";
-  import { fade } from "svelte/transition";
-  import { ArrowDown, ArrowUp, ChevronsLeft, ChevronsRight, GripVertical, Plus, Search as SearchIcon, Settings as SettingsIcon, X } from "@lucide/svelte";
+  import { onMount, tick } from "svelte";
+  import { fade, scale } from "svelte/transition";
+  import { flip } from "svelte/animate";
+  import { ArrowDown, ArrowUp, ChevronDown, GripVertical, Maximize2, Plus, Settings as SettingsIcon, X } from "@lucide/svelte";
   import DeckModule from "$lib/components/DeckModule.svelte";
   import ArchiveModule from "$lib/components/ArchiveModule.svelte";
   import ConfirmDialog from "$lib/components/ConfirmDialog.svelte";
@@ -17,63 +18,69 @@
   import TestView from "$lib/components/TestView.svelte";
   import * as api from "$lib/api";
   import { deckStore } from "$lib/stores/decks.svelte";
+  import { settingsStore } from "$lib/stores/settings.svelte";
   import { listenForDeepLinks, type StapelweiseDeepLink } from "$lib/deep-link";
-  import type { Card, DashboardStats, Deck, Exam } from "$lib/types";
+  import type { Card, DashboardStats, Deck, Exam, ModuleColorTarget } from "$lib/types";
   import { t } from "$lib/i18n";
 
-  type DashboardModuleId = "brand" | "search" | "settings" | "focus" | "continue" | "timer" | "learning" | "problems" | "weekPlan" | "quickCapture" | "learningTime" | "milestones" | "tags" | "archive";
+  type DashboardModuleId = "brand" | "settings" | "timer" | "tags" | "archive";
   type SingleCardModuleId = `singleCard:${string}`;
   type DeckModuleId = `deck:${string}`;
   type ExamModuleId = `exam:${string}`;
   type SpacerModuleId = `spacer:${string}`;
-  type SpacerVariant = "blank" | "divider" | "note";
-  type SpacerModuleConfig = { variant: SpacerVariant; note: string };
+  type SpacerVariant = "blank" | "divider";
+  type SpacerModuleConfig = { variant: SpacerVariant };
   type DashboardModuleKey = DashboardModuleId | SingleCardModuleId | DeckModuleId | ExamModuleId | SpacerModuleId;
-  type ExtraDashboardModuleId = "continue" | "timer" | "problems" | "weekPlan" | "quickCapture" | "learningTime" | "milestones";
-  type ModuleWidth = 2 | 3 | 4 | 6 | 8 | 12;
+  type ModuleWidth = 2 | 3 | 4 | 5 | 6 | 8 | 12;
+  type DeckModuleSize = 3 | 4 | 5;
+  type SingleCardModuleSize = 3 | 4;
   type ModuleTone = "primary" | "secondary" | "warm";
   type ModuleDragCandidate = { moduleId: DashboardModuleKey; startX: number; startY: number; pointerId: number };
   type ModuleDropAxis = "inline" | "block";
 
-  const defaultModuleOrder: DashboardModuleId[] = ["brand", "search", "settings", "continue", "focus", "learning", "problems", "timer", "learningTime", "weekPlan", "quickCapture", "milestones", "tags"];
+  const defaultModuleOrder: DashboardModuleId[] = ["brand", "settings", "timer", "tags"];
   const availableModuleIds: DashboardModuleId[] = [...defaultModuleOrder, "archive"];
   const moduleTitles: Record<DashboardModuleId, string> = {
     brand: "Stapelweise",
-    search: "Suche",
     settings: "Einstellungen",
-    focus: "Kleine Runde",
-    continue: "Weiterlernen",
     timer: "Lerntimer",
-    learning: "Lernlage",
-    problems: "Problemkarten",
-    weekPlan: "Wochenplan",
-    quickCapture: "Schnellerfassung",
-    learningTime: "Lernzeit",
-    milestones: "Meilensteine",
     tags: "Tags",
     archive: "Archiv",
   };
   const dashboardLayoutStorageKey = "stapelweise.dashboard.modules.v5";
-  const dashboardWidthStorageKey = "stapelweise.dashboard.widths.v4";
+  const deckModuleSizeStorageKey = "stapelweise.dashboard.deckSizes.v1";
+  const singleCardModuleSizeStorageKey = "stapelweise.dashboard.singleCardSizes.v1";
   const legacyDashboardLayoutStorageKey = "stapelweise.dashboard.modules.v4";
   const singleCardStorageKey = "stapelweise.dashboard.singleCards.v1";
   const spacerStorageKey = "stapelweise.dashboard.spacers.v1";
+  const removedNoteSpacersStorageKey = "stapelweise.dashboard.removedNotes.v1";
   const hiddenDeckModulesStorageKey = "stapelweise.dashboard.hiddenDecks.v1";
   const hiddenExamModulesStorageKey = "stapelweise.dashboard.hiddenExams.v1";
-  const compactModuleIds: DashboardModuleId[] = ["brand", "search", "settings"];
+  const compactModuleIds: DashboardModuleId[] = ["brand", "settings"];
+  const deckModuleSizes: { width: DeckModuleSize; label: string }[] = [
+    { width: 3, label: "Klein" },
+    { width: 4, label: "Mittel" },
+    { width: 5, label: "Groß" },
+  ];
+  const singleCardModuleSizes: { width: SingleCardModuleSize; label: string }[] = [
+    { width: 3, label: "Klein" },
+    { width: 4, label: "Mittel" },
+  ];
+  const tagModuleSizes: { width: ModuleWidth; label: string }[] = [
+    { width: 3, label: "Klein" },
+    { width: 4, label: "Mittel" },
+    { width: 6, label: "Groß" },
+  ];
+  const archiveModuleSizes: { width: ModuleWidth; label: string }[] = [
+    { width: 3, label: "Klein" },
+    { width: 4, label: "Mittel" },
+    { width: 6, label: "Groß" },
+  ];
+  const genericModuleSizeStorageKey = "stapelweise.dashboard.genericSizes.v1";
   const defaultModuleWidths: Record<DashboardModuleId, ModuleWidth> = {
-    brand: 6,
-    search: 2,
+    brand: 3,
     settings: 2,
-    focus: 6,
-    continue: 4,
     timer: 4,
-    learning: 6,
-    problems: 4,
-    weekPlan: 6,
-    quickCapture: 6,
-    learningTime: 4,
-    milestones: 8,
     tags: 4,
     archive: 4,
   };
@@ -84,7 +91,7 @@
   const isSpacerModule = (moduleId: string): moduleId is SpacerModuleId => moduleId.startsWith("spacer:");
   const isDashboardModuleKey = (moduleId: unknown): moduleId is DashboardModuleKey =>
     typeof moduleId === "string" && (availableModuleIds.includes(moduleId as DashboardModuleId) || isSingleCardModule(moduleId) || isDeckModule(moduleId) || isExamModule(moduleId) || isSpacerModule(moduleId));
-  const spacerTitle = (variant: SpacerVariant) => variant === "divider" ? "Trennlinie" : variant === "note" ? "Notizfläche" : "Leerraum";
+  const spacerTitle = (variant: SpacerVariant) => variant === "divider" ? "Trennlinie" : "Leerraum";
   const moduleTitle = (moduleId: DashboardModuleKey) => isSingleCardModule(moduleId)
     ? "Einzelkarte"
     : isDeckModule(moduleId)
@@ -95,13 +102,16 @@
       ? spacerTitle(spacerModules[moduleId]?.variant ?? "blank")
       : t(moduleTitles[moduleId]);
   const moduleTone = (moduleId: DashboardModuleKey): ModuleTone => {
-    if (isSingleCardModule(moduleId)) return "primary";
-    if (isDeckModule(moduleId)) return "primary";
-    if (isExamModule(moduleId)) return "warm";
-    if (isSpacerModule(moduleId)) return "secondary";
-    if (["settings", "continue", "learning", "weekPlan", "learningTime", "tags"].includes(moduleId)) return "secondary";
-    if (["timer", "problems", "milestones"].includes(moduleId)) return "warm";
-    return "primary";
+    const target: ModuleColorTarget | null = isSingleCardModule(moduleId)
+      ? "single_card"
+      : isDeckModule(moduleId)
+        ? "deck"
+        : isExamModule(moduleId)
+          ? "exam"
+          : isSpacerModule(moduleId)
+            ? null
+            : moduleId;
+    return target ? settingsStore.moduleColorFor(target) : "secondary";
   };
 
   let view = $state<"decks" | "cards" | "study" | "search" | "settings" | "test">("decks");
@@ -113,10 +123,14 @@
   let activePracticeMode = $state(false);
   let dashboard = $state<DashboardStats | null>(null);
   let moduleOrder = $state<DashboardModuleKey[]>([...defaultModuleOrder]);
-  let moduleWidths = $state<Partial<Record<DashboardModuleKey, ModuleWidth>>>({});
+  let deckModuleWidths = $state<Record<string, DeckModuleSize>>({});
+  let singleCardModuleWidths = $state<Record<string, SingleCardModuleSize>>({});
+  let genericModuleWidths = $state<Record<string, ModuleWidth>>({});
+  let expandedModuleSizeId = $state<DashboardModuleKey | null>(null);
   let arrangingModules = $state(false);
   let showModulePicker = $state(false);
   let draggedModule = $state<DashboardModuleKey | null>(null);
+  let dashboardGridElement = $state<HTMLDivElement | null>(null);
   let dragCandidate = $state<ModuleDragCandidate | null>(null);
   let dragTargetModule = $state<DashboardModuleKey | null>(null);
   let dragPlacement = $state<"before" | "after">("before");
@@ -141,33 +155,104 @@
   let dashboardRevision = $state(0);
   let studyStartedAt = $state<number | null>(null);
   let studyReviews = $state(0);
-  let weekDays = $derived(["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"].map((day) => t(day)));
 
-  function moduleWidthOptions(moduleId: DashboardModuleKey): ModuleWidth[] {
-    if (moduleId === "search" || moduleId === "settings") return [2, 3, 4];
-    if (isDeckModule(moduleId)) return [4, 6, 8];
-    if (isExamModule(moduleId)) return [4, 6, 8];
-    if (moduleId === "brand") return [4, 6, 8, 12];
-    return [4, 6, 8, 12];
+  function saveGenericModuleWidths(widths: Record<string, ModuleWidth>) {
+    genericModuleWidths = widths;
+    localStorage.setItem(genericModuleSizeStorageKey, JSON.stringify(widths));
+  }
+
+  function getModuleSizeOptions(moduleId: DashboardModuleKey): { width: ModuleWidth; label: string }[] | null {
+    if (isDeckModule(moduleId)) return deckModuleSizes;
+    if (isSingleCardModule(moduleId)) return singleCardModuleSizes;
+    if (moduleId === "tags") return tagModuleSizes;
+    if (moduleId === "archive") return archiveModuleSizes;
+    return null;
   }
 
   function moduleWidth(moduleId: DashboardModuleKey): ModuleWidth {
-    const fallback = isSingleCardModule(moduleId) || isDeckModule(moduleId) || isExamModule(moduleId) || isSpacerModule(moduleId) ? 4 : defaultModuleWidths[moduleId];
-    return moduleWidths[moduleId] ?? fallback;
+    if (isDeckModule(moduleId)) return deckModuleWidths[moduleId] ?? 4;
+    if (isSingleCardModule(moduleId)) return singleCardModuleWidths[moduleId] ?? 3;
+    if (genericModuleWidths[moduleId]) return genericModuleWidths[moduleId];
+    return isExamModule(moduleId) || isSpacerModule(moduleId) ? 4 : defaultModuleWidths[moduleId];
   }
 
-  function saveModuleWidths(widths: Partial<Record<DashboardModuleKey, ModuleWidth>>) {
-    moduleWidths = widths;
-    localStorage.setItem(dashboardWidthStorageKey, JSON.stringify(widths));
+  function saveDeckModuleWidths(widths: Record<string, DeckModuleSize>) {
+    deckModuleWidths = widths;
+    localStorage.setItem(deckModuleSizeStorageKey, JSON.stringify(widths));
   }
 
-  function resizeModule(moduleId: DashboardModuleKey, direction: -1 | 1) {
-    const options = moduleWidthOptions(moduleId);
-    const index = options.indexOf(moduleWidth(moduleId));
-    const nextIndex = Math.max(0, Math.min(options.length - 1, index + direction));
-    if (nextIndex === index) return;
-    const nextWidth = options[nextIndex];
-    saveModuleWidths({ ...moduleWidths, [moduleId]: nextWidth });
+  function saveSingleCardModuleWidths(widths: Record<string, SingleCardModuleSize>) {
+    singleCardModuleWidths = widths;
+    localStorage.setItem(singleCardModuleSizeStorageKey, JSON.stringify(widths));
+  }
+
+  function dashboardModuleRects() {
+    return new Map(
+      Array.from(dashboardGridElement?.querySelectorAll<HTMLElement>("[data-dashboard-module]") ?? [])
+        .map((element) => [element, element.getBoundingClientRect()])
+    );
+  }
+
+  function animateDashboardReflow(previousRects: Map<HTMLElement, DOMRect>) {
+    const currentRects = dashboardModuleRects();
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return currentRects;
+    for (const [element, previous] of previousRects) {
+      const current = currentRects.get(element);
+      if (!current) continue;
+      const deltaX = previous.left - current.left;
+      const deltaY = previous.top - current.top;
+      if (!deltaX && !deltaY) continue;
+      element.animate(
+        [
+          { transform: `translate(${deltaX}px, ${deltaY}px)` },
+          { transform: "translate(0, 0)" },
+        ],
+        { duration: 280, easing: "cubic-bezier(0.2, 0, 0, 1)" }
+      );
+    }
+    return currentRects;
+  }
+
+  function setModuleSize(moduleId: DashboardModuleKey, width: ModuleWidth) {
+    if (moduleWidth(moduleId) === width) return;
+    const previousRects = new Map(
+      Array.from(document.querySelectorAll<HTMLElement>("[data-dashboard-module]")).map((element) => [element, element.getBoundingClientRect()])
+    );
+    if (isDeckModule(moduleId)) {
+      saveDeckModuleWidths({ ...deckModuleWidths, [moduleId]: width as DeckModuleSize });
+    } else if (isSingleCardModule(moduleId)) {
+      saveSingleCardModuleWidths({ ...singleCardModuleWidths, [moduleId]: width as SingleCardModuleSize });
+    } else {
+      saveGenericModuleWidths({ ...genericModuleWidths, [moduleId]: width });
+    }
+    void tick().then(() => {
+      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+      for (const [element, previous] of previousRects) {
+        const current = element.getBoundingClientRect();
+        const deltaX = previous.left - current.left;
+        const deltaY = previous.top - current.top;
+        const scaleX = previous.width / current.width;
+        const scaleY = previous.height / current.height;
+        if (!deltaX && !deltaY && scaleX === 1 && scaleY === 1) continue;
+        const resizedModule = element.dataset.dashboardModule === moduleId;
+        if (resizedModule) element.style.zIndex = "20";
+        const animation = element.animate(
+          [
+            { transformOrigin: "top left", transform: `translate(${deltaX}px, ${deltaY}px) scale(${scaleX}, ${scaleY})` },
+            { transformOrigin: "top left", transform: "none" },
+          ],
+          { duration: 260, easing: "cubic-bezier(0.2, 0, 0, 1)" }
+        );
+        if (resizedModule) {
+          void animation.finished.catch(() => {}).then(() => element.style.removeProperty("z-index"));
+        }
+      }
+    });
+  }
+
+  function selectModuleSize(moduleId: DashboardModuleKey, width: ModuleWidth) {
+    setModuleSize(moduleId, width);
+    expandedModuleSizeId = null;
   }
 
   onMount(() => {
@@ -182,28 +267,60 @@
         ? savedHiddenExamIds.filter((examId): examId is string => typeof examId === "string")
         : [];
       const savedSpacers = JSON.parse(localStorage.getItem(spacerStorageKey) ?? "{}") as Record<string, unknown>;
+      const removedNotes = Object.entries(savedSpacers).flatMap(([moduleId, config]) => {
+        const legacyNote = config as { variant?: unknown; note?: unknown } | null;
+        return isSpacerModule(moduleId)
+          && legacyNote?.variant === "note"
+          && typeof legacyNote.note === "string"
+          && legacyNote.note.trim()
+          ? [{ moduleId, note: legacyNote.note, removedAt: new Date().toISOString() }]
+          : [];
+      });
+      if (removedNotes.length > 0) {
+        let archive: unknown[] = [];
+        try {
+          const existingArchive = JSON.parse(localStorage.getItem(removedNoteSpacersStorageKey) ?? "[]");
+          archive = Array.isArray(existingArchive) ? existingArchive : [];
+        } catch {}
+        localStorage.setItem(removedNoteSpacersStorageKey, JSON.stringify([...archive, ...removedNotes]));
+      }
       spacerModules = Object.fromEntries(
         Object.entries(savedSpacers).filter(([moduleId, config]) =>
           isSpacerModule(moduleId)
           && typeof config === "object"
           && config !== null
-          && ["blank", "divider", "note"].includes((config as SpacerModuleConfig).variant)
+          && ["blank", "divider"].includes((config as SpacerModuleConfig).variant)
         )
       ) as Record<string, SpacerModuleConfig>;
-      const savedWidths = JSON.parse(localStorage.getItem(dashboardWidthStorageKey) ?? "{}") as Record<string, unknown>;
-      moduleWidths = Object.fromEntries(
-        Object.entries(savedWidths).filter(([moduleId, width]) =>
-          isDashboardModuleKey(moduleId) && [2, 3, 4, 6, 8, 12].includes(width as ModuleWidth)
+      localStorage.setItem(spacerStorageKey, JSON.stringify(spacerModules));
+      localStorage.removeItem("stapelweise.dashboard.widths.v4");
+      const savedDeckWidths = JSON.parse(localStorage.getItem(deckModuleSizeStorageKey) ?? "{}") as Record<string, unknown>;
+      deckModuleWidths = Object.fromEntries(
+        Object.entries(savedDeckWidths).filter(([moduleId, width]) =>
+          isDeckModule(moduleId) && deckModuleSizes.some((size) => size.width === width)
         )
-      ) as Partial<Record<DashboardModuleKey, ModuleWidth>>;
+      ) as Record<string, DeckModuleSize>;
+      const savedSingleCardWidths = JSON.parse(localStorage.getItem(singleCardModuleSizeStorageKey) ?? "{}") as Record<string, unknown>;
+      singleCardModuleWidths = Object.fromEntries(
+        Object.entries(savedSingleCardWidths).filter(([moduleId, width]) =>
+          isSingleCardModule(moduleId) && singleCardModuleSizes.some((size) => size.width === width)
+        )
+      ) as Record<string, SingleCardModuleSize>;
+      const savedGenericWidths = JSON.parse(localStorage.getItem(genericModuleSizeStorageKey) ?? "{}") as Record<string, unknown>;
+      genericModuleWidths = Object.fromEntries(
+        Object.entries(savedGenericWidths).filter(([moduleId, width]) =>
+          isDashboardModuleKey(moduleId) && [2, 3, 4, 5, 6, 8, 12].includes(width as number)
+        )
+      ) as Record<string, ModuleWidth>;
       localStorage.removeItem("stapelweise.dashboard.grid.v1");
       const savedLayout = localStorage.getItem(dashboardLayoutStorageKey);
       if (savedLayout !== null) {
         const savedOrder = JSON.parse(savedLayout);
         const filteredOrder = Array.isArray(savedOrder)
-          ? [...new Set(savedOrder.filter(isDashboardModuleKey))]
+          ? [...new Set(savedOrder.filter(isDashboardModuleKey))].filter((moduleId) => !isSpacerModule(moduleId) || Boolean(spacerModules[moduleId]))
           : [...defaultModuleOrder];
         moduleOrder = filteredOrder.includes("settings") ? filteredOrder : ["settings", ...filteredOrder];
+        localStorage.setItem(dashboardLayoutStorageKey, JSON.stringify(moduleOrder));
       } else {
         const legacySavedLayout = localStorage.getItem(legacyDashboardLayoutStorageKey);
         if (legacySavedLayout === null) {
@@ -229,6 +346,34 @@
     } finally {
       dashboardLayoutLoaded = true;
     }
+  });
+
+  onMount(() => {
+    let previousRects = dashboardModuleRects();
+    let resizeTimer: ReturnType<typeof setTimeout> | null = null;
+    let windowIsResizing = false;
+    const observer = new ResizeObserver(() => {
+      if (!windowIsResizing) previousRects = dashboardModuleRects();
+    });
+    if (dashboardGridElement) observer.observe(dashboardGridElement);
+
+    function handleWindowResize() {
+      windowIsResizing = true;
+      if (resizeTimer) clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        requestAnimationFrame(() => {
+          previousRects = animateDashboardReflow(previousRects);
+          windowIsResizing = false;
+        });
+      }, 100);
+    }
+
+    window.addEventListener("resize", handleWindowResize);
+    return () => {
+      if (resizeTimer) clearTimeout(resizeTimer);
+      observer.disconnect();
+      window.removeEventListener("resize", handleWindowResize);
+    };
   });
 
   onMount(() => {
@@ -286,13 +431,8 @@
     if (!target || !dragTargetModule) return;
 
     const rect = target.getBoundingClientRect();
-    const sourceWidth = moduleWidth(draggedModule);
-    const targetWidth = moduleWidth(dragTargetModule);
-    const columns = window.matchMedia("(min-width: 1024px)").matches ? 12 : window.matchMedia("(min-width: 640px)").matches ? 6 : 2;
-    dragAxis = columns > 2 && sourceWidth + targetWidth <= columns ? "inline" : "block";
-    dragPlacement = dragAxis === "inline"
-      ? event.clientX < rect.left + rect.width / 2 ? "before" : "after"
-      : event.clientY < rect.top + rect.height / 2 ? "before" : "after";
+    dragAxis = "inline";
+    dragPlacement = event.clientX < rect.left + rect.width / 2 ? "before" : "after";
   }
 
   function finishModuleDrag(commit = true) {
@@ -306,8 +446,10 @@
 
   function resetModuleOrder() {
     saveModuleOrder([...defaultModuleOrder]);
-    moduleWidths = {};
-    localStorage.removeItem(dashboardWidthStorageKey);
+    deckModuleWidths = {};
+    localStorage.removeItem(deckModuleSizeStorageKey);
+    singleCardModuleWidths = {};
+    localStorage.removeItem(singleCardModuleSizeStorageKey);
     localStorage.removeItem("stapelweise.dashboard.grid.v1");
     singleCardSelections = {};
     localStorage.removeItem(singleCardStorageKey);
@@ -323,9 +465,13 @@
   function removeModule(moduleId: DashboardModuleKey) {
     if (moduleId === "settings") return;
     saveModuleOrder(moduleOrder.filter((id) => id !== moduleId));
-    const { [moduleId]: _width, ...remainingWidths } = moduleWidths;
-    saveModuleWidths(remainingWidths);
+    if (isDeckModule(moduleId)) {
+      const { [moduleId]: _width, ...remainingWidths } = deckModuleWidths;
+      saveDeckModuleWidths(remainingWidths);
+    }
     if (isSingleCardModule(moduleId)) {
+      const { [moduleId]: _width, ...remainingWidths } = singleCardModuleWidths;
+      saveSingleCardModuleWidths(remainingWidths);
       const { [moduleId]: _, ...remainingSelections } = singleCardSelections;
       singleCardSelections = remainingSelections;
       localStorage.setItem(singleCardStorageKey, JSON.stringify(singleCardSelections));
@@ -383,15 +529,9 @@
       ? crypto.randomUUID()
       : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
     const moduleId: SpacerModuleId = `spacer:${uniqueId}`;
-    spacerModules = { ...spacerModules, [moduleId]: { variant, note: "" } };
+    spacerModules = { ...spacerModules, [moduleId]: { variant } };
     localStorage.setItem(spacerStorageKey, JSON.stringify(spacerModules));
     saveModuleOrder([...moduleOrder, moduleId]);
-  }
-
-  function updateSpacerNote(moduleId: SpacerModuleId, note: string) {
-    const config = spacerModules[moduleId] ?? { variant: "note" as const, note: "" };
-    spacerModules = { ...spacerModules, [moduleId]: { ...config, note } };
-    localStorage.setItem(spacerStorageKey, JSON.stringify(spacerModules));
   }
 
   function selectSingleCard(moduleId: SingleCardModuleId, cardId: string) {
@@ -403,20 +543,6 @@
   let hiddenModules = $derived(availableModuleIds.filter((moduleId) => !moduleOrder.includes(moduleId)));
   let hiddenDecks = $derived(deckStore.decks.filter((deck) => hiddenDeckIds.includes(deck.id)));
   let hiddenExams = $derived(exams.filter((exam) => hiddenExamIds.includes(exam.id)));
-  let primaryActionLabel = $derived.by(() => {
-    if (!hasDecks) return "Ersten Stapel anlegen";
-    if (dashboard && dashboard.total_cards === 0) return "Karten anlegen";
-    if (dashboard && dashboard.due_cards > 0) return t("startSession");
-    return t("practice");
-  });
-  let learningLoad = $derived.by(() => {
-    if (!dashboard) return "Bereit";
-    if (!hasDecks) return "Startklar";
-    if (dashboard.due_cards === 0) return "Alles im Rhythmus";
-    if (dashboard.due_cards <= 12) return "Kleine Runde";
-    if (dashboard.due_cards <= 35) return "Guter Fokusblock";
-    return "Aufholsession";
-  });
   deckStore.load();
 
   async function loadExams() {
@@ -537,6 +663,16 @@
     activePracticeMode = true;
     activeDeckName = `${deck.name} · ${t("freePractice")}`;
     view = "study";
+  }
+
+  function handleTestDeck(deck: Deck) {
+    activeDeck = deck;
+    activeDeckIds = [deck.id];
+    activeTags = [];
+    activeCustomCards = [];
+    activePracticeMode = false;
+    activeDeckName = `${t("Stapelprüfung")}: ${deck.name}`;
+    view = "test";
   }
 
   function handlePracticeAllDecks() {
@@ -666,12 +802,26 @@
   }
 
   function handleSimulateExam(deckIds: string[], examName: string) {
+    activeDeck = null;
     activeDeckIds = deckIds;
     activeTags = [];
     activeCustomCards = [];
     activePracticeMode = false;
     activeDeckName = `${t("Simulation")}: ${examName}`;
     view = "test";
+  }
+
+  function closeTest() {
+    if (activeDeck) {
+      activeDeckIds = [];
+      activeTags = [];
+      activeCustomCards = [];
+      activePracticeMode = false;
+      activeDeckName = "";
+      view = "cards";
+      return;
+    }
+    goHome();
   }
 
   function goHome() {
@@ -705,18 +855,6 @@
     } catch {}
     studyStartedAt = null;
     studyReviews = 0;
-  }
-
-  function handleProblemCards(cards: Card[], name: string) {
-    if (cards.length === 0) return;
-    beginStudyTracking();
-    activeDeck = null;
-    activeDeckIds = [];
-    activeTags = [];
-    activeCustomCards = cards;
-    activePracticeMode = false;
-    activeDeckName = name;
-    view = "study";
   }
 
   function refreshDashboard() {
@@ -758,6 +896,7 @@
         onClose={goHome}
         onStudy={() => handleStudyDeck(activeDeck!)}
         onPractice={() => handlePracticeDeck(activeDeck!)}
+        onTest={() => handleTestDeck(activeDeck!)}
       />
     </div>
   {:else if view === "study" && (activeDeckIds.length > 0 || activeTags.length > 0 || activeCustomCards.length > 0)}
@@ -810,7 +949,10 @@
             onclick={() => {
               arrangingModules = !arrangingModules;
               finishModuleDrag(false);
-              if (!arrangingModules) showModulePicker = false;
+              if (!arrangingModules) {
+                showModulePicker = false;
+                expandedModuleSizeId = null;
+              }
             }}
             class="{arrangingModules ? 'primary-action' : 'secondary-action'} px-3 py-1.5 text-xs"
           >
@@ -840,12 +982,11 @@
               <button onclick={addSingleCardModule} class="secondary-action px-3 py-1.5 text-xs">+ Einzelkarte</button>
               <button onclick={() => addSpacerModule("blank")} class="secondary-action px-3 py-1.5 text-xs">+ Leerraum</button>
               <button onclick={() => addSpacerModule("divider")} class="secondary-action px-3 py-1.5 text-xs">+ Trennlinie</button>
-              <button onclick={() => addSpacerModule("note")} class="secondary-action px-3 py-1.5 text-xs">+ Notizfläche</button>
             </div>
           </div>
         {/if}
 
-        <div class="dashboard-grid" role="list" aria-label="Dashboard-Module">
+        <div bind:this={dashboardGridElement} class="dashboard-grid" role="list" aria-label="Dashboard-Module">
           {#each moduleOrder as moduleId (moduleId)}
             <section
               role="listitem"
@@ -853,7 +994,8 @@
               data-dashboard-tone={moduleTone(moduleId)}
               data-dashboard-width={moduleWidth(moduleId)}
               data-dashboard-drop-axis={dragTargetModule === moduleId ? dragAxis : undefined}
-              class="dashboard-module {moduleId === 'search' || moduleId === 'settings' ? 'dashboard-icon-module' : ''} {arrangingModules ? 'dashboard-module-arranging' : ''} {draggedModule === moduleId ? 'dashboard-module-dragging' : ''} {dragTargetModule === moduleId ? `dashboard-module-drop-target dashboard-module-drop-${dragPlacement}` : ''}"
+              animate:flip={{ duration: 250 }}
+              class="dashboard-module {moduleId === 'settings' ? 'dashboard-icon-module' : ''} {moduleId === 'timer' ? 'dashboard-timer-module' : ''} {arrangingModules ? 'dashboard-module-arranging' : ''} {draggedModule === moduleId ? 'dashboard-module-dragging' : ''} {dragTargetModule === moduleId ? `dashboard-module-drop-target dashboard-module-drop-${dragPlacement}` : ''}"
             >
               {#if arrangingModules}
                 <div class="dashboard-module-toolbar">
@@ -867,20 +1009,30 @@
                     aria-label="{moduleTitle(moduleId)} verschieben"
                   ><GripVertical size={18} /><span>{moduleTitle(moduleId)}</span></button>
                   <div class="dashboard-module-toolbar-actions">
-                    <button
-                      class="dashboard-order-button dashboard-resize-button"
-                      onclick={() => resizeModule(moduleId, -1)}
-                      disabled={moduleWidthOptions(moduleId).indexOf(moduleWidth(moduleId)) === 0}
-                      title="Schmaler"
-                      aria-label="{moduleTitle(moduleId)} schmaler machen"
-                    ><ChevronsLeft size={16} /></button>
-                    <button
-                      class="dashboard-order-button dashboard-resize-button"
-                      onclick={() => resizeModule(moduleId, 1)}
-                      disabled={moduleWidthOptions(moduleId).indexOf(moduleWidth(moduleId)) === moduleWidthOptions(moduleId).length - 1}
-                      title="Breiter"
-                      aria-label="{moduleTitle(moduleId)} breiter machen"
-                    ><ChevronsRight size={16} /></button>
+                    {#if isDeckModule(moduleId) || isSingleCardModule(moduleId)}
+                      {@const sizeOptions = isDeckModule(moduleId) ? deckModuleSizes : singleCardModuleSizes}
+                      <div class:dashboard-size-control-expanded={expandedModuleSizeId === moduleId} class="dashboard-size-control" role="group" aria-label={`Größe von ${moduleTitle(moduleId)}`}>
+                        <button
+                          class="dashboard-size-toggle"
+                          onclick={() => (expandedModuleSizeId = expandedModuleSizeId === moduleId ? null : moduleId)}
+                          aria-expanded={expandedModuleSizeId === moduleId}
+                          aria-label={`Größe von ${moduleTitle(moduleId)} ändern`}
+                        >
+                          <Maximize2 size={14} />
+                          <span class="dashboard-size-toggle-label">{t(sizeOptions.find((size) => size.width === moduleWidth(moduleId))?.label ?? "Mittel")}</span>
+                          <ChevronDown size={14} />
+                        </button>
+                        <div class="dashboard-size-options">
+                          {#each sizeOptions as size}
+                            <button
+                              class="dashboard-size-option {moduleWidth(moduleId) === size.width ? 'module-accent-fill text-white' : 'text-secondary hover:bg-current/5'}"
+                              onclick={() => selectModuleSize(moduleId, size.width)}
+                              aria-pressed={moduleWidth(moduleId) === size.width}
+                            >{t(size.label)}</button>
+                          {/each}
+                        </div>
+                      </div>
+                    {/if}
                     <button
                       class="dashboard-order-button dashboard-move-button"
                       onclick={() => moveModuleBy(moduleId, -1)}
@@ -911,20 +1063,13 @@
                 {#if moduleId === "brand"}
                   <div class="surface-panel flex min-h-28 items-center gap-5 p-5 sm:p-6">
                     <div class="relative h-14 w-14 shrink-0" aria-hidden="true">
-                      <span class="absolute left-1.5 top-1.5 h-12 w-12 bg-accent-correct"></span>
-                      <span class="font-pixel absolute left-0 top-0 flex h-12 w-12 items-center justify-center border-[3px] border-[#111827] bg-white text-xl font-black text-[#111827] dark:border-[#F8FAFC] dark:bg-[#171B24] dark:text-[#F8FAFC]">S</span>
-                      <span class="absolute left-1.5 top-1.5 h-2 w-2 bg-accent-hard"></span>
-                      <span class="absolute bottom-3 right-3 h-2 w-2 bg-accent-correct"></span>
+                      <span class="absolute left-1.5 top-1.5 h-12 w-12" style="background-color: rgb(var(--dashboard-tone-secondary))"></span>
+                      <span class="font-pixel absolute left-0 top-0 flex h-12 w-12 items-center justify-center border-[3px] text-xl font-black" style="border-color: rgb(var(--dashboard-tone-primary)); background-color: rgb(var(--dashboard-tone-primary)); color: var(--color-surface)">S</span>
+                      <span class="absolute left-1.5 top-1.5 h-2 w-2" style="background-color: rgb(var(--dashboard-tone-secondary))"></span>
+                      <span class="absolute bottom-3 right-3 h-2 w-2" style="background-color: rgb(var(--dashboard-tone-primary))"></span>
                     </div>
                     <p class="dashboard-brand-wordmark font-pixel min-w-0 text-xl font-bold text-primary dark:text-primary-dark sm:text-2xl">stapelweise</p>
                   </div>
-                {:else if moduleId === "search"}
-                  <button
-                    onclick={handleOpenSearch}
-                    class="surface-panel flex aspect-square w-full items-center justify-center text-primary transition-colors hover:border-accent-correct hover:text-accent-correct dark:text-primary-dark"
-                    title="Karten durchsuchen"
-                    aria-label="Karten durchsuchen"
-                  ><SearchIcon size={34} strokeWidth={1.8} /></button>
                 {:else if moduleId === "settings"}
                   <button
                     onclick={handleOpenSettings}
@@ -937,6 +1082,7 @@
                     decks={deckStore.decks}
                     cards={dashboardCards}
                     selectedCardId={singleCardSelections[moduleId] ?? ""}
+                    compact={moduleWidth(moduleId) === 3}
                     onSelect={(cardId) => selectSingleCard(moduleId, cardId)}
                   />
                 {:else if isDeckModule(moduleId)}
@@ -964,128 +1110,16 @@
                     />
                   {/if}
                 {:else if isSpacerModule(moduleId)}
-                  {@const spacer = spacerModules[moduleId] ?? { variant: "blank", note: "" }}
+                  {@const spacer = spacerModules[moduleId] ?? { variant: "blank" }}
                   {#if spacer.variant === "blank"}
                     <div class="dashboard-spacer dashboard-spacer-blank" aria-hidden="true"></div>
                   {:else if spacer.variant === "divider"}
                     <div class="dashboard-spacer dashboard-spacer-divider" aria-hidden="true"><span></span></div>
-                  {:else}
-                    <div class="dashboard-spacer dashboard-spacer-note">
-                      <textarea
-                        data-user-content
-                        value={spacer.note}
-                        oninput={(event) => updateSpacerNote(moduleId, event.currentTarget.value)}
-                        placeholder={t("Notiz...")}
-                        aria-label={t("Notizfläche")}
-                        class="h-full w-full resize-none bg-transparent p-4 text-sm text-primary outline-none placeholder:text-secondary dark:text-primary-dark"
-                      ></textarea>
-                    </div>
                   {/if}
-                {:else if moduleId === "focus"}
-                  {#if dashboard}
-                    <div class="surface-panel h-full overflow-hidden">
-                      <div class="p-5 sm:p-6">
-                        <div class="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
-                          <div>
-                            <p class="section-kicker mb-2">{learningLoad}</p>
-                            <h1 class="text-2xl font-bold text-primary dark:text-primary-dark sm:text-3xl">{t("todayLearn")}</h1>
-                          </div>
-                          <div class="module-accent-soft rounded-lg px-4 py-3 text-left sm:text-right">
-                            <p class="font-pixel text-2xl font-bold text-primary dark:text-primary-dark">{dashboard.due_cards}</p>
-                            <p class="text-xs font-semibold uppercase tracking-wide text-secondary">{t("dueCards")}</p>
-                          </div>
-                        </div>
-                        <div class="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
-                          <button onclick={handlePrimaryAction} class="primary-action px-5 py-2.5 text-sm">{primaryActionLabel}</button>
-                          <button onclick={requestNewExam} class="secondary-action px-5 py-2.5 text-sm">{t("Prüfung planen")}</button>
-                        </div>
-                      </div>
-                      <div class="module-accent-soft grid grid-cols-3 border-t">
-                        <div class="border-r border-current/10 p-4">
-                          <p class="text-xs font-medium text-secondary">{t("Heute gelernt")}</p>
-                          <p class="module-accent-text font-pixel mt-2 text-base font-bold">{dashboard.reviews_today}</p>
-                        </div>
-                        <div class="border-r border-current/10 p-4">
-                          <p class="text-xs font-medium text-secondary">{t("Serie")}</p>
-                          <p class="module-accent-text font-pixel mt-2 text-base font-bold">{dashboard.streak_days} <span class="font-sans text-sm font-semibold text-secondary">{t("Tage")}</span></p>
-                        </div>
-                        <div class="p-4">
-                          <p class="text-xs font-medium text-secondary">{t("Gesamt")}</p>
-                          <p class="module-accent-text font-pixel mt-2 text-base font-bold">{dashboard.total_cards}</p>
-                        </div>
-                      </div>
-                    </div>
-                  {:else}
-                    <div class="surface-panel h-full p-5 sm:p-6">
-                      <p class="section-kicker mb-2">{t("Kleine Runde")}</p>
-                      <h1 class="text-2xl font-bold text-primary dark:text-primary-dark sm:text-3xl">{t("todayLearn")}</h1>
-                      <div class="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
-                        <button onclick={() => requestNewDeck()} class="primary-action px-5 py-2.5 text-sm">{t("Ersten Stapel anlegen")}</button>
-                        <button onclick={requestNewExam} class="secondary-action px-5 py-2.5 text-sm">{t("Prüfung planen")}</button>
-                      </div>
-                    </div>
-                  {/if}
-                {:else if moduleId === "learning"}
-                  <aside class="surface-panel h-full p-5">
-                    <p class="section-kicker mb-3">{t("Lernlage")}</p>
-                    {#if dashboard}
-                      <div class="space-y-4">
-                        <div>
-                          <div class="mb-1 flex items-center justify-between text-sm">
-                            <span class="font-semibold text-primary dark:text-primary-dark">{t("Lernpensum")}</span>
-                            <span class="text-secondary">{dashboard.due_cards === 0 ? t("frei") : dashboard.due_cards <= 20 ? t("normal") : t("hoch")}</span>
-                          </div>
-                          <div class="module-accent-track h-2 overflow-hidden rounded-full">
-                            <div class="module-accent-fill h-full rounded-full transition-all" style="width: {Math.min(100, dashboard.due_cards * 3)}%"></div>
-                          </div>
-                        </div>
-                        <div>
-                          <div class="mb-2 flex items-center justify-between text-sm">
-                            <span class="font-semibold text-primary dark:text-primary-dark">{t("Wochenrhythmus")}</span>
-                            <span class="text-secondary">{dashboard.streak_days > 0 ? t("aktiv") : t("neu starten")}</span>
-                          </div>
-                          <div class="grid grid-cols-7 gap-1.5">
-                            {#each weekDays as day, index}
-                              {@const active = index >= Math.max(0, 7 - dashboard.streak_days)}
-                              <div class="flex flex-col items-center gap-1">
-                                <div class="h-2 w-full rounded-full {active ? 'module-accent-fill' : 'module-accent-track'}"></div>
-                                <span class="text-[10px] font-semibold text-secondary">{day}</span>
-                              </div>
-                            {/each}
-                          </div>
-                        </div>
-                        <div class="grid grid-cols-2 gap-3">
-                          <div class="module-accent-subpanel rounded-lg p-3">
-                            <p class="text-xs text-secondary">Ø Ease</p>
-                            <p class="font-pixel text-sm font-bold text-primary dark:text-primary-dark">{dashboard.avg_ease_factor.toFixed(2)}</p>
-                          </div>
-                          <div class="module-accent-subpanel rounded-lg p-3">
-                            <p class="text-xs text-secondary">{t("Bibliothek")}</p>
-                            <p class="font-pixel text-sm font-bold text-primary dark:text-primary-dark">{deckStore.decks.length}</p>
-                          </div>
-                        </div>
-                      </div>
-                    {:else}
-                      <div class="grid grid-cols-3 gap-3">
-                        <div class="module-accent-muted h-16 rounded-lg"></div>
-                        <div class="module-accent-muted h-16 rounded-lg"></div>
-                        <div class="module-accent-muted h-16 rounded-lg"></div>
-                      </div>
-                    {/if}
-                  </aside>
-                {:else if moduleId === "continue" || moduleId === "timer" || moduleId === "problems" || moduleId === "weekPlan" || moduleId === "quickCapture" || moduleId === "learningTime" || moduleId === "milestones"}
-                  <DashboardExtras
-                    moduleId={moduleId as ExtraDashboardModuleId}
-                    decks={deckStore.decks}
-                    {dashboard}
-                    refreshToken={dashboardRevision}
-                    onStudyDeck={handleStudyDeck}
-                    onStudyCards={handleProblemCards}
-                    onStudyToday={handlePrimaryAction}
-                    onCardCreated={refreshDashboard}
-                  />
+                {:else if moduleId === "timer"}
+                  <DashboardExtras />
                 {:else if moduleId === "tags"}
-                  <TagList onStudyTags={handleStudyTags} />
+                  <TagList decks={deckStore.decks} cards={dashboardCards} onStudyTags={handleStudyTags} />
                 {:else if moduleId === "archive"}
                   <ArchiveModule
                     refreshToken={dashboardRevision + examRevision}
@@ -1124,7 +1158,7 @@
         deckIds={activeDeckIds}
         tags={activeTags}
         testName={activeDeckName}
-        onClose={goHome}
+        onClose={closeTest}
         onStudyFailed={(cards) => {
           activeDeckIds = [];
           activeTags = [];
@@ -1139,9 +1173,11 @@
 </div>
 
 {#if showNewDeck}
-  <div class="fixed inset-0 z-50 flex items-center justify-center p-4" role="presentation">
+  <div in:fade={{ duration: 140 }} out:fade={{ duration: 110 }} class="fixed inset-0 z-50 flex items-center justify-center p-4" role="presentation">
     <button class="absolute inset-0 cursor-default bg-black/40 backdrop-blur-sm" onclick={() => (showNewDeck = false)} aria-label={t("Abbrechen")}></button>
     <form
+      in:scale={{ duration: 180, start: 0.97, opacity: 0 }}
+      out:scale={{ duration: 120, start: 0.97, opacity: 0 }}
       class="surface-panel relative z-10 w-full max-w-md p-5 shadow-elevation-high"
       onsubmit={(event) => {
         event.preventDefault();

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { fade, scale } from "svelte/transition";
   import { t } from "$lib/i18n";
   let { title = "Bist du sicher?", message = "", confirmLabel = "Löschen", danger = true, onConfirm = () => {}, onCancel = () => {} } = $props<{
     title?: string;
@@ -16,8 +17,10 @@
 
 <svelte:window onkeydown={handleKeydown} />
 
-<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onclick={onCancel} onkeydown={(e) => e.key === "Escape" && onCancel()} tabindex="-1" role="presentation">
+<div in:fade={{ duration: 140 }} out:fade={{ duration: 110 }} class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onclick={onCancel} onkeydown={(e) => e.key === "Escape" && onCancel()} tabindex="-1" role="presentation">
   <div
+    in:scale={{ duration: 180, start: 0.97, opacity: 0 }}
+    out:scale={{ duration: 120, start: 0.97, opacity: 0 }}
     class="glass rounded-card p-6 max-w-sm mx-4 shadow-elevation-high"
     onclick={(e) => e.stopPropagation()}
     onkeydown={(e) => e.stopPropagation()}

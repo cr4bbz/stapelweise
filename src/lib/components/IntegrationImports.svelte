@@ -42,7 +42,7 @@
       await deckStore.load();
       message = resultLabel(service, result);
     } catch (reason: any) {
-      error = t("Import fehlgeschlagen.");
+      error = reason instanceof Error && reason.message ? reason.message : t("Import fehlgeschlagen.");
     } finally {
       loading = null;
     }

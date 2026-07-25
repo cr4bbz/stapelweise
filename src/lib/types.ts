@@ -15,6 +15,14 @@ export interface OrderingContent {
   items: string[];
 }
 
+export type FreeTextEvaluationMode = "manual" | "symbolic";
+
+export interface FreeTextContent {
+  version: 1;
+  evaluationMode: FreeTextEvaluationMode;
+  expectedLatex?: string;
+}
+
 export interface BaseCard {
   id: string;
   deck_id: string;
@@ -113,10 +121,18 @@ export interface DashboardStats {
   streak_days: number;
 }
 
+export type ModuleColorSlot = "primary" | "secondary";
+export type ModuleColorTarget = "brand" | "deck" | "single_card" | "timer" | "tags" | "settings" | "archive" | "exam";
+
 export interface AppSettings {
   ui_language: "de" | "en" | "es" | "fr" | "pt";
-  theme: "light" | "dark" | "auto";
-  color_theme: "academy" | "night-library" | "printwork" | "graphite";
+  theme: "light";
+  color_theme: "academy" | "night-library" | "printwork" | "graphite" | "custom";
+  custom_primary_color: string;
+  custom_secondary_color: string;
+  module_color_assignments: string;
+  module_surface: "glass";
+  show_deck_card_previews: boolean;
   pixel_font: "press-start" | "silkscreen" | "source-sans" | "source-serif";
   card_font_family: "serif" | "sans";
   card_font_size: "small" | "medium" | "large";
@@ -125,6 +141,9 @@ export interface AppSettings {
   control_transition_animation: boolean;
   rating_buttons_animation: boolean;
   session_limit: number;
+  timer_slider_scale: "linear" | "logarithmic";
+  timer_min_minutes: number;
+  timer_max_minutes: number;
   sm2_initial_ef: number;
   sm2_pass_threshold: number;
   obsidian_vault_path: string;

@@ -1,12 +1,15 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import ShortcutHelp from "./ShortcutHelp.svelte";
   import LocalizationBridge from "./LocalizationBridge.svelte";
-  import { theme } from "$lib/stores/theme.svelte";
+  import { settingsStore } from "$lib/stores/settings.svelte";
 
   let { children } = $props();
   let showShortcutHelp = $state(false);
 
-  theme.init();
+  onMount(() => {
+    void settingsStore.load();
+  });
 
   function handleGlobalKeydown(e: KeyboardEvent) {
     if (e.key === "?" && !e.ctrlKey && !e.metaKey && !e.altKey) {
