@@ -7,6 +7,30 @@ use super::repository::Repository;
 use super::settings::AppSettings;
 use crate::commands::CommandError;
 
+const CURRENT_BACKUP_VERSION: u32 = 2;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConflictStrategy {
+    Overwrite,
+    Skip,
+    Merge,
+}
+
+impl TryFrom<&str> for ConflictStrategy {
+    type Error = CommandError;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        match value {
+            "overwrite" => Ok(Self::Overwrite),
+            "skip" => Ok(Self::Skip),
+            "merge" => Ok(Self::Merge),
+            _ => Err(CommandError::validation(
+                "conflict_strategy must be overwrite, skip or merge",
+            )),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BackupPackage {
     pub version: u32,
@@ -36,14 +60,32 @@ pub struct ImportInspection {
     pub warnings: Vec<String>,
 }
 
+fn parse_package(json_data: &str) -> Result<BackupPackage, CommandError> {
+    serde_json::from_str(json_data)
+        .map_err(|error| CommandError::import_failed("Ungültiges Backup-JSON", Some(error.to_string())))
+}
+
+fn ensure_supported_version(pkg: &BackupPackage) -> Result<(), CommandError> {
+    if pkg.version > CURRENT_BACKUP_VERSION {
+        return Err(CommandError::import_failed(
+            "Backup-Version wird von dieser Stapelweise-Version nicht unterstützt",
+            Some(format!(
+                "Backup-Version: {}, unterstützt bis: {}",
+                pkg.version, CURRENT_BACKUP_VERSION
+            )),
+        ));
+    }
+    Ok(())
+}
+
 pub fn export_backup(repo: &Repository) -> Result<BackupPackage, CommandError> {
     let decks = repo.list_all_decks()?;
     let cards = repo.list_all_cards()?;
     let reviews = repo.list_all_reviews()?;
 
     let mut card_states = Vec::new();
-    for c in &cards {
-        if let Some(state) = repo.get_card_state(&c.id)? {
+    for card in &cards {
+        if let Some(state) = repo.get_card_state(&card.id)? {
             card_states.push(state);
         }
     }
@@ -53,7 +95,7 @@ pub fn export_backup(repo: &Repository) -> Result<BackupPackage, CommandError> {
     let exam_templates = repo.list_exam_templates()?;
 
     Ok(BackupPackage {
-        version: 2,
+        version: CURRENT_BACKUP_VERSION,
         exported_at: Utc::now().to_rfc3339(),
         decks,
         cards,
@@ -69,33 +111,36 @@ pub fn inspect_backup(
     repo: &Repository,
     json_data: &str,
 ) -> Result<ImportInspection, CommandError> {
-    let pkg: BackupPackage = serde_json::from_str(json_data)
-        .map_err(|e| CommandError::import_failed("Ungültiges Backup-JSON", Some(e.to_string())))?;
+    let pkg = parse_package(json_data)?;
+    ensure_supported_version(&pkg)?;
 
-    let existing_decks = repo.list_all_decks()?;
-    let existing_deck_names: HashSet<String> = existing_decks.into_iter().map(|d| d.name).collect();
+    let existing_deck_ids: HashSet<String> = repo
+        .list_all_decks()?
+        .into_iter()
+        .map(|deck| deck.id)
+        .collect();
+    let existing_card_ids: HashSet<String> = repo
+        .list_all_cards()?
+        .into_iter()
+        .map(|card| card.id)
+        .collect();
 
-    let mut deck_conflicts = Vec::new();
-    for d in &pkg.decks {
-        if existing_deck_names.contains(&d.name) {
-            deck_conflicts.push(d.name.clone());
-        }
-    }
-
-    let existing_cards = repo.list_all_cards()?;
-    let existing_card_ids: HashSet<String> = existing_cards.into_iter().map(|c| c.id).collect();
-
-    let mut card_conflicts = 0;
-    for c in &pkg.cards {
-        if existing_card_ids.contains(&c.id) {
-            card_conflicts += 1;
-        }
-    }
+    let existing_deck_conflicts = pkg
+        .decks
+        .iter()
+        .filter(|deck| existing_deck_ids.contains(&deck.id))
+        .map(|deck| deck.name.clone())
+        .collect();
+    let existing_card_conflicts = pkg
+        .cards
+        .iter()
+        .filter(|card| existing_card_ids.contains(&card.id))
+        .count();
 
     let mut warnings = Vec::new();
-    if pkg.version > 2 {
+    if pkg.version < CURRENT_BACKUP_VERSION {
         warnings.push(format!(
-            "Das Backup hat Version {}, aktuell unterstützt wird Version 2.",
+            "Älteres Backup-Format (Version {}) wird kompatibel importiert.",
             pkg.version
         ));
     }
@@ -108,8 +153,8 @@ pub fn inspect_backup(
         review_count: pkg.reviews.len(),
         exam_count: pkg.exams.len(),
         template_count: pkg.exam_templates.len(),
-        existing_deck_conflicts: deck_conflicts,
-        existing_card_conflicts: card_conflicts,
+        existing_deck_conflicts,
+        existing_card_conflicts,
         warnings,
     })
 }
@@ -117,38 +162,83 @@ pub fn inspect_backup(
 pub fn restore_backup(
     repo: &Repository,
     json_data: &str,
-    conflict_strategy: &str, // "overwrite" | "skip" | "merge"
+    conflict_strategy: &str,
 ) -> Result<(), CommandError> {
-    let pkg: BackupPackage = serde_json::from_str(json_data).map_err(|e| {
-        CommandError::import_failed("Ungültiges Backup-JSON Format", Some(e.to_string()))
-    })?;
+    let pkg = parse_package(json_data)?;
+    ensure_supported_version(&pkg)?;
+    let strategy = ConflictStrategy::try_from(conflict_strategy)?;
 
-    let existing_cards = repo.list_all_cards()?;
-    let existing_card_ids: HashSet<String> = existing_cards.into_iter().map(|c| c.id).collect();
+    let existing_deck_ids: HashSet<String> = repo
+        .list_all_decks()?
+        .into_iter()
+        .map(|deck| deck.id)
+        .collect();
+    let existing_card_ids: HashSet<String> = repo
+        .list_all_cards()?
+        .into_iter()
+        .map(|card| card.id)
+        .collect();
+    let existing_exam_ids: HashSet<String> = repo
+        .list_exams(true)?
+        .into_iter()
+        .map(|exam| exam.id)
+        .collect();
+    let existing_template_ids: HashSet<String> = repo
+        .list_exam_templates()?
+        .into_iter()
+        .map(|template| template.id)
+        .collect();
 
-    // Begin atomic transaction
-    repo.conn().execute_batch("BEGIN TRANSACTION;")?;
+    repo.conn().execute_batch("BEGIN IMMEDIATE;")?;
+    let result = restore_all(
+        repo,
+        &pkg,
+        strategy,
+        &existing_deck_ids,
+        &existing_card_ids,
+        &existing_exam_ids,
+        &existing_template_ids,
+    );
 
-    // 1. Decks
+    match result {
+        Ok(()) => {
+            repo.conn().execute_batch("COMMIT;")?;
+            Ok(())
+        }
+        Err(error) => {
+            let _ = repo.conn().execute_batch("ROLLBACK;");
+            Err(error)
+        }
+    }
+}
+
+fn restore_all(
+    repo: &Repository,
+    pkg: &BackupPackage,
+    strategy: ConflictStrategy,
+    existing_deck_ids: &HashSet<String>,
+    existing_card_ids: &HashSet<String>,
+    existing_exam_ids: &HashSet<String>,
+    existing_template_ids: &HashSet<String>,
+) -> Result<(), CommandError> {
     for deck in &pkg.decks {
-        if let Err(e) = repo.conn().execute(
+        if strategy == ConflictStrategy::Skip && existing_deck_ids.contains(&deck.id) {
+            continue;
+        }
+        repo.conn().execute(
             "INSERT INTO decks (id, name, archived, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5)
              ON CONFLICT(id) DO UPDATE SET name = excluded.name, archived = excluded.archived, updated_at = excluded.updated_at",
             rusqlite::params![deck.id, deck.name, deck.archived, deck.created_at, deck.updated_at],
-        ) {
-            let _ = repo.conn().execute_batch("ROLLBACK;");
-            return Err(CommandError::from(e));
-        }
+        )?;
     }
 
-    // 2. Cards
     for card in &pkg.cards {
-        let exists = existing_card_ids.contains(&card.id);
-        if exists && conflict_strategy == "skip" {
+        let existed = existing_card_ids.contains(&card.id);
+        if strategy == ConflictStrategy::Skip && existed {
             continue;
         }
 
-        if let Err(e) = repo.conn().execute(
+        repo.conn().execute(
             "INSERT INTO cards (id, deck_id, card_type, content, reasoning, front, back, front_language, back_language, created_at, updated_at)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
              ON CONFLICT(id) DO UPDATE SET
@@ -174,23 +264,16 @@ pub fn restore_backup(
                 card.created_at,
                 card.updated_at
             ],
-        ) {
-            let _ = repo.conn().execute_batch("ROLLBACK;");
-            return Err(CommandError::from(e));
-        }
-
-        // Set tags with error checking & rollback
-        if !card.tags.is_empty() {
-            if let Err(e) = repo.set_card_tags(&card.id, &card.tags) {
-                let _ = repo.conn().execute_batch("ROLLBACK;");
-                return Err(CommandError::from(e));
-            }
-        }
+        )?;
+        repo.set_card_tags(&card.id, &card.tags)?;
     }
 
-    // 3. CardStates
-    for cs in &pkg.card_states {
-        if let Err(e) = repo.conn().execute(
+    for state in &pkg.card_states {
+        let existed = existing_card_ids.contains(&state.card_id);
+        if existed && matches!(strategy, ConflictStrategy::Skip | ConflictStrategy::Merge) {
+            continue;
+        }
+        repo.conn().execute(
             "INSERT INTO card_state (card_id, interval, ease_factor, repetitions, next_review, total_reviews, correct_streak, last_review)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
              ON CONFLICT(card_id) DO UPDATE SET
@@ -202,46 +285,47 @@ pub fn restore_backup(
                correct_streak = excluded.correct_streak,
                last_review = excluded.last_review",
             rusqlite::params![
-                cs.card_id,
-                cs.interval,
-                cs.ease_factor,
-                cs.repetitions,
-                cs.next_review,
-                cs.total_reviews,
-                cs.correct_streak,
-                cs.last_review
+                state.card_id,
+                state.interval,
+                state.ease_factor,
+                state.repetitions,
+                state.next_review,
+                state.total_reviews,
+                state.correct_streak,
+                state.last_review
             ],
-        ) {
-            let _ = repo.conn().execute_batch("ROLLBACK;");
-            return Err(CommandError::from(e));
-        }
+        )?;
     }
 
-    // 4. Reviews
-    for rev in &pkg.reviews {
-        if let Err(e) = repo.conn().execute(
+    for review in &pkg.reviews {
+        if existing_card_ids.contains(&review.card_id)
+            && matches!(strategy, ConflictStrategy::Skip | ConflictStrategy::Merge)
+        {
+            continue;
+        }
+        repo.conn().execute(
             "INSERT INTO reviews (id, card_id, quality, reviewed_at, interval, ease_factor, repetitions, prev_state)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
              ON CONFLICT(id) DO NOTHING",
             rusqlite::params![
-                rev.id,
-                rev.card_id,
-                rev.quality,
-                rev.reviewed_at,
-                rev.interval,
-                rev.ease_factor,
-                rev.repetitions,
-                rev.prev_state
+                review.id,
+                review.card_id,
+                review.quality,
+                review.reviewed_at,
+                review.interval,
+                review.ease_factor,
+                review.repetitions,
+                review.prev_state
             ],
-        ) {
-            let _ = repo.conn().execute_batch("ROLLBACK;");
-            return Err(CommandError::from(e));
-        }
+        )?;
     }
 
-    // 5. Exams and their deck assignments
     for exam in &pkg.exams {
-        if let Err(e) = repo.conn().execute(
+        let existed = existing_exam_ids.contains(&exam.id);
+        if strategy == ConflictStrategy::Skip && existed {
+            continue;
+        }
+        repo.conn().execute(
             "INSERT INTO exams (id, name, exam_type, exam_date, archived, created_at)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6)
              ON CONFLICT(id) DO UPDATE SET
@@ -257,39 +341,27 @@ pub fn restore_backup(
                 exam.archived,
                 exam.created_at
             ],
-        ) {
-            let _ = repo.conn().execute_batch("ROLLBACK;");
-            return Err(CommandError::from(e));
-        }
-
-        if let Err(e) = repo.conn().execute(
+        )?;
+        repo.conn().execute(
             "DELETE FROM exam_decks WHERE exam_id = ?1",
             rusqlite::params![exam.id],
-        ) {
-            let _ = repo.conn().execute_batch("ROLLBACK;");
-            return Err(CommandError::from(e));
-        }
-
+        )?;
         for deck_id in &exam.deck_ids {
-            if let Err(e) = repo.conn().execute(
+            repo.conn().execute(
                 "INSERT INTO exam_decks (exam_id, deck_id) VALUES (?1, ?2)",
                 rusqlite::params![exam.id, deck_id],
-            ) {
-                let _ = repo.conn().execute_batch("ROLLBACK;");
-                return Err(CommandError::from(e));
-            }
+            )?;
         }
     }
 
-    // 6. ExamTemplates
-    for tmpl in &pkg.exam_templates {
-        let deck_ids_json =
-            serde_json::to_string(&tmpl.deck_ids).unwrap_or_else(|_| "[]".to_string());
-        let tags_json = serde_json::to_string(&tmpl.tags).unwrap_or_else(|_| "[]".to_string());
-        let allowed_types_json =
-            serde_json::to_string(&tmpl.allowed_card_types).unwrap_or_else(|_| "[]".to_string());
-
-        if let Err(e) = repo.conn().execute(
+    for template in &pkg.exam_templates {
+        if strategy == ConflictStrategy::Skip && existing_template_ids.contains(&template.id) {
+            continue;
+        }
+        let deck_ids_json = serde_json::to_string(&template.deck_ids)?;
+        let tags_json = serde_json::to_string(&template.tags)?;
+        let allowed_types_json = serde_json::to_string(&template.allowed_card_types)?;
+        repo.conn().execute(
             "INSERT INTO exam_templates (id, name, deck_ids_json, tags_json, allowed_types_json, question_count, time_limit_minutes, pass_percentage, seed, created_at)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
              ON CONFLICT(id) DO UPDATE SET
@@ -302,31 +374,88 @@ pub fn restore_backup(
                pass_percentage = excluded.pass_percentage,
                seed = excluded.seed",
             rusqlite::params![
-                tmpl.id,
-                tmpl.name,
+                template.id,
+                template.name,
                 deck_ids_json,
                 tags_json,
                 allowed_types_json,
-                tmpl.question_count,
-                tmpl.time_limit_minutes,
-                tmpl.pass_percentage,
-                tmpl.seed,
-                tmpl.created_at
+                template.question_count,
+                template.time_limit_minutes,
+                template.pass_percentage,
+                template.seed,
+                template.created_at
             ],
-        ) {
-            let _ = repo.conn().execute_batch("ROLLBACK;");
-            return Err(CommandError::from(e));
+        )?;
+    }
+
+    // overwrite is the only strategy that replaces local settings. Merge explicitly
+    // keeps local learning progress and local settings while backup card content wins.
+    if strategy == ConflictStrategy::Overwrite {
+        if let Some(settings) = &pkg.settings {
+            settings.save(repo)?;
         }
     }
 
-    // 7. Settings
-    if let Some(ref s) = pkg.settings {
-        if let Err(e) = s.save(repo) {
-            let _ = repo.conn().execute_batch("ROLLBACK;");
-            return Err(CommandError::from(e));
-        }
-    }
-
-    repo.conn().execute_batch("COMMIT;")?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rusqlite::Connection;
+
+    fn empty_package(version: u32) -> BackupPackage {
+        BackupPackage {
+            version,
+            exported_at: "2026-08-17T00:00:00Z".into(),
+            decks: vec![],
+            cards: vec![],
+            card_states: vec![],
+            reviews: vec![],
+            settings: None,
+            exams: vec![],
+            exam_templates: vec![],
+        }
+    }
+
+    fn test_repo() -> Repository {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch("PRAGMA foreign_keys = ON;").unwrap();
+        crate::db::migrations::run_migrations(&conn).unwrap();
+        Repository::new(conn)
+    }
+
+    #[test]
+    fn parses_all_conflict_strategies() {
+        assert_eq!(ConflictStrategy::try_from("overwrite").unwrap(), ConflictStrategy::Overwrite);
+        assert_eq!(ConflictStrategy::try_from("skip").unwrap(), ConflictStrategy::Skip);
+        assert_eq!(ConflictStrategy::try_from("merge").unwrap(), ConflictStrategy::Merge);
+    }
+
+    #[test]
+    fn rejects_unknown_conflict_strategy() {
+        assert!(ConflictStrategy::try_from("surprise").is_err());
+    }
+
+    #[test]
+    fn rejects_newer_backup_version_during_inspection() {
+        let repo = test_repo();
+        let json = serde_json::to_string(&empty_package(CURRENT_BACKUP_VERSION + 1)).unwrap();
+        assert!(inspect_backup(&repo, &json).is_err());
+    }
+
+    #[test]
+    fn rejects_newer_backup_version_during_restore() {
+        let repo = test_repo();
+        let json = serde_json::to_string(&empty_package(CURRENT_BACKUP_VERSION + 1)).unwrap();
+        assert!(restore_backup(&repo, &json, "merge").is_err());
+    }
+
+    #[test]
+    fn accepts_current_backup_version() {
+        let repo = test_repo();
+        let json = serde_json::to_string(&empty_package(CURRENT_BACKUP_VERSION)).unwrap();
+        let inspection = inspect_backup(&repo, &json).unwrap();
+        assert_eq!(inspection.package_version, CURRENT_BACKUP_VERSION);
+    }
 }

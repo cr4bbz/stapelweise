@@ -1,7 +1,7 @@
 [package]
 name = "stapelweise"
 version = "0.1.0"
-description = "Moderne Karteikarten-Lernplattform - kostenlos lokal, günstig in der Cloud"
+description = "Lokale Karteikarten-Lernanwendung - offline, frei und datensouveraen"
 authors = ["cr4bbz"]
 edition = "2021"
 

@@ -45,33 +45,62 @@ function sourceSeparator(text: string) {
   if (header === "tab" || header === "\\t") return "\t";
   if (header === "comma") return ",";
   if (header === "semicolon") return ";";
-  const firstLine = text.split(/\r?\n/, 1)[0] ?? "";
-  if (firstLine.includes("\t")) return "\t";
-  if (firstLine.includes(";")) return ";";
+  const firstDataLine = text.split(/\r?\n/).find((line) => !line.startsWith("#")) ?? "";
+  if (firstDataLine.includes("\t")) return "\t";
+  if (firstDataLine.includes(";")) return ";";
   return ",";
 }
 
-function cleanAnkiField(value: string) {
+function decodeHtmlEntitiesOnce(value: string) {
   return value
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<\/p\s*>/gi, "\n")
-    .replace(/<[^>]+>/g, "")
     .replace(/&nbsp;/gi, " ")
-    .replace(/&amp;/gi, "&")
     .replace(/&lt;/gi, "<")
     .replace(/&gt;/gi, ">")
     .replace(/&quot;/gi, '"')
-    .trim();
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&amp;/gi, "&");
+}
+
+function cleanAnkiField(value: string, html: boolean) {
+  if (!html) return value.trim();
+  return decodeHtmlEntitiesOnce(
+    value
+      .replace(/<br\s*\/?>/gi, "\n")
+      .replace(/<\/p\s*>/gi, "\n")
+      .replace(/<[^>]+>/g, "")
+  ).trim();
+}
+
+function parseTags(value: string): string[] {
+  const trimmed = value.trim();
+  if (!trimmed) return [];
+  if (trimmed.startsWith("[")) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed) && parsed.every((item) => typeof item === "string")) {
+        return parsed.map((tag) => tag.trim()).filter(Boolean);
+      }
+    } catch {
+      // Fall back to Anki's conventional whitespace-separated tag column.
+    }
+  }
+  return trimmed.split(/\s+/).map((tag) => tag.trim()).filter(Boolean);
+}
+
+function serializeTags(tags: string[]): string {
+  return tags.some((tag) => /\s/.test(tag)) ? JSON.stringify(tags) : tags.join(" ");
 }
 
 export function parseAnkiText(text: string): JsonCardInput[] {
-  const separator = sourceSeparator(text);
-  return parseDelimited(text.replace(/^\uFEFF/, ""), separator)
+  const normalized = text.replace(/^\uFEFF/, "");
+  const separator = sourceSeparator(normalized);
+  const html = /^#html:true\s*$/im.test(normalized);
+  return parseDelimited(normalized, separator)
     .filter((row) => row.length >= 2 && !row[0].trimStart().startsWith("#"))
     .map((row) => ({
-      front: cleanAnkiField(row[0]),
-      back: cleanAnkiField(row[1]),
-      tags: (row[2] ?? "").split(/\s+/).map((tag) => tag.trim()).filter(Boolean),
+      front: cleanAnkiField(row[0], html),
+      back: cleanAnkiField(row[1], html),
+      tags: parseTags(row[2] ?? ""),
     }))
     .filter((card) => card.front.length > 0 && card.back.length > 0);
 }
@@ -82,6 +111,8 @@ function quoteTsv(value: string) {
 
 export function toAnkiTsv(cards: Card[]) {
   const header = ["#separator:Tab", "#html:false", "#columns:Front\tBack\tTags", "#tags column:3"];
-  const rows = cards.map((card) => [card.front, card.back, card.tags.join(" ")].map(quoteTsv).join("\t"));
+  const rows = cards.map((card) =>
+    [card.front, card.back, serializeTags(card.tags)].map(quoteTsv).join("\t")
+  );
   return `${[...header, ...rows].join("\n")}\n`;
 }

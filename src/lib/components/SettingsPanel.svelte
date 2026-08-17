@@ -6,6 +6,7 @@
   import type { AppSettings } from "$lib/types";
   import { t, uiLanguageOptions, type UiLanguage } from "$lib/i18n";
   import IntegrationImports from "./IntegrationImports.svelte";
+  import BackupPanel from "./BackupPanel.svelte";
 
   let { onClose = () => {} } = $props<{
     onClose?: () => void;
@@ -437,6 +438,8 @@
     <section>
       <h2 class="text-sm font-semibold text-secondary uppercase tracking-wider mb-4">Datenverwaltung</h2>
       <div class="space-y-4">
+        <BackupPanel />
+
         <!-- Beispieldaten -->
         <div>
           <span class="text-sm font-medium text-primary dark:text-primary-dark">Beispieldaten</span>

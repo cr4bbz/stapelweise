@@ -29,7 +29,7 @@
    - Vollständiger Review-Verlauf und unbegrenztes Undo für Bewertungen.
 
 5. **Erweiterbarkeit & Interoperabilität**
-   - Bi-direktionale Obsidian-Vault-Synchronisation für nahtloses Wissensmanagement.
+   - Lokaler Obsidian-Import: Markdown-Dateien werden aus einem gewählten Vault gelesen; Stapelweise schreibt nicht in den Vault zurück.
    - Model Context Protocol (MCP) Servermodus für KI-gestütztes Lernen und Karteikartengenerierung.
 
 ---
