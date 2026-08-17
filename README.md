@@ -2,7 +2,7 @@
 
 Eine lokale Desktop-App zum Erstellen, Organisieren und Wiederholen von Karteikarten. Stapelweise verbindet einen anpassbaren Lernplan nach SM-2 mit einem modularen Dashboard, Rich-Content-Karten und Arbeitsablaeufen fuer Studium und Selbstlernen.
 
-Die App speichert ihre Daten lokal in SQLite. Es gibt keinen Account-Zwang und die Kernfunktionen arbeiten offline.
+Die App speichert ihre Daten lokal in SQLite. Stapelweise betreibt keine eigene Cloud und benoetigt keinen Stapelweise-Account; die Kernfunktionen arbeiten offline.
 
 ## Highlights
 
