@@ -4,6 +4,8 @@ on:
   push:
     tags:
       - "v*"
+    branches:
+      - "release/v*"
   workflow_dispatch:
 
 permissions:
@@ -14,6 +16,8 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v5
         with:
           node-version: 20
@@ -48,11 +52,49 @@ jobs:
             src-tauri/target/release/bundle/**/*.rpm
             src-tauri/target/release/bundle/**/*.AppImage
             SHA256SUMS
+      - name: Resolve release publication
+        id: release
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+            echo "tag=$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ "$GITHUB_REF_NAME" == release/v* ]]; then
+            tag="${GITHUB_REF_NAME#release/}"
+            if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null 2>&1; then
+              remote_sha="$(git ls-remote --tags origin "refs/tags/$tag" | awk '{print $1}' | head -n1)"
+              if [[ "$remote_sha" != "$GITHUB_SHA" ]]; then
+                echo "Tag $tag already exists at $remote_sha instead of $GITHUB_SHA" >&2
+                exit 1
+              fi
+            else
+              git tag "$tag" "$GITHUB_SHA"
+              git push origin "refs/tags/$tag"
+            fi
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+            echo "tag=$tag" >> "$GITHUB_OUTPUT"
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "publish=false" >> "$GITHUB_OUTPUT"
       - name: Publish GitHub Release assets
-        if: github.ref_type == 'tag'
+        if: steps.release.outputs.publish == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+          PRERELEASE: ${{ steps.release.outputs.prerelease }}
         shell: bash
         run: |
           mapfile -t files < <(find src-tauri/target/release/bundle -type f \( -name '*.deb' -o -name '*.rpm' -o -name '*.AppImage' \) -print | sort)
-          gh release create "$GITHUB_REF_NAME" "${files[@]}" SHA256SUMS --generate-notes --verify-tag
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" "${files[@]}" SHA256SUMS --clobber
+          elif [[ "$PRERELEASE" == "true" ]]; then
+            gh release create "$RELEASE_TAG" "${files[@]}" SHA256SUMS --title "Stapelweise $RELEASE_TAG" --generate-notes --verify-tag --prerelease
+          else
+            gh release create "$RELEASE_TAG" "${files[@]}" SHA256SUMS --title "Stapelweise $RELEASE_TAG" --generate-notes --verify-tag
+          fi

@@ -35,6 +35,10 @@ Der optionale MCP-Modus stellt eine lokale Schnittstelle für kompatible Assiste
 
 Der Linux-Release-Workflow erzeugt `.deb`, `.rpm` und `.AppImage` und veröffentlicht eine `SHA256SUMS`-Datei. Die Prüfsumme ermöglicht die Kontrolle, ob ein heruntergeladenes Paket unverändert ist.
 
+Konkrete Installationsschritte, Prüfbefehle und einen Minimal-Testplan für Administratoren enthält [`test-release.md`](./test-release.md).
+
+Der erste vorgesehene öffentliche Teststand ist ein Release Candidate. Er dient ausdrücklich dazu, Paketinstallation, Desktop-Laufzeit und das dokumentierte Offline-Verhalten auf einem unabhängigen Linux-System zu validieren; ein erfolgreicher CI-Lauf allein gilt dafür nicht als institutionelle Freigabe.
+
 ## Lizenz
 
 Stapelweise steht unter der MIT-Lizenz. Der Quellcode und die Lizenzbedingungen befinden sich im öffentlichen Repository.
