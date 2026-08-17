@@ -2,6 +2,8 @@ use chrono::{DateTime, Duration, Local, NaiveDate, NaiveDateTime, TimeZone, Utc}
 use rusqlite::{params, Connection, Result};
 use uuid::Uuid;
 
+use crate::srs::sm2::{Sm2Config, Sm2State};
+
 use super::models::{Card, CardState, DashboardStats, Deck, DeckStats, Review, SearchResult};
 
 pub struct Repository {
@@ -222,6 +224,15 @@ impl Repository {
         Ok(tags)
     }
 
+    fn initial_ease_factor(&self) -> Result<f64> {
+        let defaults = Sm2Config::default();
+        Ok(self
+            .get_setting("sm2_initial_ef")?
+            .and_then(|value| value.parse::<f64>().ok())
+            .unwrap_or(defaults.initial_ease_factor)
+            .clamp(defaults.min_ease_factor, 5.0))
+    }
+
     pub fn create_card(
         &self,
         deck_id: &str,
@@ -240,9 +251,22 @@ impl Repository {
             params![id, deck_id, card_type, content, reasoning, front, back, now, now],
         )?;
 
-        // Create initial card_state for this card
-        self.conn
-            .execute("INSERT INTO card_state (card_id) VALUES (?1)", params![id])?;
+        // Create the initial state from the configured SM-2 start value.
+        let sm2_config = Sm2Config {
+            initial_ease_factor: self.initial_ease_factor()?,
+            ..Sm2Config::default()
+        };
+        let initial_state = Sm2State::new(Local::now().date_naive(), &sm2_config);
+        self.conn.execute(
+            "INSERT INTO card_state (card_id, interval, ease_factor, repetitions, next_review) VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![
+                id,
+                initial_state.interval,
+                initial_state.ease_factor,
+                initial_state.repetitions,
+                initial_state.next_review.format("%Y-%m-%d").to_string(),
+            ],
+        )?;
 
         self.set_card_tags(&id, &tags)?;
 

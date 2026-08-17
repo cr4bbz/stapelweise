@@ -1,0 +1,58 @@
+name: Linux release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  linux:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf rpm libfuse2
+      - name: Rust toolchain
+        run: |
+          rustup update stable
+          rustup default stable
+      - run: npm ci
+      - run: npm run check
+      - run: npm run test
+      - name: Build Linux bundles
+        run: npm run tauri build -- --bundles deb,rpm,appimage
+      - name: Create SHA256 checksums
+        shell: bash
+        run: |
+          mapfile -t files < <(find src-tauri/target/release/bundle -type f \( -name '*.deb' -o -name '*.rpm' -o -name '*.AppImage' \) -print | sort)
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "No Linux bundle artifacts found" >&2
+            exit 1
+          fi
+          sha256sum "${files[@]}" > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stapelweise-linux
+          path: |
+            src-tauri/target/release/bundle/**/*.deb
+            src-tauri/target/release/bundle/**/*.rpm
+            src-tauri/target/release/bundle/**/*.AppImage
+            SHA256SUMS
+      - name: Publish GitHub Release assets
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          mapfile -t files < <(find src-tauri/target/release/bundle -type f \( -name '*.deb' -o -name '*.rpm' -o -name '*.AppImage' \) -print | sort)
+          gh release create "$GITHUB_REF_NAME" "${files[@]}" SHA256SUMS --generate-notes --verify-tag

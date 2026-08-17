@@ -11,7 +11,7 @@ Die App speichert ihre Daten lokal in SQLite. Es gibt keinen Account-Zwang und d
 - **Mehr als Vorderseite/Rueckseite:** Basis-, Luecken-, Multiple-Choice-, Freitext- und Reihenfolge-Karten.
 - **Rich Content:** Markdown, LaTex mit KaTeX, Bilder, Begruendungen, Tags und optionale Sprachangaben fuer Vorder- und Rueckseite.
 - **Eigenes Dashboard:** Module lassen sich verschieben, in festen responsiven Groessen anordnen, ausblenden und wieder hinzufuegen. Dazu gehoeren einzelne Stapel, Pruefungen, Lernlage, Tags, Timer, Meilensteine, Suchfeld, Einstellungen, Einzelkarten und Spacer.
-- **Organisation:** Globale Suche, Archive fuer Stapel und Pruefungen, Tags, Kartenstatistiken und Beispielinhalte fuer alle Kartentypen.
+- **Organisation:** Globale Textsuche über Vorderseite, Rückseite und Begründungen, Archive fuer Stapel und Pruefungen, Tags, Kartenstatistiken und Beispielinhalte fuer alle Kartentypen.
 - **Pruefungen:** Pruefungen mit Datum und relevanten Stapeln planen, gezielt lernen oder eine Simulation starten.
 - **Druckansicht:** Karteikarten als A4-Studentenlernblatt ausgeben. Vorder- und Rueckseite stehen passend nebeneinander.
 - **Lokalisierung und Darstellung:** Deutsch, Englisch, Spanisch, Franzoesisch und Portugiesisch sowie Light-, Dark- und abgestimmte Farbthemen.
@@ -155,6 +155,9 @@ npm run tauri build
 ```bash
 # Svelte- und TypeScript-Pruefung
 npm run check
+
+# Frontend-Tests
+npm run test
 
 # Rust-Tests
 cd src-tauri

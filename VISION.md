@@ -1,4 +1,4 @@
-# Stapelweise v1.0 – Vision & Implementierungsroadmap
+# Stapelweise – Vision
 
 ## Projektphilosophie
 
@@ -31,13 +31,13 @@ Ziel:
 
 ---
 
-## 2. Offline First
+## 2. Offline First und dauerhaft ohne eigene Cloud
 
 Die Anwendung muss vollständig ohne Internet funktionieren.
 
-Internet ist optional.
+Internet ist optional und darf nur für ausdrücklich vom Nutzer gewählte externe Integrationen benötigt werden.
 
-Nicht Voraussetzung.
+Stapelweise selbst erhält dauerhaft keine eigene Cloud-Funktion, keine verpflichtende Serverkomponente und keinen Account-Zwang. Lokale Nutzung bleibt das vollständige Produkt, nicht ein eingeschränkter Offline-Modus.
 
 ---
 
@@ -84,223 +84,10 @@ Nicht wenn sämtliche Ideen implementiert wurden.
 
 ---
 
-# Roadmap
 
----
+# Bewusste Produktgrenzen
 
-## Phase 1 – Fundament
-
-### Karten
-
-Unterstützte Kartentypen
-
-* Basic
-* Cloze
-* Multiple Choice
-* Reihenfolge
-* Freitext
-
----
-
-### Markdown
-
-Vollständige Markdown-Unterstützung
-
-* Überschriften
-* Tabellen
-* Listen
-* Codeblöcke
-* Zitate
-
----
-
-### LaTeX
-
-Vollständiges Rendering.
-
-Mathematik muss zuverlässig funktionieren.
-
----
-
-### Bilder
-
-* Bilder einfügen
-* Bilder zuschneiden
-* Bildausschnitte verwenden
-* Annotationen
-
----
-
-### Lokale Datenbank
-
-SQLite
-
-Ziel:
-
-Eine einzige robuste Datenbankdatei.
-
----
-
-### Suche
-
-Sehr leistungsfähig.
-
-Unterstützung für
-
-* Fuzzy Search
-* Tags
-* Markdown
-* LaTeX
-* Regex
-
-Die Suche soll sich wie eine Wissenssuche anfühlen.
-
----
-
-### Tags
-
-Decks bleiben möglich.
-
-Tags werden jedoch zum primären Organisationssystem.
-
-Ein Inhalt kann beliebig viele Tags besitzen.
-
----
-
-## Phase 2 – Lernen
-
-### Spaced Repetition
-
-Eigenes oder bestehendes Scheduling.
-
-Konfigurierbar.
-
----
-
-### Testmodus
-
-Nicht nur einzelne Karten.
-
-Sondern vollständige Tests.
-
-Parameter:
-
-* Zeitlimit
-* Fragenanzahl
-* Kartentypen mischen
-* Punkte
-* Ergebnisübersicht
-
-Ziel:
-
-Simulation echter Prüfungen.
-
----
-
-### Lernstatistiken
-
-Nicht Gamification.
-
-Sondern sinnvolle Lernanalyse.
-
-Beispiele:
-
-* Schwierige Themen
-* Sichere Themen
-* Wiederholungsbedarf
-* Langfristige Entwicklung
-
-Keine XP.
-
-Keine künstlichen Streaks.
-
----
-
-## Phase 3 – Integration
-
-### Obsidian-Konnektor
-
-Direkte Nutzung vorhandener Markdown-Dateien im Obsidian-Vault.
-
-Keine Kopien. Keine Synchronisationsprobleme.
-
-**Funktionsweise:**
-* Stapelweise überwacht einen ausgewählten Ordner (Vault).
-* Notizen mit bestimmten Tags (z. B. `#flashcard`) oder spezieller Formatierung (z.B. Fragen-Antwort-Blöcke) werden automatisch als Karten erkannt.
-* Der Lernfortschritt wird separat in der Stapelweise-Datenbank (SQLite) gespeichert, sodass die Obsidian-Dateien nicht mit Metadaten verschmutzt werden.
-* Der ursprüngliche Kontext der Notiz kann beim Lernen mit einem Klick eingeblendet werden.
-
----
-
-### Plugin-System
-
-Öffentliche API.
-
-Dritte sollen Erweiterungen entwickeln können.
-
----
-
-### Import
-
-Unterstützung für
-
-* Markdown
-* CSV
-* JSON
-* Anki
-
----
-
-### Export
-
-Unterstützung für
-
-* Markdown
-* CSV
-* JSON
-* PDF
-* Anki
-
----
-
-## Phase 4 – Erweiterte Funktionen
-
-### PDF-Unterstützung
-
-Text markieren
-
-↓
-
-Direkt Karte erstellen.
-
----
-
-### MCP-Unterstützung (Model Context Protocol)
-
-Anbindung **beliebiger** LLMs über das offene Model Context Protocol. Nicht auf Claude beschränkt, sondern agnostisch für alle modernen KI-Modelle (OpenAI, lokale Modelle via Ollama etc.).
-
-Stapelweise kann in zwei Rollen agieren:
-
-**1. Stapelweise als MCP-Server:**
-Externe KI-Assistenten (z. B. Claude Desktop) können auf das Wissen in Stapelweise zugreifen.
-* Nutzer können mit ihrer KI über ihren Lernfortschritt chatten.
-* Die KI kann im Auftrag des Nutzers neue Karten anlegen (z. B. "Erstelle mir Karteikarten aus meinem letzten PDF und speichere sie in Stapelweise").
-
-**2. Stapelweise als MCP-Client:**
-Einbindung lokaler oder Cloud-basierter LLMs direkt in die Lern-App.
-* "Grill me"-Modus: Die KI fragt das Wissen dialogisch ab.
-* Automatische Erstellung von "Warum?"-Erklärungen, wenn der Nutzer nicht weiterweiß.
-
-**Grenzen der KI:**
-LLMs dienen ausschließlich als Werkzeug.
-Sie ersetzen niemals den eigenen Lernprozess.
-Keine verpflichtende Cloud-Abhängigkeit – lokale Modelle haben Priorität.
-
----
-
-# Bewusst NICHT Bestandteil von Version 1
-
-Folgende Funktionen gehören ausdrücklich nicht zu v1:
+Folgende Funktionen werden dauerhaft nicht Teil des Kernprodukts:
 
 * Benutzerkonten
 * Cloud-Synchronisation

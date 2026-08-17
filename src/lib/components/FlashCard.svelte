@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
   import { settingsStore } from "$lib/stores/settings.svelte";
-  import { renderMarkdown } from "$lib/markdown";
+  import { registerImageZoom, renderMarkdown } from "$lib/markdown";
   import { languageLabel } from "$lib/languages";
 
   let {
@@ -31,6 +31,7 @@
   let zoomedImageSrc = $state<string | null>(null);
 
   onMount(() => {
+    const unregisterImageZoom = registerImageZoom(document);
     const handleZoom = (e: Event) => {
       const detail = (e as CustomEvent).detail;
       if (typeof detail === "string") {
@@ -39,6 +40,7 @@
     };
     window.addEventListener("stapelweise:zoom-image", handleZoom);
     return () => {
+      unregisterImageZoom();
       window.removeEventListener("stapelweise:zoom-image", handleZoom);
     };
   });
